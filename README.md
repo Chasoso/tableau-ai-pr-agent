@@ -1,8 +1,8 @@
-# Tableau AI PR Agent
+# Tableau AI PR Agent Extension Migration Scaffold
 
 ## English
 
-This PoC is a chat-style Tableau Dashboard Extension for Tableau Cloud. The React frontend captures dashboard context with the Tableau Extensions API, authenticates users with Cognito when enabled, and sends questions to an API Gateway + Lambda style backend.
+This repository is being prepared as the base for `tableau-ai-pr-agent`, a Tableau Dashboard Extension for AI-assisted PR and social publishing workflows. The current code still contains the chat-oriented PoC implementation, but the naming and deployment scaffold are being aligned for the new app.
 
 The backend keeps Tableau access and secrets server-side. It can switch context providers with `TABLEAU_CONTEXT_PROVIDER`:
 
