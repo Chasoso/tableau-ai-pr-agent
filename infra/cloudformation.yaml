@@ -1,0 +1,948 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Tableau Chat Assistant Extension PoC
+
+Parameters:
+  LambdaCodeS3Bucket:
+    Type: String
+    NoEcho: true
+  LambdaCodeS3Key:
+    Type: String
+    NoEcho: true
+  FrontendBucketName:
+    Type: String
+    NoEcho: true
+  CorsAllowedOrigin:
+    Type: String
+    NoEcho: true
+  TableauServerUrl:
+    Type: String
+    NoEcho: true
+  TableauSiteContentUrl:
+    Type: String
+    NoEcho: true
+    Default: ""
+  TableauApiVersion:
+    Type: String
+    Default: "3.25"
+  TableauConnectedAppClientId:
+    Type: String
+    NoEcho: true
+  TableauConnectedAppSecretId:
+    Type: String
+    NoEcho: true
+  TableauConnectedAppSecretValue:
+    Type: String
+    NoEcho: true
+  TableauDefaultSubject:
+    Type: String
+    NoEcho: true
+  TableauScopes:
+    Type: String
+    NoEcho: true
+    Default: "tableau:content:read"
+  TableauContextProvider:
+    Type: String
+    Default: "mock"
+    AllowedValues:
+      - mock
+      - direct
+      - direct-api
+      - mcp
+  AuthRequired:
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+  CognitoUserPoolId:
+    Type: String
+    NoEcho: true
+    Default: ""
+  CognitoClientId:
+    Type: String
+    NoEcho: true
+    Default: ""
+  CognitoRegion:
+    Type: String
+    Default: ""
+  CognitoDomain:
+    Type: String
+    NoEcho: true
+    Default: ""
+  CognitoPopupRedirectUri:
+    Type: String
+    NoEcho: true
+    Default: ""
+  CognitoAuthTransactionKeyParam:
+    Type: String
+    NoEcho: true
+    Default: "/tableau-chat-extension/cognito/popup-auth-key"
+  CognitoAuthTransactionTtlSeconds:
+    Type: Number
+    Default: 600
+  TableauMcpServerUrl:
+    Type: String
+    NoEcho: true
+    Default: ""
+  TableauMcpTransport:
+    Type: String
+    Default: "stdio"
+  TableauMcpAuthMode:
+    Type: String
+    Default: "direct-trust"
+  TableauMcpTimeoutMs:
+    Type: Number
+    Default: 5000
+  TableauMcpCommand:
+    Type: String
+    NoEcho: true
+    Default: ""
+  TableauMcpArgs:
+    Type: String
+    NoEcho: true
+    Default: ""
+  TableauMcpAllowedTools:
+    Type: String
+    NoEcho: true
+    Default: ""
+  TableauMcpMaxToolCalls:
+    Type: Number
+    Default: 3
+  TableauMcpDebugLogResults:
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+  TableauMcpToolPlanningEnabled:
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+  TableauMcpPlannerMaxOutputTokens:
+    Type: Number
+    Default: 600
+  ModelProvider:
+    Type: String
+    Default: "mock"
+    AllowedValues:
+      - mock
+      - bedrock
+  BedrockRegion:
+    Type: String
+    Default: "us-east-1"
+  BedrockModelId:
+    Type: String
+    Default: "us.amazon.nova-2-lite-v1:0"
+  BedrockFoundationModelId:
+    Type: String
+    Default: "amazon.nova-2-lite-v1:0"
+  BedrockMaxOutputTokens:
+    Type: Number
+    Default: 2400
+  BedrockTemperature:
+    Type: Number
+    Default: 0.2
+  ChatMemoryMessageLimit:
+    Type: Number
+    Default: 10
+  LogLevel:
+    Type: String
+    Default: "info"
+    AllowedValues:
+      - debug
+      - info
+      - warn
+      - error
+  ChatDebugMaxChars:
+    Type: Number
+    Default: 12000
+  NotionMcpEnabled:
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+  NotionMcpUrl:
+    Type: String
+    Default: "https://mcp.notion.com/mcp"
+  NotionRedirectUri:
+    Type: String
+    NoEcho: true
+    Default: ""
+  NotionTokenEncryptionKeyParam:
+    Type: String
+    NoEcho: true
+    Default: "/tableau-chat-extension/notion/token-encryption-key"
+  NotionMcpAllowedTools:
+    Type: String
+    NoEcho: true
+    Default: "notion-create-pages,notion-fetch"
+  NotionDefaultTargetParentPageId:
+    Type: String
+    NoEcho: true
+    Default: ""
+  NotionDefaultTargetDatabaseId:
+    Type: String
+    NoEcho: true
+    Default: ""
+  NotionLocalDevUserId:
+    Type: String
+    Default: "local-dev-user"
+  NotionOauthClientId:
+    Type: String
+    NoEcho: true
+    Default: ""
+  NotionOauthClientSecret:
+    Type: String
+    NoEcho: true
+    Default: ""
+
+Resources:
+  ChatHistoryTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${AWS::StackName}-chat-history"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      SSESpecification:
+        SSEEnabled: true
+
+  ChatJobsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${AWS::StackName}-chat-jobs"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: jobId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: jobId
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+      SSESpecification:
+        SSEEnabled: true
+
+  TableauMcpMetadataCacheTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${AWS::StackName}-tableau-mcp-metadata-cache"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: cacheKey
+          AttributeType: S
+      KeySchema:
+        - AttributeName: cacheKey
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+      SSESpecification:
+        SSEEnabled: true
+
+  NotionConnectionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${AWS::StackName}-notion-connections"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: connectionId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: connectionId
+          KeyType: RANGE
+      SSESpecification:
+        SSEEnabled: true
+
+  NotionOAuthStatesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${AWS::StackName}-notion-oauth-states"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: state
+          AttributeType: S
+      KeySchema:
+        - AttributeName: state
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+      SSESpecification:
+        SSEEnabled: true
+
+  CognitoAuthTransactionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${AWS::StackName}-cognito-auth-transactions"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: transactionId
+          AttributeType: S
+        - AttributeName: state
+          AttributeType: S
+      KeySchema:
+        - AttributeName: transactionId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: StateIndex
+          KeySchema:
+            - AttributeName: state
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+      SSESpecification:
+        SSEEnabled: true
+
+  BackendRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${AWS::StackName}-backend-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: backend-runtime
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - "*"
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub
+                    - "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${StackName}-chat:*"
+                    - StackName: !Ref AWS::StackName
+                  - !Sub
+                    - "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${StackName}-chat-job-worker:*"
+                    - StackName: !Ref AWS::StackName
+                  - !Sub
+                    - "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${StackName}-health:*"
+                    - StackName: !Ref AWS::StackName
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:Query
+                Resource: !GetAtt ChatHistoryTable.Arn
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                Resource: !GetAtt ChatJobsTable.Arn
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                Resource: !GetAtt TableauMcpMetadataCacheTable.Arn
+              - Effect: Allow
+                Action:
+                  - dynamodb:Query
+                Resource:
+                  - !GetAtt CognitoAuthTransactionsTable.Arn
+                  - !Sub "${CognitoAuthTransactionsTable.Arn}/index/*"
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                Resource:
+                  - !GetAtt NotionConnectionsTable.Arn
+                  - !GetAtt NotionOAuthStatesTable.Arn
+                  - !GetAtt CognitoAuthTransactionsTable.Arn
+                  - !Sub "${CognitoAuthTransactionsTable.Arn}/index/*"
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !Sub
+                    - "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${FunctionName}"
+                    - FunctionName: !Sub "${AWS::StackName}-chat-job-worker"
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${NotionTokenEncryptionKeyParam}"
+                  - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${CognitoAuthTransactionKeyParam}"
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:bedrock:${BedrockRegion}::foundation-model/${BedrockModelId}"
+                  - !Sub "arn:${AWS::Partition}:bedrock:${BedrockRegion}::foundation-model/${BedrockFoundationModelId}"
+                  # The US Nova 2 Lite inference profile can route from us-east-1 to
+                  # us-east-1, us-east-2, and us-west-2. All destination foundation
+                  # model ARNs must be permitted for cross-Region inference.
+                  - !Sub "arn:${AWS::Partition}:bedrock:us-east-1::foundation-model/${BedrockFoundationModelId}"
+                  - !Sub "arn:${AWS::Partition}:bedrock:us-east-2::foundation-model/${BedrockFoundationModelId}"
+                  - !Sub "arn:${AWS::Partition}:bedrock:us-west-2::foundation-model/${BedrockFoundationModelId}"
+                  - !Sub "arn:${AWS::Partition}:bedrock:${BedrockRegion}:${AWS::AccountId}:inference-profile/${BedrockModelId}"
+                  - !Sub "arn:${AWS::Partition}:bedrock:${BedrockRegion}::inference-profile/${BedrockModelId}"
+
+  ChatFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-chat"
+      Runtime: nodejs22.x
+      Handler: chatHandler.handler
+      Role: !GetAtt BackendRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          CHAT_HISTORY_TABLE_NAME: !Ref ChatHistoryTable
+          CHAT_JOBS_TABLE_NAME: !Ref ChatJobsTable
+          CHAT_JOB_WORKER_FUNCTION_NAME: !Ref ChatJobWorkerFunction
+          CHAT_JOB_TTL_SECONDS: "86400"
+          CHAT_JOB_LEASE_SECONDS: "120"
+          CHAT_JOB_PROGRESS_MESSAGE_LIMIT: "12"
+          CHAT_JOB_OWNER_TOKEN_HEADER_NAME: x-chat-owner-token
+          TABLEAU_MCP_METADATA_CACHE_TABLE_NAME: !Ref TableauMcpMetadataCacheTable
+          USE_IN_MEMORY_REPOSITORY: "false"
+          CORS_ALLOWED_ORIGIN: !Ref CorsAllowedOrigin
+          TABLEAU_SERVER_URL: !Ref TableauServerUrl
+          TABLEAU_SITE_CONTENT_URL: !Ref TableauSiteContentUrl
+          TABLEAU_API_VERSION: !Ref TableauApiVersion
+          TABLEAU_CONNECTED_APP_CLIENT_ID: !Ref TableauConnectedAppClientId
+          TABLEAU_CONNECTED_APP_SECRET_ID: !Ref TableauConnectedAppSecretId
+          TABLEAU_CONNECTED_APP_SECRET_VALUE: !Ref TableauConnectedAppSecretValue
+          TABLEAU_DEFAULT_SUBJECT: !Ref TableauDefaultSubject
+          TABLEAU_SCOPES: !Ref TableauScopes
+          TABLEAU_CONTEXT_PROVIDER: !Ref TableauContextProvider
+          AUTH_REQUIRED: !Ref AuthRequired
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          COGNITO_CLIENT_ID: !Ref CognitoClientId
+          COGNITO_REGION: !Ref CognitoRegion
+          COGNITO_DOMAIN: !Ref CognitoDomain
+          COGNITO_POPUP_REDIRECT_URI: !Ref CognitoPopupRedirectUri
+          COGNITO_AUTH_TRANSACTIONS_TABLE: !Ref CognitoAuthTransactionsTable
+          COGNITO_AUTH_TRANSACTION_KEY_PARAM: !Ref CognitoAuthTransactionKeyParam
+          COGNITO_AUTH_TRANSACTION_TTL_SECONDS: !Sub "${CognitoAuthTransactionTtlSeconds}"
+          TABLEAU_MCP_SERVER_URL: !Ref TableauMcpServerUrl
+          TABLEAU_MCP_TRANSPORT: !Ref TableauMcpTransport
+          TABLEAU_MCP_AUTH_MODE: !Ref TableauMcpAuthMode
+          TABLEAU_MCP_TIMEOUT_MS: !Sub "${TableauMcpTimeoutMs}"
+          TABLEAU_MCP_COMMAND: !Ref TableauMcpCommand
+          TABLEAU_MCP_ARGS: !Ref TableauMcpArgs
+          TABLEAU_MCP_ALLOWED_TOOLS: !Ref TableauMcpAllowedTools
+          TABLEAU_MCP_MAX_TOOL_CALLS: !Sub "${TableauMcpMaxToolCalls}"
+          TABLEAU_MCP_DEBUG_LOG_RESULTS: !Ref TableauMcpDebugLogResults
+          TABLEAU_MCP_TOOL_PLANNING_ENABLED: !Ref TableauMcpToolPlanningEnabled
+          TABLEAU_MCP_PLANNER_MAX_OUTPUT_TOKENS: !Sub "${TableauMcpPlannerMaxOutputTokens}"
+          MODEL_PROVIDER: !Ref ModelProvider
+          BEDROCK_REGION: !Ref BedrockRegion
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
+          BEDROCK_MAX_OUTPUT_TOKENS: !Sub "${BedrockMaxOutputTokens}"
+          BEDROCK_TEMPERATURE: !Sub "${BedrockTemperature}"
+          CHAT_MEMORY_MESSAGE_LIMIT: !Sub "${ChatMemoryMessageLimit}"
+          LOG_LEVEL: !Ref LogLevel
+          CHAT_DEBUG_MAX_CHARS: !Sub "${ChatDebugMaxChars}"
+          NOTION_MCP_ENABLED: !Ref NotionMcpEnabled
+          NOTION_MCP_URL: !Ref NotionMcpUrl
+          NOTION_REDIRECT_URI: !Ref NotionRedirectUri
+          NOTION_CONNECTIONS_TABLE: !Ref NotionConnectionsTable
+          NOTION_OAUTH_STATES_TABLE: !Ref NotionOAuthStatesTable
+          NOTION_TOKEN_ENCRYPTION_KEY_PARAM: !Ref NotionTokenEncryptionKeyParam
+          NOTION_MCP_ALLOWED_TOOLS: !Ref NotionMcpAllowedTools
+          NOTION_DEFAULT_TARGET_PARENT_PAGE_ID: !Ref NotionDefaultTargetParentPageId
+          NOTION_DEFAULT_TARGET_DATABASE_ID: !Ref NotionDefaultTargetDatabaseId
+          NOTION_LOCAL_DEV_USER_ID: !Ref NotionLocalDevUserId
+          NOTION_OAUTH_CLIENT_ID: !Ref NotionOauthClientId
+          NOTION_OAUTH_CLIENT_SECRET: !Ref NotionOauthClientSecret
+
+  ChatJobWorkerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-chat-job-worker"
+      Runtime: nodejs22.x
+      Handler: chatJobWorkerHandler.handler
+      Role: !GetAtt BackendRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      Timeout: 600
+      MemorySize: 512
+      Environment:
+        Variables:
+          CHAT_HISTORY_TABLE_NAME: !Ref ChatHistoryTable
+          CHAT_JOBS_TABLE_NAME: !Ref ChatJobsTable
+          CHAT_JOB_TTL_SECONDS: "86400"
+          CHAT_JOB_LEASE_SECONDS: "120"
+          CHAT_JOB_PROGRESS_MESSAGE_LIMIT: "12"
+          CHAT_JOB_OWNER_TOKEN_HEADER_NAME: x-chat-owner-token
+          TABLEAU_MCP_METADATA_CACHE_TABLE_NAME: !Ref TableauMcpMetadataCacheTable
+          USE_IN_MEMORY_REPOSITORY: "false"
+          TABLEAU_SERVER_URL: !Ref TableauServerUrl
+          TABLEAU_SITE_CONTENT_URL: !Ref TableauSiteContentUrl
+          TABLEAU_API_VERSION: !Ref TableauApiVersion
+          TABLEAU_CONNECTED_APP_CLIENT_ID: !Ref TableauConnectedAppClientId
+          TABLEAU_CONNECTED_APP_SECRET_ID: !Ref TableauConnectedAppSecretId
+          TABLEAU_CONNECTED_APP_SECRET_VALUE: !Ref TableauConnectedAppSecretValue
+          TABLEAU_DEFAULT_SUBJECT: !Ref TableauDefaultSubject
+          TABLEAU_SCOPES: !Ref TableauScopes
+          TABLEAU_CONTEXT_PROVIDER: !Ref TableauContextProvider
+          AUTH_REQUIRED: !Ref AuthRequired
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          COGNITO_CLIENT_ID: !Ref CognitoClientId
+          COGNITO_REGION: !Ref CognitoRegion
+          COGNITO_DOMAIN: !Ref CognitoDomain
+          COGNITO_POPUP_REDIRECT_URI: !Ref CognitoPopupRedirectUri
+          COGNITO_AUTH_TRANSACTIONS_TABLE: !Ref CognitoAuthTransactionsTable
+          COGNITO_AUTH_TRANSACTION_KEY_PARAM: !Ref CognitoAuthTransactionKeyParam
+          COGNITO_AUTH_TRANSACTION_TTL_SECONDS: !Sub "${CognitoAuthTransactionTtlSeconds}"
+          TABLEAU_MCP_SERVER_URL: !Ref TableauMcpServerUrl
+          TABLEAU_MCP_TRANSPORT: !Ref TableauMcpTransport
+          TABLEAU_MCP_AUTH_MODE: !Ref TableauMcpAuthMode
+          TABLEAU_MCP_TIMEOUT_MS: !Sub "${TableauMcpTimeoutMs}"
+          TABLEAU_MCP_COMMAND: !Ref TableauMcpCommand
+          TABLEAU_MCP_ARGS: !Ref TableauMcpArgs
+          TABLEAU_MCP_ALLOWED_TOOLS: !Ref TableauMcpAllowedTools
+          TABLEAU_MCP_MAX_TOOL_CALLS: !Sub "${TableauMcpMaxToolCalls}"
+          TABLEAU_MCP_DEBUG_LOG_RESULTS: !Ref TableauMcpDebugLogResults
+          TABLEAU_MCP_TOOL_PLANNING_ENABLED: !Ref TableauMcpToolPlanningEnabled
+          TABLEAU_MCP_PLANNER_MAX_OUTPUT_TOKENS: !Sub "${TableauMcpPlannerMaxOutputTokens}"
+          MODEL_PROVIDER: !Ref ModelProvider
+          BEDROCK_REGION: !Ref BedrockRegion
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
+          BEDROCK_MAX_OUTPUT_TOKENS: !Sub "${BedrockMaxOutputTokens}"
+          BEDROCK_TEMPERATURE: !Sub "${BedrockTemperature}"
+          CHAT_MEMORY_MESSAGE_LIMIT: !Sub "${ChatMemoryMessageLimit}"
+          LOG_LEVEL: !Ref LogLevel
+          CHAT_DEBUG_MAX_CHARS: !Sub "${ChatDebugMaxChars}"
+          NOTION_MCP_ENABLED: !Ref NotionMcpEnabled
+          NOTION_MCP_URL: !Ref NotionMcpUrl
+          NOTION_REDIRECT_URI: !Ref NotionRedirectUri
+          NOTION_CONNECTIONS_TABLE: !Ref NotionConnectionsTable
+          NOTION_OAUTH_STATES_TABLE: !Ref NotionOAuthStatesTable
+          NOTION_TOKEN_ENCRYPTION_KEY_PARAM: !Ref NotionTokenEncryptionKeyParam
+          NOTION_MCP_ALLOWED_TOOLS: !Ref NotionMcpAllowedTools
+          NOTION_DEFAULT_TARGET_PARENT_PAGE_ID: !Ref NotionDefaultTargetParentPageId
+          NOTION_DEFAULT_TARGET_DATABASE_ID: !Ref NotionDefaultTargetDatabaseId
+          NOTION_LOCAL_DEV_USER_ID: !Ref NotionLocalDevUserId
+          NOTION_OAUTH_CLIENT_ID: !Ref NotionOauthClientId
+          NOTION_OAUTH_CLIENT_SECRET: !Ref NotionOauthClientSecret
+
+  HealthFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-health"
+      Runtime: nodejs22.x
+      Handler: healthHandler.handler
+      Role: !GetAtt BackendRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      Timeout: 10
+      MemorySize: 128
+      Environment:
+        Variables:
+          CORS_ALLOWED_ORIGIN: !Ref CorsAllowedOrigin
+
+  HttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub "${AWS::StackName}-http-api"
+      ProtocolType: HTTP
+      CorsConfiguration:
+        AllowCredentials: false
+        AllowHeaders:
+          - Content-Type
+          - Authorization
+          - X-Auth-Poll-Token
+          - X-Chat-Owner-Token
+        AllowMethods:
+          - OPTIONS
+          - GET
+          - POST
+        AllowOrigins:
+          - !Ref CorsAllowedOrigin
+
+  HttpApiStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref HttpApi
+      StageName: "$default"
+      AutoDeploy: true
+
+  ChatIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt ChatFunction.Arn
+      PayloadFormatVersion: "2.0"
+
+  HealthIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt HealthFunction.Arn
+      PayloadFormatVersion: "2.0"
+
+  ChatRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "POST /chat"
+      Target: !Sub "integrations/${ChatIntegration}"
+
+  ContextRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "POST /context"
+      Target: !Sub "integrations/${ChatIntegration}"
+
+  ChatJobsCreateRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "POST /chat-jobs"
+      Target: !Sub "integrations/${ChatIntegration}"
+
+  ChatJobsGetRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "GET /chat-jobs/{jobId}"
+      Target: !Sub "integrations/${ChatIntegration}"
+
+  HealthRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "GET /health"
+      Target: !Sub "integrations/${HealthIntegration}"
+
+  NotionStatusRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "GET /notion/status"
+      Target: !Sub "integrations/${ChatIntegration}"
+
+  NotionConnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "POST /notion/connect"
+      Target: !Sub "integrations/${ChatIntegration}"
+
+  NotionCallbackRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "GET /notion/callback"
+      Target: !Sub "integrations/${ChatIntegration}"
+
+  NotionDisconnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "POST /notion/disconnect"
+      Target: !Sub "integrations/${ChatIntegration}"
+
+  NotionSettingsRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "POST /notion/settings"
+      Target: !Sub "integrations/${ChatIntegration}"
+
+  NotionCreatePostIdeaRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "POST /notion/create-post-idea"
+      Target: !Sub "integrations/${ChatIntegration}"
+
+  CognitoPopupStartRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "POST /auth/cognito/popup/start"
+      Target: !Sub "integrations/${ChatIntegration}"
+
+  CognitoPopupCallbackRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "GET /auth/cognito/callback"
+      Target: !Sub "integrations/${ChatIntegration}"
+
+  CognitoPopupStatusRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "GET /auth/cognito/popup/status"
+      Target: !Sub "integrations/${ChatIntegration}"
+
+  ChatInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ChatFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/chat"
+
+  ContextInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ChatFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/context"
+
+  ChatJobsCreateInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ChatFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/chat-jobs"
+
+  ChatJobsGetInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ChatFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/chat-jobs/*"
+
+  NotionStatusInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ChatFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/notion/status"
+
+  NotionConnectInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ChatFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/notion/connect"
+
+  NotionCallbackInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ChatFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/notion/callback"
+
+  NotionDisconnectInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ChatFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/notion/disconnect"
+
+  NotionSettingsInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ChatFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/notion/settings"
+
+  NotionCreatePostIdeaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ChatFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/notion/create-post-idea"
+
+  CognitoPopupStartInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ChatFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/auth/cognito/popup/start"
+
+  CognitoPopupCallbackInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ChatFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/auth/cognito/callback"
+
+  CognitoPopupStatusInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ChatFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/auth/cognito/popup/status"
+
+  HealthInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref HealthFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/health"
+
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref FrontendBucketName
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+  FrontendOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "${AWS::StackName}-frontend-oac"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  FrontendDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        HttpVersion: http2
+        IPV6Enabled: true
+        Origins:
+          - Id: frontend-s3-origin
+            DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            OriginAccessControlId: !Ref FrontendOriginAccessControl
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+          - Id: api-gateway-origin
+            DomainName: !Sub "${HttpApi}.execute-api.${AWS::Region}.amazonaws.com"
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols:
+                - TLSv1.2
+        DefaultCacheBehavior:
+          TargetOriginId: frontend-s3-origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachedMethods:
+            - GET
+            - HEAD
+          Compress: true
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+        CacheBehaviors:
+          - PathPattern: /api/*
+            TargetOriginId: api-gateway-origin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods:
+              - DELETE
+              - GET
+              - HEAD
+              - OPTIONS
+              - PATCH
+              - POST
+              - PUT
+            CachedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            Compress: true
+            DefaultTTL: 0
+            MaxTTL: 0
+            MinTTL: 0
+            ForwardedValues:
+              QueryString: true
+              Headers:
+                - Authorization
+                - Content-Type
+                - Origin
+              Cookies:
+                Forward: all
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt ApiPathRewriteFunction.FunctionMetadata.FunctionARN
+  ApiPathRewriteFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub "${AWS::StackName}-api-rewrite-v2"
+      AutoPublish: true
+      FunctionConfig:
+        Comment: Rewrite /api/* requests to the API Gateway default stage paths.
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          request.uri = request.uri.replace(/^\/api/, "");
+          return request;
+        }
+
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowCloudFrontRead
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub "${FrontendBucket.Arn}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${FrontendDistribution}"

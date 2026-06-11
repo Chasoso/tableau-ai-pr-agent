@@ -1,0 +1,455 @@
+name: Deploy AWS
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-aws
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    name: Quality Gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: true
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            backend/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm ci --prefix backend --no-audit --no-fund
+
+      - name: Install frontend dependencies
+        run: npm ci --prefix frontend --no-audit --no-fund
+
+      - name: Install Playwright browsers
+        run: cd frontend && npx playwright install --with-deps chromium
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests with coverage
+        run: npm run test:coverage
+
+      - name: Upload coverage artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: coverage-artifacts-deploy-workflow
+          path: |
+            backend/coverage
+            frontend/coverage
+          if-no-files-found: ignore
+
+      - name: Build
+        run: npm run build
+
+      - name: Playwright E2E
+        run: npm run test:e2e
+
+      - name: Upload Playwright artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: playwright-artifacts-deploy-workflow
+          path: |
+            frontend/playwright-report
+            frontend/test-results
+          if-no-files-found: ignore
+
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    needs: ci
+    timeout-minutes: 30
+    if: github.ref == 'refs/heads/main'
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      STACK_NAME: ${{ secrets.AWS_CFN_STACK_NAME }}
+      AWS_GHA_DEPLOY_ROLE_ARN: ${{ secrets.AWS_GHA_DEPLOY_ROLE_ARN }}
+      AWS_CFN_EXECUTION_ROLE_ARN: ${{ secrets.AWS_CFN_EXECUTION_ROLE_ARN }}
+      AWS_ARTIFACT_BUCKET: ${{ secrets.AWS_ARTIFACT_BUCKET }}
+      FRONTEND_BUCKET_NAME: ${{ secrets.FRONTEND_BUCKET_NAME }}
+      VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+      EXTENSION_SOURCE_URL: ${{ secrets.EXTENSION_SOURCE_URL }}
+      CORS_ALLOWED_ORIGIN: ${{ secrets.CORS_ALLOWED_ORIGIN }}
+      TABLEAU_SERVER_URL: ${{ secrets.TABLEAU_SERVER_URL }}
+      TABLEAU_SITE_CONTENT_URL: ${{ secrets.TABLEAU_SITE_CONTENT_URL }}
+      TABLEAU_CONNECTED_APP_CLIENT_ID: ${{ secrets.TABLEAU_CONNECTED_APP_CLIENT_ID }}
+      TABLEAU_CONNECTED_APP_SECRET_ID: ${{ secrets.TABLEAU_CONNECTED_APP_SECRET_ID }}
+      TABLEAU_CONNECTED_APP_SECRET_VALUE: ${{ secrets.TABLEAU_CONNECTED_APP_SECRET_VALUE }}
+      TABLEAU_DEFAULT_SUBJECT: ${{ secrets.TABLEAU_DEFAULT_SUBJECT }}
+      TABLEAU_API_VERSION: ${{ vars.TABLEAU_API_VERSION || '3.25' }}
+      TABLEAU_SCOPES: ${{ vars.TABLEAU_SCOPES || 'tableau:content:read' }}
+      TABLEAU_CONTEXT_PROVIDER: ${{ vars.TABLEAU_CONTEXT_PROVIDER || 'mock' }}
+      AUTH_REQUIRED: ${{ vars.AUTH_REQUIRED || 'false' }}
+      VITE_AUTH_REQUIRED: ${{ vars.AUTH_REQUIRED || 'false' }}
+      COGNITO_USER_POOL_ID: ${{ secrets.COGNITO_USER_POOL_ID }}
+      COGNITO_CLIENT_ID: ${{ secrets.COGNITO_CLIENT_ID }}
+      COGNITO_REGION: ${{ vars.COGNITO_REGION }}
+      COGNITO_DOMAIN: ${{ secrets.VITE_COGNITO_DOMAIN }}
+      COGNITO_POPUP_REDIRECT_URI: ${{ secrets.COGNITO_POPUP_REDIRECT_URI }}
+      COGNITO_AUTH_TRANSACTION_KEY_PARAM: ${{ vars.COGNITO_AUTH_TRANSACTION_KEY_PARAM || '/tableau-chat-extension/cognito/popup-auth-key' }}
+      COGNITO_AUTH_TRANSACTION_TTL_SECONDS: ${{ vars.COGNITO_AUTH_TRANSACTION_TTL_SECONDS || '600' }}
+      VITE_COGNITO_USER_POOL_ID: ${{ secrets.COGNITO_USER_POOL_ID }}
+      VITE_COGNITO_CLIENT_ID: ${{ secrets.COGNITO_CLIENT_ID }}
+      VITE_COGNITO_REGION: ${{ vars.COGNITO_REGION }}
+      VITE_COGNITO_DOMAIN: ${{ secrets.VITE_COGNITO_DOMAIN }}
+      VITE_COGNITO_REDIRECT_URI: ${{ secrets.VITE_COGNITO_REDIRECT_URI }}
+      VITE_COGNITO_LOGOUT_URI: ${{ secrets.VITE_COGNITO_LOGOUT_URI }}
+      TABLEAU_MCP_SERVER_URL: ${{ secrets.TABLEAU_MCP_SERVER_URL }}
+      TABLEAU_MCP_TRANSPORT: ${{ vars.TABLEAU_MCP_TRANSPORT || 'stdio' }}
+      TABLEAU_MCP_AUTH_MODE: ${{ vars.TABLEAU_MCP_AUTH_MODE || 'direct-trust' }}
+      TABLEAU_MCP_TIMEOUT_MS: ${{ vars.TABLEAU_MCP_TIMEOUT_MS || '5000' }}
+      TABLEAU_MCP_COMMAND: ${{ secrets.TABLEAU_MCP_COMMAND }}
+      TABLEAU_MCP_ARGS: ${{ secrets.TABLEAU_MCP_ARGS }}
+      TABLEAU_MCP_ALLOWED_TOOLS: ${{ vars.TABLEAU_MCP_ALLOWED_TOOLS || '' }}
+      TABLEAU_MCP_MAX_TOOL_CALLS: ${{ vars.TABLEAU_MCP_MAX_TOOL_CALLS || '3' }}
+      TABLEAU_MCP_DEBUG_LOG_RESULTS: ${{ vars.TABLEAU_MCP_DEBUG_LOG_RESULTS || 'false' }}
+      TABLEAU_MCP_TOOL_PLANNING_ENABLED: ${{ vars.TABLEAU_MCP_TOOL_PLANNING_ENABLED || 'false' }}
+      TABLEAU_MCP_PLANNER_MAX_OUTPUT_TOKENS: ${{ vars.TABLEAU_MCP_PLANNER_MAX_OUTPUT_TOKENS || '600' }}
+      MODEL_PROVIDER: ${{ vars.MODEL_PROVIDER || 'mock' }}
+      BEDROCK_REGION: ${{ vars.BEDROCK_REGION || 'us-east-1' }}
+      BEDROCK_MODEL_ID: ${{ vars.BEDROCK_MODEL_ID || 'us.amazon.nova-2-lite-v1:0' }}
+      BEDROCK_FOUNDATION_MODEL_ID: ${{ vars.BEDROCK_FOUNDATION_MODEL_ID || 'amazon.nova-2-lite-v1:0' }}
+      BEDROCK_MAX_OUTPUT_TOKENS: ${{ vars.BEDROCK_MAX_OUTPUT_TOKENS || '2400' }}
+      BEDROCK_TEMPERATURE: ${{ vars.BEDROCK_TEMPERATURE || '0.2' }}
+      CHAT_MEMORY_MESSAGE_LIMIT: ${{ vars.CHAT_MEMORY_MESSAGE_LIMIT || '10' }}
+      LOG_LEVEL: ${{ vars.LOG_LEVEL || 'info' }}
+      CHAT_DEBUG_MAX_CHARS: ${{ vars.CHAT_DEBUG_MAX_CHARS || '12000' }}
+      NOTION_MCP_ENABLED: ${{ vars.NOTION_MCP_ENABLED || 'false' }}
+      NOTION_MCP_URL: ${{ vars.NOTION_MCP_URL || 'https://mcp.notion.com/mcp' }}
+      NOTION_REDIRECT_URI: ${{ secrets.NOTION_REDIRECT_URI }}
+      NOTION_CONNECTIONS_TABLE: ${{ vars.NOTION_CONNECTIONS_TABLE || '' }}
+      NOTION_OAUTH_STATES_TABLE: ${{ vars.NOTION_OAUTH_STATES_TABLE || '' }}
+      NOTION_TOKEN_ENCRYPTION_KEY_PARAM: ${{ vars.NOTION_TOKEN_ENCRYPTION_KEY_PARAM || '/tableau-chat-extension/notion/token-encryption-key' }}
+      NOTION_MCP_ALLOWED_TOOLS: ${{ vars.NOTION_MCP_ALLOWED_TOOLS || 'notion-create-pages,notion-fetch' }}
+      NOTION_DEFAULT_TARGET_PARENT_PAGE_ID: ${{ secrets.NOTION_DEFAULT_TARGET_PARENT_PAGE_ID }}
+      NOTION_DEFAULT_TARGET_DATABASE_ID: ${{ secrets.NOTION_DEFAULT_TARGET_DATABASE_ID }}
+      NOTION_LOCAL_DEV_USER_ID: ${{ vars.NOTION_LOCAL_DEV_USER_ID || 'local-dev-user' }}
+      NOTION_OAUTH_CLIENT_ID: ${{ secrets.NOTION_OAUTH_CLIENT_ID }}
+      NOTION_OAUTH_CLIENT_SECRET: ${{ secrets.NOTION_OAUTH_CLIENT_SECRET }}
+
+    steps:
+      - name: Mask configured values
+        shell: bash
+        run: |
+          set -euo pipefail
+          for value in \
+            "$AWS_REGION" \
+            "$STACK_NAME" \
+            "$AWS_GHA_DEPLOY_ROLE_ARN" \
+            "$AWS_CFN_EXECUTION_ROLE_ARN" \
+            "$AWS_ARTIFACT_BUCKET" \
+            "$FRONTEND_BUCKET_NAME" \
+            "$VITE_API_BASE_URL" \
+            "$EXTENSION_SOURCE_URL" \
+            "$CORS_ALLOWED_ORIGIN" \
+            "$TABLEAU_SERVER_URL" \
+            "$TABLEAU_SITE_CONTENT_URL" \
+            "$TABLEAU_CONNECTED_APP_CLIENT_ID" \
+            "$TABLEAU_CONNECTED_APP_SECRET_ID" \
+            "$TABLEAU_CONNECTED_APP_SECRET_VALUE" \
+            "$TABLEAU_DEFAULT_SUBJECT" \
+            "$TABLEAU_API_VERSION" \
+            "$TABLEAU_SCOPES" \
+            "$TABLEAU_CONTEXT_PROVIDER" \
+            "$AUTH_REQUIRED" \
+            "$VITE_AUTH_REQUIRED" \
+            "$COGNITO_USER_POOL_ID" \
+            "$COGNITO_CLIENT_ID" \
+            "$COGNITO_REGION" \
+            "$COGNITO_DOMAIN" \
+            "$COGNITO_POPUP_REDIRECT_URI" \
+            "$COGNITO_AUTH_TRANSACTION_KEY_PARAM" \
+            "$COGNITO_AUTH_TRANSACTION_TTL_SECONDS" \
+            "$VITE_COGNITO_DOMAIN" \
+            "$VITE_COGNITO_REDIRECT_URI" \
+            "$VITE_COGNITO_LOGOUT_URI" \
+            "$TABLEAU_MCP_SERVER_URL" \
+            "$TABLEAU_MCP_TRANSPORT" \
+            "$TABLEAU_MCP_AUTH_MODE" \
+            "$TABLEAU_MCP_TIMEOUT_MS" \
+            "$TABLEAU_MCP_COMMAND" \
+            "$TABLEAU_MCP_ARGS" \
+            "$TABLEAU_MCP_ALLOWED_TOOLS" \
+            "$TABLEAU_MCP_MAX_TOOL_CALLS" \
+            "$TABLEAU_MCP_DEBUG_LOG_RESULTS" \
+            "$TABLEAU_MCP_TOOL_PLANNING_ENABLED" \
+            "$TABLEAU_MCP_PLANNER_MAX_OUTPUT_TOKENS" \
+            "$MODEL_PROVIDER" \
+            "$BEDROCK_REGION" \
+            "$BEDROCK_MODEL_ID" \
+            "$BEDROCK_FOUNDATION_MODEL_ID" \
+            "$BEDROCK_MAX_OUTPUT_TOKENS" \
+            "$BEDROCK_TEMPERATURE" \
+            "$CHAT_MEMORY_MESSAGE_LIMIT" \
+            "$LOG_LEVEL" \
+            "$CHAT_DEBUG_MAX_CHARS" \
+            "$NOTION_MCP_ENABLED" \
+            "$NOTION_MCP_URL" \
+            "$NOTION_REDIRECT_URI" \
+            "$NOTION_TOKEN_ENCRYPTION_KEY_PARAM" \
+            "$NOTION_MCP_ALLOWED_TOOLS" \
+            "$NOTION_DEFAULT_TARGET_PARENT_PAGE_ID" \
+            "$NOTION_DEFAULT_TARGET_DATABASE_ID" \
+            "$NOTION_LOCAL_DEV_USER_ID" \
+            "$NOTION_OAUTH_CLIENT_ID" \
+            "$NOTION_OAUTH_CLIENT_SECRET"; do
+            if [ -n "${value:-}" ]; then
+              echo "::add-mask::$value"
+            fi
+          done
+
+      - name: Validate required deployment settings
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            AWS_REGION
+            STACK_NAME
+            AWS_GHA_DEPLOY_ROLE_ARN
+            AWS_CFN_EXECUTION_ROLE_ARN
+            AWS_ARTIFACT_BUCKET
+            FRONTEND_BUCKET_NAME
+            VITE_API_BASE_URL
+            EXTENSION_SOURCE_URL
+            CORS_ALLOWED_ORIGIN
+            TABLEAU_SERVER_URL
+            TABLEAU_CONNECTED_APP_CLIENT_ID
+            TABLEAU_CONNECTED_APP_SECRET_ID
+            TABLEAU_CONNECTED_APP_SECRET_VALUE
+            TABLEAU_DEFAULT_SUBJECT
+          )
+          for name in "${required[@]}"; do
+            if [ -z "${!name:-}" ]; then
+              echo "A required deployment setting is missing."
+              exit 1
+            fi
+          done
+          if [ "$AUTH_REQUIRED" = "true" ]; then
+            auth_required_settings=(
+              COGNITO_USER_POOL_ID
+              COGNITO_CLIENT_ID
+              COGNITO_REGION
+              COGNITO_DOMAIN
+              COGNITO_POPUP_REDIRECT_URI
+              VITE_COGNITO_DOMAIN
+              VITE_COGNITO_REDIRECT_URI
+            )
+            for name in "${auth_required_settings[@]}"; do
+              if [ -z "${!name:-}" ]; then
+                echo "A required authentication setting is missing."
+                exit 1
+              fi
+            done
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            backend/package-lock.json
+
+      - name: Install and test backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --prefix backend --no-audit --no-fund
+          npm run typecheck --prefix backend
+          npm test --prefix backend
+          npm run build:lambda --prefix backend
+
+      - name: Package backend artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf backend/lambda-package backend/lambda-artifact.zip
+          mkdir -p backend/lambda-package
+          cp -R backend/dist-lambda/. backend/lambda-package/
+          cp backend/package.json backend/package-lock.json backend/lambda-package/
+          npm ci --prefix backend/lambda-package --omit=dev --no-audit --no-fund
+          (
+            cd backend/lambda-package
+            zip -q -r ../lambda-artifact.zip .
+          )
+
+      - name: Install and build frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --prefix frontend --no-audit --no-fund
+          npm run typecheck --prefix frontend
+          npm run build --prefix frontend
+          node frontend/scripts/update-trex-url.mjs frontend/dist/tableau-chat-extension.trex
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_GHA_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          mask-aws-account-id: true
+          unset-current-credentials: true
+
+      - name: Upload backend artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          LAMBDA_CODE_KEY="tableau-chat-extension/${GITHUB_SHA}/backend.zip"
+          echo "::add-mask::$LAMBDA_CODE_KEY"
+          echo "LAMBDA_CODE_KEY=$LAMBDA_CODE_KEY" >> "$GITHUB_ENV"
+          aws s3 cp backend/lambda-artifact.zip "s3://${AWS_ARTIFACT_BUCKET}/${LAMBDA_CODE_KEY}" \
+            --no-progress \
+            --only-show-errors
+
+      - name: Deploy infrastructure
+        id: deploy_infrastructure
+        shell: bash
+        run: |
+          set -euo pipefail
+          show_stack_failure_events() {
+            set +e
+            echo "CloudFormation failed. Showing sanitized failure events."
+            aws cloudformation describe-stack-events \
+              --stack-name "$STACK_NAME" \
+              --max-items 30 \
+              --output json \
+              | jq -r '
+                .StackEvents[]
+                | select(.ResourceStatus | test("FAILED$"))
+                | [
+                    .Timestamp,
+                    .LogicalResourceId,
+                    .ResourceType,
+                    .ResourceStatus,
+                    (.ResourceStatusReason // "No reason provided")
+                  ]
+                | @tsv
+              ' \
+              | sed -E \
+                -e 's/[0-9]{12}/<account-id>/g' \
+                -e 's#arn:aws[a-zA-Z-]*:[^[:space:]]+#<aws-arn>#g' \
+                -e 's#[a-z0-9.-]+\.cloudfront\.net#<cloudfront-domain>#g' \
+                -e 's#[a-z0-9]+\.execute-api\.[a-z0-9-]+\.amazonaws\.com#<api-gateway-domain>#g' \
+                -e 's#https://[^[:space:]]+#<url>#g' \
+                -e 's#s3://[^[:space:]]+#s3://<bucket-or-key>#g'
+            set -e
+          }
+          trap 'status=$?; show_stack_failure_events || true; exit "$status"' ERR
+
+          aws cloudformation deploy \
+            --template-file infra/cloudformation.yaml \
+            --stack-name "$STACK_NAME" \
+            --role-arn "$AWS_CFN_EXECUTION_ROLE_ARN" \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides \
+              LambdaCodeS3Bucket="$AWS_ARTIFACT_BUCKET" \
+              LambdaCodeS3Key="$LAMBDA_CODE_KEY" \
+              FrontendBucketName="$FRONTEND_BUCKET_NAME" \
+              CorsAllowedOrigin="$CORS_ALLOWED_ORIGIN" \
+              TableauServerUrl="$TABLEAU_SERVER_URL" \
+              TableauSiteContentUrl="$TABLEAU_SITE_CONTENT_URL" \
+              TableauApiVersion="$TABLEAU_API_VERSION" \
+              TableauConnectedAppClientId="$TABLEAU_CONNECTED_APP_CLIENT_ID" \
+              TableauConnectedAppSecretId="$TABLEAU_CONNECTED_APP_SECRET_ID" \
+              TableauConnectedAppSecretValue="$TABLEAU_CONNECTED_APP_SECRET_VALUE" \
+              TableauDefaultSubject="$TABLEAU_DEFAULT_SUBJECT" \
+              TableauScopes="$TABLEAU_SCOPES" \
+              TableauContextProvider="$TABLEAU_CONTEXT_PROVIDER" \
+              AuthRequired="$AUTH_REQUIRED" \
+              CognitoUserPoolId="$COGNITO_USER_POOL_ID" \
+              CognitoClientId="$COGNITO_CLIENT_ID" \
+              CognitoRegion="$COGNITO_REGION" \
+              CognitoDomain="$COGNITO_DOMAIN" \
+              CognitoPopupRedirectUri="$COGNITO_POPUP_REDIRECT_URI" \
+              CognitoAuthTransactionKeyParam="$COGNITO_AUTH_TRANSACTION_KEY_PARAM" \
+              CognitoAuthTransactionTtlSeconds="$COGNITO_AUTH_TRANSACTION_TTL_SECONDS" \
+              TableauMcpServerUrl="$TABLEAU_MCP_SERVER_URL" \
+              TableauMcpTransport="$TABLEAU_MCP_TRANSPORT" \
+              TableauMcpAuthMode="$TABLEAU_MCP_AUTH_MODE" \
+              TableauMcpTimeoutMs="$TABLEAU_MCP_TIMEOUT_MS" \
+              TableauMcpCommand="$TABLEAU_MCP_COMMAND" \
+              TableauMcpArgs="$TABLEAU_MCP_ARGS" \
+              TableauMcpAllowedTools="$TABLEAU_MCP_ALLOWED_TOOLS" \
+              TableauMcpMaxToolCalls="$TABLEAU_MCP_MAX_TOOL_CALLS" \
+              TableauMcpDebugLogResults="$TABLEAU_MCP_DEBUG_LOG_RESULTS" \
+              TableauMcpToolPlanningEnabled="$TABLEAU_MCP_TOOL_PLANNING_ENABLED" \
+              TableauMcpPlannerMaxOutputTokens="$TABLEAU_MCP_PLANNER_MAX_OUTPUT_TOKENS" \
+              ModelProvider="$MODEL_PROVIDER" \
+              BedrockRegion="$BEDROCK_REGION" \
+              BedrockModelId="$BEDROCK_MODEL_ID" \
+              BedrockFoundationModelId="$BEDROCK_FOUNDATION_MODEL_ID" \
+              BedrockMaxOutputTokens="$BEDROCK_MAX_OUTPUT_TOKENS" \
+              BedrockTemperature="$BEDROCK_TEMPERATURE" \
+              ChatMemoryMessageLimit="$CHAT_MEMORY_MESSAGE_LIMIT" \
+              LogLevel="$LOG_LEVEL" \
+              ChatDebugMaxChars="$CHAT_DEBUG_MAX_CHARS" \
+              NotionMcpEnabled="$NOTION_MCP_ENABLED" \
+              NotionMcpUrl="$NOTION_MCP_URL" \
+              NotionRedirectUri="$NOTION_REDIRECT_URI" \
+              NotionTokenEncryptionKeyParam="$NOTION_TOKEN_ENCRYPTION_KEY_PARAM" \
+              NotionMcpAllowedTools="$NOTION_MCP_ALLOWED_TOOLS" \
+              NotionDefaultTargetParentPageId="$NOTION_DEFAULT_TARGET_PARENT_PAGE_ID" \
+              NotionDefaultTargetDatabaseId="$NOTION_DEFAULT_TARGET_DATABASE_ID" \
+              NotionLocalDevUserId="$NOTION_LOCAL_DEV_USER_ID" \
+              NotionOauthClientId="$NOTION_OAUTH_CLIENT_ID" \
+              NotionOauthClientSecret="$NOTION_OAUTH_CLIENT_SECRET"
+
+      - name: Upload frontend and invalidate cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          DISTRIBUTION_ID="$(aws cloudformation describe-stack-resource \
+            --stack-name "$STACK_NAME" \
+            --logical-resource-id FrontendDistribution \
+            --query 'StackResourceDetail.PhysicalResourceId' \
+            --output text)"
+          echo "::add-mask::$DISTRIBUTION_ID"
+          aws s3 sync frontend/dist/assets "s3://${FRONTEND_BUCKET_NAME}/assets" \
+            --no-progress \
+            --only-show-errors \
+            --cache-control "public, max-age=31536000, immutable"
+          aws s3 cp frontend/dist/index.html "s3://${FRONTEND_BUCKET_NAME}/index.html" \
+            --no-progress \
+            --only-show-errors \
+            --cache-control "no-cache, no-store, must-revalidate"
+          aws s3 cp frontend/dist/tableau-chat-extension.trex "s3://${FRONTEND_BUCKET_NAME}/tableau-chat-extension.trex" \
+            --no-progress \
+            --only-show-errors \
+            --cache-control "no-cache, no-store, must-revalidate"
+          aws cloudfront create-invalidation \
+            --distribution-id "$DISTRIBUTION_ID" \
+            --paths "/" "/index.html" "/tableau-chat-extension.trex" \
+            --output json > /dev/null
+
+      - name: Deployment completed
+        run: echo "Deployment completed. URLs and account-specific identifiers are intentionally not printed."

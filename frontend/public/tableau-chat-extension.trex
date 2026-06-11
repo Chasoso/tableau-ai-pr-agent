@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest manifest-version="0.1" xmlns="http://www.tableau.com/xml/extension_manifest">
+  <dashboard-extension id="com.example.tableau-chat-assistant" extension-version="0.1.0">
+    <default-locale>en_US</default-locale>
+    <name resource-id="name"/>
+    <description>A dashboard extension that lets users ask questions about the current Tableau dashboard.</description>
+    <author name="PoC Team" email="admin@example.com" organization="Example" website="https://example.com"/>
+    <min-api-version>1.10</min-api-version>
+    <source-location>
+      <url>http://localhost:5173/</url>
+    </source-location>
+    <icon>iVBORw0KGgoAAAANSUhEUgAAAEYAAABGCAYAAABxLuKEAAABJUlEQVR4nO3QwRFCQQgD0F+DfdmM/c+sBTjqfggE2BxyTvKutdalfIY+oGroA6qGPqBq6AOqhj6gatILH8/XsmYcjAeDhdQKIxOpPUoUTnuQKKBRKEicUSBIoLEoXpzRKB6c8ShWnCNQLDiCQcCwj2XiHIVyB0cwHhj2EQbOkSg7OIIRDBCGPZyJIxjBgGDYg9k4ghGMYAQjGMEIplQEIxjBCEYwgqkTwSBgTsH59l0wggHCTMf59VswggHDTMX593kLZhrOzl/BeGGm4Ox+vQXTHefOT8GgYLri3P1ogumGY/lnhumCY/3mgqmO4/nlhqkIhPgDg6mCg/oChWECoT+EwGTjROwPg4lGit6cAoNCytyZDtMl9AFVQx9QNfQBVUMfUDVvf1pOZNFcMacAAAAASUVORK5CYII=</icon>
+    <permissions>
+      <permission>full data</permission>
+    </permissions>
+  </dashboard-extension>
+  <resources>
+    <resource id="name">
+      <text locale="en_US">Tableau Chat Assistant</text>
+    </resource>
+  </resources>
+</manifest>

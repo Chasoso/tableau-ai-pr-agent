@@ -1,0 +1,10 @@
+node_modules/
+dist/
+dist-lambda/
+coverage/
+frontend/.vite/
+frontend/playwright-report/
+frontend/test-results/
+frontend/e2e/*.spec.ts-snapshots/
+backend/cdk.out/
+backend/.serverless/

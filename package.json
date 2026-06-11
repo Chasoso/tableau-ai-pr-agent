@@ -1,0 +1,16 @@
+{
+  "name": "tableau-ai-pr-agent",
+  "private": true,
+  "scripts": {
+    "lint": "npm --prefix backend run lint && npm --prefix frontend run lint",
+    "typecheck": "npm --prefix backend run typecheck && npm --prefix frontend run typecheck",
+    "test": "npm run test:unit",
+    "test:coverage": "npm run test:coverage:backend && npm run test:coverage:frontend",
+    "test:coverage:backend": "npm --prefix backend run test:coverage",
+    "test:coverage:frontend": "npm --prefix frontend run test:coverage",
+    "test:unit": "npm --prefix backend run test:unit && npm --prefix frontend run test:unit",
+    "test:e2e": "npm --prefix frontend run test:e2e",
+    "build": "npm --prefix backend run build && npm --prefix backend run build:lambda && npm --prefix frontend run build",
+    "ci": "npm run lint && npm run typecheck && npm run test:coverage && npm run build && npm run test:e2e"
+  }
+}
