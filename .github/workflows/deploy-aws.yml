@@ -87,44 +87,44 @@ jobs:
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       AWS_REGION: ${{ vars.AWS_REGION }}
-      STACK_NAME: ${{ secrets.AWS_CFN_STACK_NAME }}
+      STACK_NAME: ${{ vars.AWS_CFN_STACK_NAME || vars.STACK_NAME || secrets.AWS_CFN_STACK_NAME }}
       AWS_GHA_DEPLOY_ROLE_ARN: ${{ secrets.AWS_GHA_DEPLOY_ROLE_ARN }}
       AWS_CFN_EXECUTION_ROLE_ARN: ${{ secrets.AWS_CFN_EXECUTION_ROLE_ARN }}
-      AWS_ARTIFACT_BUCKET: ${{ secrets.AWS_ARTIFACT_BUCKET }}
-      FRONTEND_BUCKET_NAME: ${{ secrets.FRONTEND_BUCKET_NAME }}
-      VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
-      EXTENSION_SOURCE_URL: ${{ secrets.EXTENSION_SOURCE_URL }}
-      CORS_ALLOWED_ORIGIN: ${{ secrets.CORS_ALLOWED_ORIGIN }}
-      TABLEAU_SERVER_URL: ${{ secrets.TABLEAU_SERVER_URL }}
-      TABLEAU_SITE_CONTENT_URL: ${{ secrets.TABLEAU_SITE_CONTENT_URL }}
-      TABLEAU_CONNECTED_APP_CLIENT_ID: ${{ secrets.TABLEAU_CONNECTED_APP_CLIENT_ID }}
-      TABLEAU_CONNECTED_APP_SECRET_ID: ${{ secrets.TABLEAU_CONNECTED_APP_SECRET_ID }}
+      AWS_ARTIFACT_BUCKET: ${{ vars.AWS_ARTIFACT_BUCKET || secrets.AWS_ARTIFACT_BUCKET }}
+      FRONTEND_BUCKET_NAME: ${{ vars.FRONTEND_BUCKET_NAME || secrets.FRONTEND_BUCKET_NAME }}
+      VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || '/api' }}
+      EXTENSION_SOURCE_URL: ${{ vars.EXTENSION_SOURCE_URL || secrets.EXTENSION_SOURCE_URL }}
+      CORS_ALLOWED_ORIGIN: ${{ vars.CORS_ALLOWED_ORIGIN || '*' }}
+      TABLEAU_SERVER_URL: ${{ vars.TABLEAU_SERVER_URL || secrets.TABLEAU_SERVER_URL }}
+      TABLEAU_SITE_CONTENT_URL: ${{ vars.TABLEAU_SITE_CONTENT_URL || secrets.TABLEAU_SITE_CONTENT_URL }}
+      TABLEAU_CONNECTED_APP_CLIENT_ID: ${{ vars.TABLEAU_CONNECTED_APP_CLIENT_ID || secrets.TABLEAU_CONNECTED_APP_CLIENT_ID }}
+      TABLEAU_CONNECTED_APP_SECRET_ID: ${{ vars.TABLEAU_CONNECTED_APP_SECRET_ID || secrets.TABLEAU_CONNECTED_APP_SECRET_ID }}
       TABLEAU_CONNECTED_APP_SECRET_VALUE: ${{ secrets.TABLEAU_CONNECTED_APP_SECRET_VALUE }}
-      TABLEAU_DEFAULT_SUBJECT: ${{ secrets.TABLEAU_DEFAULT_SUBJECT }}
+      TABLEAU_DEFAULT_SUBJECT: ${{ vars.TABLEAU_DEFAULT_SUBJECT || secrets.TABLEAU_DEFAULT_SUBJECT }}
       TABLEAU_API_VERSION: ${{ vars.TABLEAU_API_VERSION || '3.25' }}
       TABLEAU_SCOPES: ${{ vars.TABLEAU_SCOPES || 'tableau:content:read' }}
       TABLEAU_CONTEXT_PROVIDER: ${{ vars.TABLEAU_CONTEXT_PROVIDER || 'mock' }}
       AUTH_REQUIRED: ${{ vars.AUTH_REQUIRED || 'false' }}
       VITE_AUTH_REQUIRED: ${{ vars.AUTH_REQUIRED || 'false' }}
-      COGNITO_USER_POOL_ID: ${{ secrets.COGNITO_USER_POOL_ID }}
-      COGNITO_CLIENT_ID: ${{ secrets.COGNITO_CLIENT_ID }}
-      COGNITO_REGION: ${{ vars.COGNITO_REGION }}
-      COGNITO_DOMAIN: ${{ secrets.VITE_COGNITO_DOMAIN }}
-      COGNITO_POPUP_REDIRECT_URI: ${{ secrets.COGNITO_POPUP_REDIRECT_URI }}
+      COGNITO_USER_POOL_ID: ${{ vars.COGNITO_USER_POOL_ID || vars.VITE_COGNITO_USER_POOL_ID || secrets.COGNITO_USER_POOL_ID }}
+      COGNITO_CLIENT_ID: ${{ vars.COGNITO_CLIENT_ID || vars.VITE_COGNITO_CLIENT_ID || secrets.COGNITO_CLIENT_ID }}
+      COGNITO_REGION: ${{ vars.COGNITO_REGION || vars.VITE_COGNITO_REGION || secrets.COGNITO_REGION }}
+      COGNITO_DOMAIN: ${{ vars.COGNITO_DOMAIN || vars.VITE_COGNITO_DOMAIN || secrets.VITE_COGNITO_DOMAIN || secrets.COGNITO_DOMAIN }}
+      COGNITO_POPUP_REDIRECT_URI: ${{ vars.COGNITO_POPUP_REDIRECT_URI || secrets.COGNITO_POPUP_REDIRECT_URI }}
       COGNITO_AUTH_TRANSACTION_KEY_PARAM: ${{ vars.COGNITO_AUTH_TRANSACTION_KEY_PARAM || '/tableau-chat-extension/cognito/popup-auth-key' }}
       COGNITO_AUTH_TRANSACTION_TTL_SECONDS: ${{ vars.COGNITO_AUTH_TRANSACTION_TTL_SECONDS || '600' }}
-      VITE_COGNITO_USER_POOL_ID: ${{ secrets.COGNITO_USER_POOL_ID }}
-      VITE_COGNITO_CLIENT_ID: ${{ secrets.COGNITO_CLIENT_ID }}
-      VITE_COGNITO_REGION: ${{ vars.COGNITO_REGION }}
-      VITE_COGNITO_DOMAIN: ${{ secrets.VITE_COGNITO_DOMAIN }}
-      VITE_COGNITO_REDIRECT_URI: ${{ secrets.VITE_COGNITO_REDIRECT_URI }}
-      VITE_COGNITO_LOGOUT_URI: ${{ secrets.VITE_COGNITO_LOGOUT_URI }}
-      TABLEAU_MCP_SERVER_URL: ${{ secrets.TABLEAU_MCP_SERVER_URL }}
+      VITE_COGNITO_USER_POOL_ID: ${{ vars.VITE_COGNITO_USER_POOL_ID || vars.COGNITO_USER_POOL_ID || secrets.COGNITO_USER_POOL_ID }}
+      VITE_COGNITO_CLIENT_ID: ${{ vars.VITE_COGNITO_CLIENT_ID || vars.COGNITO_CLIENT_ID || secrets.COGNITO_CLIENT_ID }}
+      VITE_COGNITO_REGION: ${{ vars.VITE_COGNITO_REGION || vars.COGNITO_REGION || secrets.COGNITO_REGION }}
+      VITE_COGNITO_DOMAIN: ${{ vars.VITE_COGNITO_DOMAIN || vars.COGNITO_DOMAIN || secrets.VITE_COGNITO_DOMAIN || secrets.COGNITO_DOMAIN }}
+      VITE_COGNITO_REDIRECT_URI: ${{ vars.VITE_COGNITO_REDIRECT_URI || secrets.VITE_COGNITO_REDIRECT_URI }}
+      VITE_COGNITO_LOGOUT_URI: ${{ vars.VITE_COGNITO_LOGOUT_URI || secrets.VITE_COGNITO_LOGOUT_URI }}
+      TABLEAU_MCP_SERVER_URL: ${{ vars.TABLEAU_MCP_SERVER_URL || secrets.TABLEAU_MCP_SERVER_URL }}
       TABLEAU_MCP_TRANSPORT: ${{ vars.TABLEAU_MCP_TRANSPORT || 'stdio' }}
       TABLEAU_MCP_AUTH_MODE: ${{ vars.TABLEAU_MCP_AUTH_MODE || 'direct-trust' }}
       TABLEAU_MCP_TIMEOUT_MS: ${{ vars.TABLEAU_MCP_TIMEOUT_MS || '5000' }}
-      TABLEAU_MCP_COMMAND: ${{ secrets.TABLEAU_MCP_COMMAND }}
-      TABLEAU_MCP_ARGS: ${{ secrets.TABLEAU_MCP_ARGS }}
+      TABLEAU_MCP_COMMAND: ${{ vars.TABLEAU_MCP_COMMAND || secrets.TABLEAU_MCP_COMMAND }}
+      TABLEAU_MCP_ARGS: ${{ vars.TABLEAU_MCP_ARGS || secrets.TABLEAU_MCP_ARGS }}
       TABLEAU_MCP_ALLOWED_TOOLS: ${{ vars.TABLEAU_MCP_ALLOWED_TOOLS || '' }}
       TABLEAU_MCP_MAX_TOOL_CALLS: ${{ vars.TABLEAU_MCP_MAX_TOOL_CALLS || '3' }}
       TABLEAU_MCP_DEBUG_LOG_RESULTS: ${{ vars.TABLEAU_MCP_DEBUG_LOG_RESULTS || 'false' }}
@@ -141,15 +141,15 @@ jobs:
       CHAT_DEBUG_MAX_CHARS: ${{ vars.CHAT_DEBUG_MAX_CHARS || '12000' }}
       NOTION_MCP_ENABLED: ${{ vars.NOTION_MCP_ENABLED || 'false' }}
       NOTION_MCP_URL: ${{ vars.NOTION_MCP_URL || 'https://mcp.notion.com/mcp' }}
-      NOTION_REDIRECT_URI: ${{ secrets.NOTION_REDIRECT_URI }}
+      NOTION_REDIRECT_URI: ${{ vars.NOTION_REDIRECT_URI || secrets.NOTION_REDIRECT_URI }}
       NOTION_CONNECTIONS_TABLE: ${{ vars.NOTION_CONNECTIONS_TABLE || '' }}
       NOTION_OAUTH_STATES_TABLE: ${{ vars.NOTION_OAUTH_STATES_TABLE || '' }}
       NOTION_TOKEN_ENCRYPTION_KEY_PARAM: ${{ vars.NOTION_TOKEN_ENCRYPTION_KEY_PARAM || '/tableau-chat-extension/notion/token-encryption-key' }}
       NOTION_MCP_ALLOWED_TOOLS: ${{ vars.NOTION_MCP_ALLOWED_TOOLS || 'notion-create-pages,notion-fetch' }}
-      NOTION_DEFAULT_TARGET_PARENT_PAGE_ID: ${{ secrets.NOTION_DEFAULT_TARGET_PARENT_PAGE_ID }}
-      NOTION_DEFAULT_TARGET_DATABASE_ID: ${{ secrets.NOTION_DEFAULT_TARGET_DATABASE_ID }}
+      NOTION_DEFAULT_TARGET_PARENT_PAGE_ID: ${{ vars.NOTION_DEFAULT_TARGET_PARENT_PAGE_ID || secrets.NOTION_DEFAULT_TARGET_PARENT_PAGE_ID }}
+      NOTION_DEFAULT_TARGET_DATABASE_ID: ${{ vars.NOTION_DEFAULT_TARGET_DATABASE_ID || secrets.NOTION_DEFAULT_TARGET_DATABASE_ID }}
       NOTION_LOCAL_DEV_USER_ID: ${{ vars.NOTION_LOCAL_DEV_USER_ID || 'local-dev-user' }}
-      NOTION_OAUTH_CLIENT_ID: ${{ secrets.NOTION_OAUTH_CLIENT_ID }}
+      NOTION_OAUTH_CLIENT_ID: ${{ vars.NOTION_OAUTH_CLIENT_ID || secrets.NOTION_OAUTH_CLIENT_ID }}
       NOTION_OAUTH_CLIENT_SECRET: ${{ secrets.NOTION_OAUTH_CLIENT_SECRET }}
 
     steps:
@@ -227,6 +227,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          require_setting() {
+            local name="$1"
+            if [ -z "${!name:-}" ]; then
+              echo "A required deployment setting is missing: $name"
+              exit 1
+            fi
+          }
+
           required=(
             AWS_REGION
             STACK_NAME
@@ -234,9 +242,6 @@ jobs:
             AWS_CFN_EXECUTION_ROLE_ARN
             AWS_ARTIFACT_BUCKET
             FRONTEND_BUCKET_NAME
-            VITE_API_BASE_URL
-            EXTENSION_SOURCE_URL
-            CORS_ALLOWED_ORIGIN
             TABLEAU_SERVER_URL
             TABLEAU_CONNECTED_APP_CLIENT_ID
             TABLEAU_CONNECTED_APP_SECRET_ID
@@ -244,10 +249,7 @@ jobs:
             TABLEAU_DEFAULT_SUBJECT
           )
           for name in "${required[@]}"; do
-            if [ -z "${!name:-}" ]; then
-              echo "A required deployment setting is missing."
-              exit 1
-            fi
+            require_setting "$name"
           done
           if [ "$AUTH_REQUIRED" = "true" ]; then
             auth_required_settings=(
@@ -260,11 +262,12 @@ jobs:
               VITE_COGNITO_REDIRECT_URI
             )
             for name in "${auth_required_settings[@]}"; do
-              if [ -z "${!name:-}" ]; then
-                echo "A required authentication setting is missing."
-                exit 1
-              fi
+              require_setting "$name"
             done
+          fi
+
+          if [ "$TABLEAU_CONTEXT_PROVIDER" = "mcp" ] && [ "$TABLEAU_MCP_TRANSPORT" = "http" ]; then
+            require_setting TABLEAU_MCP_SERVER_URL
           fi
 
       - name: Checkout
