@@ -26,13 +26,38 @@ export type ActionRunResult = {
   evidence: string[];
   checks: string[];
   imageCaption?: string;
+  analysisSections?: ActionRunAnalysisSection[];
   debug?: {
     source?: "stub";
     requestEcho?: Pick<
       ActionRunRequest,
       "postType" | "eventName" | "techplayUrl" | "currentSituation"
     >;
+    tableau?: {
+      provider: string;
+      analysisQuestions: string[];
+      warnings: string[];
+    };
   };
+};
+
+export type ActionRunAnalysisSection = {
+  key:
+    | "post_type_distribution"
+    | "keyword_tendency"
+    | "weekday_time_tendency"
+    | "image_presence_tendency";
+  title: string;
+  question: string;
+  summary: string;
+  rows: Array<{
+    label: string;
+    value: number | null;
+  }>;
+  datasourceName?: string;
+  dimensionField?: string;
+  metricField?: string;
+  warnings?: string[];
 };
 
 export type ActionRunRecord = Omit<ChatJobRecord, "request" | "result"> & {

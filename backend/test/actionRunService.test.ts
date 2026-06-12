@@ -6,10 +6,22 @@ const repositoryMock = vi.hoisted(() => ({
   create: vi.fn(),
   get: vi.fn(),
   toPublicView: vi.fn(),
+  claim: vi.fn(),
+  updateProgress: vi.fn(),
+  markCompleted: vi.fn(),
+  markFailed: vi.fn(),
+}));
+
+const analysisMock = vi.hoisted(() => ({
+  analyzeActionRun: vi.fn(),
 }));
 
 vi.mock("../src/repositories/actionRunRepository", () => ({
   ActionRunRepository: vi.fn().mockImplementation(() => repositoryMock),
+}));
+
+vi.mock("../src/services/actionRunAnalysisService", () => ({
+  ActionRunAnalysisService: vi.fn().mockImplementation(() => analysisMock),
 }));
 
 describe("ActionRunService", () => {
@@ -25,6 +37,11 @@ describe("ActionRunService", () => {
     repositoryMock.create.mockReset();
     repositoryMock.get.mockReset();
     repositoryMock.toPublicView.mockReset();
+    repositoryMock.claim.mockReset();
+    repositoryMock.updateProgress.mockReset();
+    repositoryMock.markCompleted.mockReset();
+    repositoryMock.markFailed.mockReset();
+    analysisMock.analyzeActionRun.mockReset();
   });
 
   afterEach(() => {
@@ -67,6 +84,40 @@ describe("ActionRunService", () => {
         expiresAt: expect.any(Number),
       }),
     );
+  });
+
+  it("processes an action run with fixed Tableau analysis", async () => {
+    repositoryMock.claim.mockResolvedValue(buildActionRunRecord());
+    repositoryMock.updateProgress.mockResolvedValue(buildActionRunRecord());
+    repositoryMock.markCompleted.mockResolvedValue(buildActionRunRecord());
+    analysisMock.analyzeActionRun.mockResolvedValue({
+      summary: "analysis summary",
+      suggestedSlackPostText: "draft text",
+      hashtags: ["#Tableau"],
+      evidence: ["evidence line"],
+      checks: ["check line"],
+      analysisSections: [],
+      debug: { source: "stub" },
+    });
+
+    const service = new ActionRunService();
+    await service.processActionRun({
+      actionRunId: "action-run-1",
+    });
+
+    expect(repositoryMock.claim).toHaveBeenCalledWith(
+      "action-run-1",
+      expect.objectContaining({
+        workerId: expect.stringMatching(/^worker-/),
+      }),
+    );
+    expect(analysisMock.analyzeActionRun).toHaveBeenCalledTimes(1);
+    expect(repositoryMock.markCompleted).toHaveBeenCalledWith({
+      actionRunId: "action-run-1",
+      result: expect.objectContaining({
+        summary: "analysis summary",
+      }),
+    });
   });
 
   it("returns a public view when polling action runs", async () => {

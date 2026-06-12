@@ -57,6 +57,7 @@ export type ChatJobResult = {
 
 export type ChatJobRecord = {
   jobId: string;
+  jobType?: "chat" | "action_run";
   ownerKey: string;
   ownerType: ChatJobOwnerType;
   ownerUserId?: string | null;

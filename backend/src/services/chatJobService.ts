@@ -46,6 +46,7 @@ export class ChatJobService {
     const createdAt = new Date().toISOString();
     const record: ChatJobRecord = {
       jobId,
+      jobType: "chat",
       ownerKey: ownerContext.ownerKey,
       ownerType: input.authenticatedUser ? "authenticated" : "anonymous",
       ...(input.authenticatedUser?.userId
