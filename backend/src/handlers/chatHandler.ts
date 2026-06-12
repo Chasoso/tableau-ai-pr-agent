@@ -9,6 +9,7 @@ import {
 } from "../logging";
 import { ChatJobService } from "../services/chatJobService";
 import { ActionRunService } from "../services/actionRunService";
+import { TechPlayService } from "../services/techplayService";
 import { createChatService } from "../services/chatService";
 import type {
   ApiGatewayProxyEvent,
@@ -16,12 +17,14 @@ import type {
   LambdaExecutionContext,
 } from "../types/api";
 import type { ActionRunRequest } from "../types/actionRun";
+import type { TechPlayPreviewRequest } from "../types/techplay";
 import type { ChatRequest, ContextRequest } from "../types/chat";
 import { handleNotionRoute } from "./notionHandler";
 import { handleCognitoPopupAuthRoute } from "./cognitoPopupAuthHandler";
 
 const chatJobService = new ChatJobService();
 const actionRunService = new ActionRunService();
+const techPlayService = new TechPlayService();
 
 export async function handler(
   event: ApiGatewayProxyEvent,
@@ -32,6 +35,7 @@ export async function handler(
   const routePath = getRoutePath(event);
   const isChatJobRoute = routePath.startsWith("/chat-jobs");
   const isActionRunRoute = routePath.startsWith("/action-runs");
+  const isTechPlayRoute = routePath.startsWith("/techplay");
   const isNotionCallbackRoute = routePath.startsWith("/notion/callback");
   const isCognitoPopupAuthRoute = routePath.startsWith("/auth/cognito/");
 
@@ -139,6 +143,28 @@ export async function handler(
       return jsonResponse(202, response);
     }
 
+    if (routePath === "/techplay/preview" && method === "POST") {
+      const request = parseRequest(event.body) as TechPlayPreviewRequest;
+      const validationError = validateTechPlayPreviewRequest(request);
+      if (validationError) {
+        logWarn("techplay.preview_request.invalid", {
+          requestId,
+          validationError,
+        });
+        return jsonResponse(400, { message: validationError });
+      }
+
+      const response = await techPlayService.previewTechPlayEvent({
+        techplayUrl: request.techplayUrl,
+      });
+      logInfo("techplay.preview.request.completed", {
+        requestId,
+        techplayUrl: response.techplayUrl,
+        extractedFrom: response.extractedFrom,
+      });
+      return jsonResponse(200, response);
+    }
+
     if (routePath.startsWith("/action-runs/") && method === "GET") {
       const actionRunId = parseActionRunId(routePath);
       if (!actionRunId) {
@@ -172,6 +198,12 @@ export async function handler(
     }
 
     if (routePath === "/action-runs" && method !== "POST") {
+      return jsonResponse(405, {
+        message: "Method not allowed.",
+      });
+    }
+
+    if (routePath === "/techplay/preview" && method !== "POST") {
       return jsonResponse(405, {
         message: "Method not allowed.",
       });
@@ -259,6 +291,21 @@ export async function handler(
       }
     }
 
+    if (isTechPlayRoute && method === "POST") {
+      const techPlayRouteError = mapTechPlayRouteError(error);
+      if (techPlayRouteError) {
+        logWarn("techplay.preview.request.rejected", {
+          requestId,
+          routePath,
+          statusCode: techPlayRouteError.statusCode,
+          ...safeErrorDetails(error),
+        });
+        return jsonResponse(techPlayRouteError.statusCode, {
+          message: techPlayRouteError.message,
+        });
+      }
+    }
+
     logError("chat.request.failed", { requestId, ...safeErrorDetails(error) });
     return jsonResponse(500, { message: "Failed to generate an answer." });
   }
@@ -323,6 +370,26 @@ function validateActionRunRequest(request: ActionRunRequest): string | null {
 
   if (!Array.isArray(request.dashboardContext.worksheets)) {
     return "dashboardContext.worksheets must be an array.";
+  }
+
+  return null;
+}
+
+function validateTechPlayPreviewRequest(
+  request: TechPlayPreviewRequest,
+): string | null {
+  if (!request.techplayUrl?.trim()) {
+    return "techplayUrl is required.";
+  }
+
+  try {
+    const url = new URL(request.techplayUrl);
+    const hostname = url.hostname.toLowerCase();
+    if (hostname !== "techplay.jp" && !hostname.endsWith(".techplay.jp")) {
+      return "techplayUrl must point to techplay.jp.";
+    }
+  } catch {
+    return "techplayUrl must be a valid URL.";
   }
 
   return null;
@@ -408,6 +475,35 @@ function mapActionRunRouteError(
     return {
       statusCode: 403,
       message: "You do not have access to this action run.",
+    };
+  }
+
+  return null;
+}
+
+function mapTechPlayRouteError(
+  error: unknown,
+): { statusCode: number; message: string } | null {
+  const message = error instanceof Error ? error.message : "";
+
+  if (/invalid url|must point to techplay\.jp/i.test(message)) {
+    return {
+      statusCode: 400,
+      message,
+    };
+  }
+
+  if (/not found/i.test(message)) {
+    return {
+      statusCode: 404,
+      message: "TechPlay page not found.",
+    };
+  }
+
+  if (/request failed/i.test(message)) {
+    return {
+      statusCode: 502,
+      message,
     };
   }
 

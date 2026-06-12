@@ -6,10 +6,15 @@ import type { DashboardContext } from "../types/tableau";
 
 const mocks = vi.hoisted(() => ({
   createActionRun: vi.fn(),
+  previewTechPlayEvent: vi.fn(),
 }));
 
 vi.mock("../api/actionRunApi", () => ({
   createActionRun: mocks.createActionRun,
+}));
+
+vi.mock("../api/techplayApi", () => ({
+  previewTechPlayEvent: mocks.previewTechPlayEvent,
 }));
 
 const dashboardContext: DashboardContext = {
@@ -75,5 +80,29 @@ describe("PrActionPanel", () => {
     );
     expect(screen.getByText("Action run queued")).toBeVisible();
     expect(screen.getByText("action-run-1")).toBeVisible();
+  });
+
+  it("loads TechPlay metadata and autofills the event name", async () => {
+    const user = userEvent.setup();
+    mocks.previewTechPlayEvent.mockResolvedValue({
+      techplayUrl: "https://techplay.jp/event/983048",
+      eventName: "Sample Event",
+      eventDateText: "2025/08/08 18:30",
+      summary: "Sample summary.",
+      sourceTitle: "Sample Event - TECH PLAY",
+      sourceDescription: "Sample summary.",
+      extractedFrom: "jsonld",
+    });
+
+    render(<PrActionPanel dashboardContext={dashboardContext} />);
+
+    await user.click(screen.getByRole("button", { name: "Load TechPlay" }));
+
+    expect(mocks.previewTechPlayEvent).toHaveBeenCalledWith({
+      techplayUrl: "https://techplay.jp/event/example",
+    });
+    expect(screen.getByLabelText("Event name")).toHaveValue("Sample Event");
+    expect(screen.getByText("TechPlay preview")).toBeVisible();
+    expect(screen.getByText("Sample summary.")).toBeVisible();
   });
 });

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { createActionRun } from "../api/actionRunApi";
+import { previewTechPlayEvent } from "../api/techplayApi";
 import { env } from "../env";
 import type {
   ActionRunCreateResponse,
@@ -7,6 +8,7 @@ import type {
   ActionRunRequest,
 } from "../types/actionRun";
 import type { DashboardContext } from "../types/tableau";
+import type { TechPlayPreviewResponse } from "../types/techplay";
 
 type Props = {
   dashboardContext: DashboardContext;
@@ -57,6 +59,12 @@ export default function PrActionPanel({
   const [eventName, setEventName] = useState(DEFAULT_EVENT_NAME);
   const [techplayUrl, setTechplayUrl] = useState(DEFAULT_TECHPLAY_URL);
   const [currentSituation, setCurrentSituation] = useState(DEFAULT_SITUATION);
+  const [techplayPreview, setTechplayPreview] =
+    useState<TechPlayPreviewResponse | null>(null);
+  const [isLoadingTechPlay, setIsLoadingTechPlay] = useState(false);
+  const [techplayPreviewError, setTechplayPreviewError] = useState<
+    string | null
+  >(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [submissionSummary, setSubmissionSummary] =
@@ -101,6 +109,30 @@ export default function PrActionPanel({
       );
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function handleLoadTechPlay() {
+    setIsLoadingTechPlay(true);
+    setTechplayPreviewError(null);
+
+    try {
+      const preview = await previewTechPlayEvent({
+        techplayUrl,
+      });
+      setTechplayPreview(preview);
+      if (!eventName.trim() || eventName === DEFAULT_EVENT_NAME) {
+        setEventName(preview.eventName);
+      }
+    } catch (unknownError) {
+      setTechplayPreview(null);
+      setTechplayPreviewError(
+        unknownError instanceof Error
+          ? unknownError.message
+          : "TechPlay preview failed.",
+      );
+    } finally {
+      setIsLoadingTechPlay(false);
     }
   }
 
@@ -187,6 +219,53 @@ export default function PrActionPanel({
             />
           </label>
 
+          <div className="techplay-preview-actions">
+            <button
+              type="button"
+              className="techplay-preview-button"
+              disabled={isLoadingTechPlay}
+              onClick={() => void handleLoadTechPlay()}
+            >
+              {isLoadingTechPlay ? "Loading TechPlay..." : "Load TechPlay"}
+            </button>
+          </div>
+
+          {techplayPreviewError ? (
+            <div className="error-banner" role="alert">
+              {techplayPreviewError}
+            </div>
+          ) : null}
+
+          {techplayPreview ? (
+            <section
+              className="techplay-preview-card"
+              aria-label="TechPlay preview"
+            >
+              <div className="techplay-preview-header">
+                <div>
+                  <h3>TechPlay preview</h3>
+                  <p>Event name, date, and overview extracted from the URL.</p>
+                </div>
+                <span className="techplay-preview-badge">
+                  {techplayPreview.extractedFrom}
+                </span>
+              </div>
+              <dl className="techplay-preview-meta">
+                <div>
+                  <dt>Event name</dt>
+                  <dd>{techplayPreview.eventName}</dd>
+                </div>
+                <div>
+                  <dt>Date</dt>
+                  <dd>{techplayPreview.eventDateText ?? "Unavailable"}</dd>
+                </div>
+              </dl>
+              <p className="techplay-preview-summary">
+                {techplayPreview.summary}
+              </p>
+            </section>
+          ) : null}
+
           <label className="pr-agent-field">
             <span>Current situation</span>
             <textarea
@@ -230,7 +309,9 @@ export default function PrActionPanel({
           <article className="poster-preview" aria-label="Image preview">
             <div className="poster-preview-top">
               <span>{preview.posterTheme}</span>
-              <span>90-day S3 URL</span>
+              <span>
+                {techplayPreview?.eventDateText ?? "TechPlay not loaded"}
+              </span>
             </div>
             <div className="poster-preview-body">
               <p className="poster-preview-eyebrow">AI PR Action</p>
@@ -238,7 +319,9 @@ export default function PrActionPanel({
               <p>{preview.posterTagline}</p>
               <div className="poster-preview-bar">
                 <span>{postType}</span>
-                <span>{safeHostname(techplayUrl)}</span>
+                <span>
+                  {safeHostname(techplayPreview?.techplayUrl ?? techplayUrl)}
+                </span>
               </div>
             </div>
           </article>
