@@ -352,6 +352,15 @@ button {
   background: rgba(219, 234, 247, 0.28);
 }
 
+.pr-agent-drive-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(30, 111, 170, 0.14);
+  border-radius: 18px;
+  background: rgba(246, 249, 252, 0.9);
+}
+
 .pr-agent-photo-panel-header {
   display: flex;
   justify-content: space-between;
@@ -446,6 +455,31 @@ button {
   color: #0d4167;
   font-size: 11px;
   font-weight: 700;
+}
+
+.drive-reference-preview {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(30, 111, 170, 0.14);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.drive-reference-preview strong {
+  color: #123049;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.drive-reference-preview pre {
+  margin: 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: #4f6174;
+  font-family: "Aptos", "Segoe UI", sans-serif;
+  font-size: 12px;
+  line-height: 1.65;
 }
 
 .techplay-preview-actions {

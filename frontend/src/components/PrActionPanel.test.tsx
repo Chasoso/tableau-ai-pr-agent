@@ -90,6 +90,13 @@ describe("PrActionPanel", () => {
         "Upload a venue photo from your phone to capture the atmosphere.",
       ),
     ).toBeVisible();
+    expect(screen.getByText("Drive reference")).toBeVisible();
+    expect(screen.getByLabelText("Reference mode")).toHaveValue(
+      "sample_markdown",
+    );
+    expect(screen.getByLabelText("Reference title")).toHaveValue(
+      "Drive brief: event messaging",
+    );
     expect(screen.getByText("Sales Workbook")).toBeVisible();
     expect(screen.getByText("Aki")).toBeVisible();
   });
@@ -181,5 +188,18 @@ describe("PrActionPanel", () => {
     expect(
       screen.getByText("Venue photo is set to Use as background."),
     ).toBeVisible();
+  });
+
+  it("switches drive references to the no reference mode", async () => {
+    const user = userEvent.setup();
+
+    render(<PrActionPanel dashboardContext={dashboardContext} />);
+
+    await user.selectOptions(screen.getByLabelText("Reference mode"), "none");
+
+    expect(screen.getByText("No Drive reference selected.")).toBeVisible();
+    expect(screen.getByLabelText("Reference title")).toBeDisabled();
+    expect(screen.getByLabelText("Reference Markdown")).toBeDisabled();
+    expect(screen.getByText("No Drive reference selected yet.")).toBeVisible();
   });
 });

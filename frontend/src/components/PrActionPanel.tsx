@@ -27,6 +27,8 @@ type PreviewSummary = {
   posterTheme: string;
   venuePhotoSummary: string;
   venuePhotoSafety: string;
+  driveReferenceSummary: string;
+  driveReferenceSafety: string;
 };
 
 type VenuePhotoUsage = "context_only" | "background" | "reference";
@@ -36,6 +38,14 @@ type VenuePhotoDraft = {
   objectUrl: string;
   sizeLabel: string;
   usage: VenuePhotoUsage;
+};
+
+type DriveReferenceMode = "sample_markdown" | "pasted_markdown" | "none";
+
+type DriveReferenceDraft = {
+  mode: DriveReferenceMode;
+  title: string;
+  markdown: string;
 };
 
 const POST_TYPES: Array<{ label: string; value: ActionRunPostType }> = [
@@ -84,6 +94,43 @@ const VENUE_PHOTO_USAGE_OPTIONS: Array<{
   },
 ];
 
+const DRIVE_REFERENCE_MODE_OPTIONS: Array<{
+  label: string;
+  value: DriveReferenceMode;
+  description: string;
+}> = [
+  {
+    label: "Sample markdown",
+    value: "sample_markdown",
+    description: "Use a fixed Markdown note that stands in for Drive content.",
+  },
+  {
+    label: "Pasted note",
+    value: "pasted_markdown",
+    description: "Paste a Drive excerpt here for the local preview.",
+  },
+  {
+    label: "No reference",
+    value: "none",
+    description: "Skip Drive reference material for now.",
+  },
+];
+
+const DEFAULT_DRIVE_REFERENCE_TITLE = "Drive brief: event messaging";
+const DEFAULT_DRIVE_REFERENCE_MARKDOWN = `# Event messaging brief
+
+- Audience: Tableau community members
+- Tone: upbeat, factual, and concise
+- Goal: announce event progress without overstating attendance
+- Risk checks: confirm photos, names, and timing before posting
+
+## Key points
+
+- Mention the event name and the current moment
+- Keep one sentence for the situation summary
+- Prefer one image with a clear caption
+`;
+
 export default function PrActionPanel({
   dashboardContext,
   userDisplayName,
@@ -105,6 +152,14 @@ export default function PrActionPanel({
     DEFAULT_VENUE_PHOTO_USAGE,
   );
   const [venuePhoto, setVenuePhoto] = useState<VenuePhotoDraft | null>(null);
+  const [driveReferenceMode, setDriveReferenceMode] =
+    useState<DriveReferenceMode>("sample_markdown");
+  const [driveReferenceTitle, setDriveReferenceTitle] = useState(
+    DEFAULT_DRIVE_REFERENCE_TITLE,
+  );
+  const [driveReferenceMarkdown, setDriveReferenceMarkdown] = useState(
+    DEFAULT_DRIVE_REFERENCE_MARKDOWN,
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [submissionSummary, setSubmissionSummary] =
@@ -135,11 +190,19 @@ export default function PrActionPanel({
         currentSituation,
         dashboardContext,
         venuePhoto,
+        driveReference: {
+          mode: driveReferenceMode,
+          title: driveReferenceTitle,
+          markdown: driveReferenceMarkdown,
+        },
       }),
     [
       currentSituation,
       dashboardContext,
       eventName,
+      driveReferenceMarkdown,
+      driveReferenceMode,
+      driveReferenceTitle,
       postType,
       techplayUrl,
       venuePhoto,
@@ -224,6 +287,23 @@ export default function PrActionPanel({
 
   function handleVenuePhotoClear() {
     setVenuePhoto(null);
+  }
+
+  function handleDriveReferenceModeChange(
+    event: ChangeEvent<HTMLSelectElement>,
+  ) {
+    const nextMode = event.currentTarget.value as DriveReferenceMode;
+    setDriveReferenceMode(nextMode);
+
+    if (nextMode === "sample_markdown") {
+      setDriveReferenceTitle(DEFAULT_DRIVE_REFERENCE_TITLE);
+      setDriveReferenceMarkdown(DEFAULT_DRIVE_REFERENCE_MARKDOWN);
+    }
+
+    if (nextMode === "none") {
+      setDriveReferenceTitle("");
+      setDriveReferenceMarkdown("");
+    }
   }
 
   return (
@@ -437,6 +517,73 @@ export default function PrActionPanel({
             )}
           </div>
 
+          <div className="pr-agent-drive-panel" aria-label="Drive reference">
+            <div className="pr-agent-photo-panel-header">
+              <div>
+                <p className="pr-agent-context-label">Google Drive</p>
+                <strong>Reference notes for event copy</strong>
+              </div>
+              <span className="pr-agent-card-pill">Phase 9 stub</span>
+            </div>
+
+            <label className="pr-agent-field">
+              <span>Reference mode</span>
+              <select
+                value={driveReferenceMode}
+                onChange={handleDriveReferenceModeChange}
+              >
+                {DRIVE_REFERENCE_MODE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="pr-agent-field">
+              <span>Reference title</span>
+              <input
+                value={driveReferenceTitle}
+                onChange={(event) => setDriveReferenceTitle(event.target.value)}
+                placeholder="Drive brief title"
+                disabled={driveReferenceMode === "none"}
+              />
+            </label>
+
+            <label className="pr-agent-field">
+              <span>Reference Markdown</span>
+              <textarea
+                value={driveReferenceMarkdown}
+                onChange={(event) =>
+                  setDriveReferenceMarkdown(event.target.value)
+                }
+                rows={7}
+                placeholder="Paste a Drive excerpt or use the sample brief."
+                disabled={driveReferenceMode === "none"}
+              />
+            </label>
+
+            <div className="pr-agent-photo-help">
+              This is a local stand-in for Drive data. We can replace it with
+              OAuth or a Drive API fetch later.
+            </div>
+
+            <div className="drive-reference-preview" aria-live="polite">
+              {driveReferenceMode === "none" ? (
+                <div className="pr-agent-photo-placeholder">
+                  No Drive reference selected.
+                </div>
+              ) : (
+                <>
+                  <strong>
+                    {driveReferenceTitle || "Untitled Drive note"}
+                  </strong>
+                  <pre>{driveReferenceMarkdown || "No content yet."}</pre>
+                </>
+              )}
+            </div>
+          </div>
+
           <div className="pr-agent-hint">
             This phase only prepares the request and preview. No API side
             effects beyond action-runs creation.
@@ -498,6 +645,23 @@ export default function PrActionPanel({
               <div className="venue-photo-summary-chip">
                 <span>{venuePhoto.fileName}</span>
                 <span>{venuePhoto.sizeLabel}</span>
+              </div>
+            ) : null}
+          </section>
+
+          <section
+            className="mini-output-card"
+            aria-label="Drive reference summary"
+          >
+            <h3>Drive reference</h3>
+            <p className="venue-photo-summary">
+              {preview.driveReferenceSummary}
+            </p>
+            <p className="venue-photo-safety">{preview.driveReferenceSafety}</p>
+            {driveReferenceMode !== "none" ? (
+              <div className="venue-photo-summary-chip">
+                <span>{driveReferenceTitle || "Untitled Drive note"}</span>
+                <span>{driveReferenceModeLabel(driveReferenceMode)}</span>
               </div>
             ) : null}
           </section>
@@ -597,6 +761,7 @@ function buildPreview(input: {
   currentSituation: string;
   dashboardContext: DashboardContext;
   venuePhoto: VenuePhotoDraft | null;
+  driveReference: DriveReferenceDraft;
 }): PreviewSummary {
   const eventName = input.eventName.trim() || DEFAULT_EVENT_NAME;
   const situation = input.currentSituation.trim() || DEFAULT_SITUATION;
@@ -606,6 +771,13 @@ function buildPreview(input: {
   const venuePhotoSummary = input.venuePhoto
     ? `${input.venuePhoto.fileName} (${venuePhotoUsageLabel})`
     : "No venue photo uploaded yet.";
+  const driveReferenceModeLabelValue = driveReferenceModeLabel(
+    input.driveReference.mode,
+  );
+  const driveReferenceSummary =
+    input.driveReference.mode === "none"
+      ? "No Drive reference selected yet."
+      : `${input.driveReference.title || "Untitled Drive note"} (${driveReferenceModeLabelValue})`;
 
   return {
     title: `${eventName} / ${postTypeLabel}`,
@@ -643,6 +815,11 @@ function buildPreview(input: {
     venuePhotoSafety: input.venuePhoto
       ? "Do not auto-post if people are clearly identifiable without approval."
       : "Use a venue photo when you want context, mood, or background reference.",
+    driveReferenceSummary,
+    driveReferenceSafety:
+      input.driveReference.mode === "none"
+        ? "Drive references can later be loaded from OAuth or an API-backed source."
+        : "Keep the Drive excerpt short and use it as supporting context only.",
   };
 }
 
@@ -678,6 +855,13 @@ function getVenuePhotoUsageLabel(usage: VenuePhotoUsage | undefined): string {
   return (
     VENUE_PHOTO_USAGE_OPTIONS.find((option) => option.value === usage)?.label ??
     "Context only"
+  );
+}
+
+function driveReferenceModeLabel(mode: DriveReferenceMode): string {
+  return (
+    DRIVE_REFERENCE_MODE_OPTIONS.find((option) => option.value === mode)
+      ?.label ?? "Sample markdown"
   );
 }
 
