@@ -16,6 +16,10 @@ const analysisMock = vi.hoisted(() => ({
   analyzeActionRun: vi.fn(),
 }));
 
+const slackMock = vi.hoisted(() => ({
+  postActionRun: vi.fn(),
+}));
+
 vi.mock("../src/repositories/actionRunRepository", () => ({
   ActionRunRepository: vi.fn().mockImplementation(() => repositoryMock),
 }));
@@ -24,15 +28,23 @@ vi.mock("../src/services/actionRunAnalysisService", () => ({
   ActionRunAnalysisService: vi.fn().mockImplementation(() => analysisMock),
 }));
 
+vi.mock("../src/services/slackWebhookService", () => ({
+  SlackWebhookService: vi.fn().mockImplementation(() => slackMock),
+}));
+
 describe("ActionRunService", () => {
   const originalTableName = process.env.CHAT_JOBS_TABLE_NAME;
   const originalOwnerHeader = process.env.CHAT_JOB_OWNER_TOKEN_HEADER_NAME;
+  const originalImageBaseUrl = process.env.PR_ACTION_IMAGE_PUBLIC_BASE_URL;
+  const originalImagePrefix = process.env.PR_ACTION_IMAGE_OBJECT_KEY_PREFIX;
 
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-08T00:00:00.000Z"));
     process.env.CHAT_JOBS_TABLE_NAME = "chat-jobs";
     process.env.CHAT_JOB_OWNER_TOKEN_HEADER_NAME = "x-chat-owner-token";
+    process.env.PR_ACTION_IMAGE_PUBLIC_BASE_URL = "https://images.example.com";
+    process.env.PR_ACTION_IMAGE_OBJECT_KEY_PREFIX = "pr-action-images";
 
     repositoryMock.create.mockReset();
     repositoryMock.get.mockReset();
@@ -42,6 +54,7 @@ describe("ActionRunService", () => {
     repositoryMock.markCompleted.mockReset();
     repositoryMock.markFailed.mockReset();
     analysisMock.analyzeActionRun.mockReset();
+    slackMock.postActionRun.mockReset();
   });
 
   afterEach(() => {
@@ -56,6 +69,18 @@ describe("ActionRunService", () => {
       delete process.env.CHAT_JOB_OWNER_TOKEN_HEADER_NAME;
     } else {
       process.env.CHAT_JOB_OWNER_TOKEN_HEADER_NAME = originalOwnerHeader;
+    }
+
+    if (originalImageBaseUrl === undefined) {
+      delete process.env.PR_ACTION_IMAGE_PUBLIC_BASE_URL;
+    } else {
+      process.env.PR_ACTION_IMAGE_PUBLIC_BASE_URL = originalImageBaseUrl;
+    }
+
+    if (originalImagePrefix === undefined) {
+      delete process.env.PR_ACTION_IMAGE_OBJECT_KEY_PREFIX;
+    } else {
+      process.env.PR_ACTION_IMAGE_OBJECT_KEY_PREFIX = originalImagePrefix;
     }
   });
 
@@ -90,6 +115,11 @@ describe("ActionRunService", () => {
     repositoryMock.claim.mockResolvedValue(buildActionRunRecord());
     repositoryMock.updateProgress.mockResolvedValue(buildActionRunRecord());
     repositoryMock.markCompleted.mockResolvedValue(buildActionRunRecord());
+    slackMock.postActionRun.mockResolvedValue({
+      sent: true,
+      skipped: false,
+      statusCode: 200,
+    });
     analysisMock.analyzeActionRun.mockResolvedValue({
       summary: "analysis summary",
       suggestedSlackPostText: "draft text",
@@ -112,12 +142,31 @@ describe("ActionRunService", () => {
       }),
     );
     expect(analysisMock.analyzeActionRun).toHaveBeenCalledTimes(1);
+    expect(slackMock.postActionRun).toHaveBeenCalledTimes(1);
     expect(repositoryMock.markCompleted).toHaveBeenCalledWith({
       actionRunId: "action-run-1",
       result: expect.objectContaining({
         summary: "analysis summary",
+        imageUrl:
+          "https://images.example.com/pr-action-images/action-run-1/poster.png",
       }),
     });
+    expect(slackMock.postActionRun).toHaveBeenCalledWith({
+      request: expect.any(Object),
+      result: expect.objectContaining({
+        imageUrl:
+          "https://images.example.com/pr-action-images/action-run-1/poster.png",
+      }),
+    });
+
+    const progressCalls = repositoryMock.updateProgress.mock.calls;
+    const lastProgressUpdate = progressCalls[progressCalls.length - 1]?.[1];
+    expect(lastProgressUpdate).toEqual(
+      expect.objectContaining({
+        stage: "completed",
+        status: "completed",
+      }),
+    );
   });
 
   it("returns a public view when polling action runs", async () => {

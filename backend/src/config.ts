@@ -11,6 +11,13 @@ export type AppConfig = {
     workerFunctionName: string;
     ownerTokenHeaderName: string;
   };
+  slack: {
+    incomingWebhookUrl: string;
+  };
+  s3: {
+    actionImagePublicBaseUrl: string;
+    actionImageObjectKeyPrefix: string;
+  };
   agent: {
     enabled: boolean;
     maxContextPasses: number;
@@ -116,6 +123,15 @@ export function getConfig(): AppConfig {
       workerFunctionName: process.env.CHAT_JOB_WORKER_FUNCTION_NAME ?? "",
       ownerTokenHeaderName:
         process.env.CHAT_JOB_OWNER_TOKEN_HEADER_NAME ?? "x-chat-owner-token",
+    },
+    slack: {
+      incomingWebhookUrl: process.env.SLACK_INCOMING_WEBHOOK_URL ?? "",
+    },
+    s3: {
+      actionImagePublicBaseUrl:
+        process.env.PR_ACTION_IMAGE_PUBLIC_BASE_URL ?? "",
+      actionImageObjectKeyPrefix:
+        process.env.PR_ACTION_IMAGE_OBJECT_KEY_PREFIX ?? "action-runs",
     },
     agent: {
       enabled: process.env.CHAT_AGENT_ENABLED !== "false",

@@ -26,6 +26,7 @@ export type ActionRunResult = {
   evidence: string[];
   checks: string[];
   imageCaption?: string;
+  imageUrl?: string;
   analysisSections?: ActionRunAnalysisSection[];
   debug?: {
     source?: "stub";

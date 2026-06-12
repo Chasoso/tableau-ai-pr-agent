@@ -10,7 +10,9 @@ import {
   safeHash,
 } from "../logging";
 import { ActionRunAnalysisService } from "./actionRunAnalysisService";
+import { buildActionRunImageUrl } from "./actionRunImageUrlService";
 import { ActionRunRepository } from "../repositories/actionRunRepository";
+import { SlackWebhookService } from "./slackWebhookService";
 import type { AuthenticatedUser } from "../types/auth";
 import type {
   ActionRunCreateResponse,
@@ -21,6 +23,7 @@ import type {
 
 const repository = new ActionRunRepository();
 const analysisService = new ActionRunAnalysisService();
+const slackWebhookService = new SlackWebhookService();
 
 export class ActionRunService {
   async createActionRun(input: {
@@ -191,24 +194,79 @@ export class ActionRunService {
         request: claimed.request,
         authenticatedUser,
       });
-
-      await repository.markCompleted({
+      const imageUrl = buildActionRunImageUrl({
         actionRunId: input.actionRunId,
-        result: response,
       });
+      const completedResult = {
+        ...response,
+        ...(imageUrl ? { imageUrl } : {}),
+      };
 
       await this.reportProgress(input.actionRunId, {
-        stage: "completed",
-        message: "Fixed analysis results stored.",
-        status: "completed",
+        stage: "finalizing",
+        message: "Posting the draft to Slack...",
+        status: "finalizing",
         debug: {
           summaryLength: response.summary.length,
           sectionCount: response.analysisSections?.length ?? 0,
+          hasImageUrl: Boolean(imageUrl),
+        },
+      });
+
+      const slackResult = await slackWebhookService.postActionRun({
+        request: claimed.request,
+        result: completedResult,
+      });
+
+      await repository.markCompleted({
+        actionRunId: input.actionRunId,
+        result: completedResult,
+      });
+
+      if (!slackResult.sent && !slackResult.skipped) {
+        await repository.markFailed({
+          actionRunId: input.actionRunId,
+          error: {
+            code: "slack_webhook_failed",
+            message:
+              slackResult.error ??
+              "Slack webhook returned a non-success status.",
+            details: {
+              statusCode: slackResult.statusCode,
+            },
+          },
+        });
+        await this.reportProgress(input.actionRunId, {
+          stage: "failed",
+          message: "Slack webhook post failed.",
+          status: "failed",
+          debug: {
+            statusCode: slackResult.statusCode,
+            skipped: slackResult.skipped,
+          },
+        });
+        return;
+      }
+
+      await this.reportProgress(input.actionRunId, {
+        stage: "completed",
+        message: slackResult.skipped
+          ? "Draft analysis completed. Slack webhook is not configured."
+          : "Posted the draft to Slack.",
+        status: "completed",
+        debug: {
+          summaryLength: completedResult.summary.length,
+          sectionCount: completedResult.analysisSections?.length ?? 0,
+          hasImageUrl: Boolean(imageUrl),
+          slackWebhook: slackResult,
         },
       });
       logInfo("action_run.completed", {
         actionRunId: input.actionRunId,
-        sectionCount: response.analysisSections?.length ?? 0,
+        sectionCount: completedResult.analysisSections?.length ?? 0,
+        hasImageUrl: Boolean(imageUrl),
+        slackSent: slackResult.sent,
+        slackSkipped: slackResult.skipped,
       });
     } catch (error) {
       logError("action_run.failed", {

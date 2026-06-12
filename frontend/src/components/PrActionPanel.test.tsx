@@ -9,6 +9,25 @@ const mocks = vi.hoisted(() => ({
   previewTechPlayEvent: vi.fn(),
 }));
 
+vi.mock("../env", () => ({
+  env: {
+    apiBaseUrl: "/api",
+    prActionImagePublicBaseUrl: "https://images.example.com",
+    prActionImageObjectKeyPrefix: "pr-action-images",
+    useMockTableau: true,
+    authRequired: false,
+    cognito: {
+      userPoolId: "",
+      clientId: "",
+      region: "",
+      domain: "",
+      redirectUri: "",
+      logoutUri: "",
+    },
+    appVersion: "0.1.0",
+  },
+}));
+
 vi.mock("../api/actionRunApi", () => ({
   createActionRun: mocks.createActionRun,
 }));
@@ -80,6 +99,11 @@ describe("PrActionPanel", () => {
     );
     expect(screen.getByText("Action run queued")).toBeVisible();
     expect(screen.getByText("action-run-1")).toBeVisible();
+    expect(
+      screen.getByText(
+        "https://images.example.com/pr-action-images/action-run-1/poster.png",
+      ),
+    ).toBeVisible();
   });
 
   it("loads TechPlay metadata and autofills the event name", async () => {

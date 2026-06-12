@@ -1,5 +1,9 @@
 export const env = {
   apiBaseUrl: import.meta.env.VITE_API_BASE_URL ?? "/api",
+  prActionImagePublicBaseUrl:
+    import.meta.env.VITE_PR_ACTION_IMAGE_PUBLIC_BASE_URL ?? "",
+  prActionImageObjectKeyPrefix:
+    import.meta.env.VITE_PR_ACTION_IMAGE_OBJECT_KEY_PREFIX ?? "action-runs",
   useMockTableau: import.meta.env.VITE_USE_MOCK_TABLEAU === "true",
   authRequired: import.meta.env.VITE_AUTH_REQUIRED === "true",
   cognito: {

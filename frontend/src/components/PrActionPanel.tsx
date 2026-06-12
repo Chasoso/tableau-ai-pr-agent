@@ -69,6 +69,13 @@ export default function PrActionPanel({
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [submissionSummary, setSubmissionSummary] =
     useState<ActionRunCreateResponse | null>(null);
+  const plannedImageUrl = useMemo(
+    () =>
+      submissionSummary
+        ? buildActionRunImageUrl(submissionSummary.actionRunId)
+        : null,
+    [submissionSummary],
+  );
 
   const preview = useMemo(
     () =>
@@ -395,6 +402,18 @@ export default function PrActionPanel({
               <dt>Poll URL</dt>
               <dd>{submissionSummary.pollUrl}</dd>
             </div>
+            <div>
+              <dt>S3 image URL</dt>
+              <dd>
+                {plannedImageUrl ? (
+                  <a href={plannedImageUrl} target="_blank" rel="noreferrer">
+                    {plannedImageUrl}
+                  </a>
+                ) : (
+                  "Configure VITE_PR_ACTION_IMAGE_PUBLIC_BASE_URL to display a URL."
+                )}
+              </dd>
+            </div>
           </dl>
         </section>
       ) : null}
@@ -472,6 +491,25 @@ function safeHostname(url: string): string {
   } catch {
     return "techplay.jp";
   }
+}
+
+function buildActionRunImageUrl(actionRunId: string): string | null {
+  const baseUrl = env.prActionImagePublicBaseUrl.trim();
+  if (!baseUrl) {
+    return null;
+  }
+
+  const prefix = normalizeObjectKeyPrefix(env.prActionImageObjectKeyPrefix);
+  return `${trimTrailingSlashes(baseUrl)}/${prefix}/${actionRunId}/poster.png`;
+}
+
+function normalizeObjectKeyPrefix(value: string): string {
+  const trimmed = value.trim().replace(/^\/+|\/+$/g, "");
+  return trimmed || "action-runs";
+}
+
+function trimTrailingSlashes(value: string): string {
+  return value.replace(/\/+$/g, "");
 }
 
 function formatTimestamp(value: string): string {

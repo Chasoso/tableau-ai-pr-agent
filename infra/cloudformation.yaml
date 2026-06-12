@@ -411,6 +411,12 @@ Resources:
                   - !Sub "arn:${AWS::Partition}:bedrock:us-west-2::foundation-model/${BedrockFoundationModelId}"
                   - !Sub "arn:${AWS::Partition}:bedrock:${BedrockRegion}:${AWS::AccountId}:inference-profile/${BedrockModelId}"
                   - !Sub "arn:${AWS::Partition}:bedrock:${BedrockRegion}::inference-profile/${BedrockModelId}"
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource:
+                  - !Sub "${ActionImageBucket.Arn}/*"
 
   ChatFunction:
     Type: AWS::Lambda::Function
@@ -485,6 +491,9 @@ Resources:
           NOTION_LOCAL_DEV_USER_ID: !Ref NotionLocalDevUserId
           NOTION_OAUTH_CLIENT_ID: !Ref NotionOauthClientId
           NOTION_OAUTH_CLIENT_SECRET: !Ref NotionOauthClientSecret
+          PR_ACTION_IMAGE_PUBLIC_BASE_URL: !Sub
+            - "https://${BucketName}.s3.${AWS::Region}.amazonaws.com"
+            - BucketName: !Ref ActionImageBucket
 
   ChatJobWorkerFunction:
     Type: AWS::Lambda::Function
@@ -557,6 +566,9 @@ Resources:
           NOTION_LOCAL_DEV_USER_ID: !Ref NotionLocalDevUserId
           NOTION_OAUTH_CLIENT_ID: !Ref NotionOauthClientId
           NOTION_OAUTH_CLIENT_SECRET: !Ref NotionOauthClientSecret
+          PR_ACTION_IMAGE_PUBLIC_BASE_URL: !Sub
+            - "https://${BucketName}.s3.${AWS::Region}.amazonaws.com"
+            - BucketName: !Ref ActionImageBucket
 
   HealthFunction:
     Type: AWS::Lambda::Function
@@ -839,6 +851,44 @@ Resources:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
               SSEAlgorithm: AES256
+
+  ActionImageBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::StackName}-pr-action-images"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: false
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: false
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireActionImagesAfter90Days
+            Status: Enabled
+            ExpirationInDays: 90
+
+  ActionImageBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ActionImageBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowPublicReadForActionImages
+            Effect: Allow
+            Principal: "*"
+            Action: s3:GetObject
+            Resource: !Sub "${ActionImageBucket.Arn}/*"
+            Condition:
+              Bool:
+                aws:SecureTransport: true
 
   FrontendOriginAccessControl:
     Type: AWS::CloudFront::OriginAccessControl
