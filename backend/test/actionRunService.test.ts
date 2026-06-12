@@ -20,6 +20,10 @@ const slackMock = vi.hoisted(() => ({
   postActionRun: vi.fn(),
 }));
 
+const imageMock = vi.hoisted(() => ({
+  generateActionRunPoster: vi.fn(),
+}));
+
 vi.mock("../src/repositories/actionRunRepository", () => ({
   ActionRunRepository: vi.fn().mockImplementation(() => repositoryMock),
 }));
@@ -30,6 +34,10 @@ vi.mock("../src/services/actionRunAnalysisService", () => ({
 
 vi.mock("../src/services/slackWebhookService", () => ({
   SlackWebhookService: vi.fn().mockImplementation(() => slackMock),
+}));
+
+vi.mock("../src/services/actionRunImageService", () => ({
+  ActionRunImageService: vi.fn().mockImplementation(() => imageMock),
 }));
 
 describe("ActionRunService", () => {
@@ -55,6 +63,7 @@ describe("ActionRunService", () => {
     repositoryMock.markFailed.mockReset();
     analysisMock.analyzeActionRun.mockReset();
     slackMock.postActionRun.mockReset();
+    imageMock.generateActionRunPoster.mockReset();
   });
 
   afterEach(() => {
@@ -120,6 +129,12 @@ describe("ActionRunService", () => {
       skipped: false,
       statusCode: 200,
     });
+    imageMock.generateActionRunPoster.mockResolvedValue({
+      imageUrl:
+        "https://images.example.com/pr-action-images/action-run-1/poster.svg",
+      objectKey: "pr-action-images/action-run-1/poster.svg",
+      contentType: "image/svg+xml",
+    });
     analysisMock.analyzeActionRun.mockResolvedValue({
       summary: "analysis summary",
       suggestedSlackPostText: "draft text",
@@ -142,20 +157,21 @@ describe("ActionRunService", () => {
       }),
     );
     expect(analysisMock.analyzeActionRun).toHaveBeenCalledTimes(1);
+    expect(imageMock.generateActionRunPoster).toHaveBeenCalledTimes(1);
     expect(slackMock.postActionRun).toHaveBeenCalledTimes(1);
     expect(repositoryMock.markCompleted).toHaveBeenCalledWith({
       actionRunId: "action-run-1",
       result: expect.objectContaining({
         summary: "analysis summary",
         imageUrl:
-          "https://images.example.com/pr-action-images/action-run-1/poster.png",
+          "https://images.example.com/pr-action-images/action-run-1/poster.svg",
       }),
     });
     expect(slackMock.postActionRun).toHaveBeenCalledWith({
       request: expect.any(Object),
       result: expect.objectContaining({
         imageUrl:
-          "https://images.example.com/pr-action-images/action-run-1/poster.png",
+          "https://images.example.com/pr-action-images/action-run-1/poster.svg",
       }),
     });
 

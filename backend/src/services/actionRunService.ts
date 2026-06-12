@@ -10,6 +10,7 @@ import {
   safeHash,
 } from "../logging";
 import { ActionRunAnalysisService } from "./actionRunAnalysisService";
+import { ActionRunImageService } from "./actionRunImageService";
 import { buildActionRunImageUrl } from "./actionRunImageUrlService";
 import { ActionRunRepository } from "../repositories/actionRunRepository";
 import { SlackWebhookService } from "./slackWebhookService";
@@ -23,6 +24,7 @@ import type {
 
 const repository = new ActionRunRepository();
 const analysisService = new ActionRunAnalysisService();
+const imageService = new ActionRunImageService();
 const slackWebhookService = new SlackWebhookService();
 
 export class ActionRunService {
@@ -194,9 +196,16 @@ export class ActionRunService {
         request: claimed.request,
         authenticatedUser,
       });
-      const imageUrl = buildActionRunImageUrl({
+      const generatedImage = await imageService.generateActionRunPoster({
         actionRunId: input.actionRunId,
+        request: claimed.request,
+        result: response,
       });
+      const imageUrl =
+        generatedImage?.imageUrl ??
+        buildActionRunImageUrl({
+          actionRunId: input.actionRunId,
+        });
       const completedResult = {
         ...response,
         ...(imageUrl ? { imageUrl } : {}),
@@ -210,6 +219,12 @@ export class ActionRunService {
           summaryLength: response.summary.length,
           sectionCount: response.analysisSections?.length ?? 0,
           hasImageUrl: Boolean(imageUrl),
+          imageGeneration: generatedImage
+            ? {
+                contentType: generatedImage.contentType,
+                objectKey: generatedImage.objectKey,
+              }
+            : { skipped: true },
         },
       });
 

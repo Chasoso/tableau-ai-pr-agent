@@ -491,6 +491,7 @@ Resources:
           NOTION_LOCAL_DEV_USER_ID: !Ref NotionLocalDevUserId
           NOTION_OAUTH_CLIENT_ID: !Ref NotionOauthClientId
           NOTION_OAUTH_CLIENT_SECRET: !Ref NotionOauthClientSecret
+          PR_ACTION_IMAGE_BUCKET_NAME: !Ref ActionImageBucket
           PR_ACTION_IMAGE_PUBLIC_BASE_URL: !Sub
             - "https://${BucketName}.s3.${AWS::Region}.amazonaws.com"
             - BucketName: !Ref ActionImageBucket
@@ -566,6 +567,7 @@ Resources:
           NOTION_LOCAL_DEV_USER_ID: !Ref NotionLocalDevUserId
           NOTION_OAUTH_CLIENT_ID: !Ref NotionOauthClientId
           NOTION_OAUTH_CLIENT_SECRET: !Ref NotionOauthClientSecret
+          PR_ACTION_IMAGE_BUCKET_NAME: !Ref ActionImageBucket
           PR_ACTION_IMAGE_PUBLIC_BASE_URL: !Sub
             - "https://${BucketName}.s3.${AWS::Region}.amazonaws.com"
             - BucketName: !Ref ActionImageBucket

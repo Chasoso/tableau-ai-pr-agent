@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import PrActionPanel from "./PrActionPanel";
 import type { DashboardContext } from "../types/tableau";
 
@@ -45,6 +45,27 @@ const dashboardContext: DashboardContext = {
   capturedAt: "2026-06-07T00:00:00.000Z",
 };
 
+const createObjectURLMock = vi.fn(() => "blob:venue-photo");
+const revokeObjectURLMock = vi.fn();
+
+beforeEach(() => {
+  Object.defineProperty(URL, "createObjectURL", {
+    configurable: true,
+    value: createObjectURLMock,
+    writable: true,
+  });
+  Object.defineProperty(URL, "revokeObjectURL", {
+    configurable: true,
+    value: revokeObjectURLMock,
+    writable: true,
+  });
+});
+
+afterEach(() => {
+  createObjectURLMock.mockClear();
+  revokeObjectURLMock.mockClear();
+});
+
 describe("PrActionPanel", () => {
   it("renders the input and preview panels", () => {
     render(
@@ -64,6 +85,11 @@ describe("PrActionPanel", () => {
     expect(screen.getByText("Slack draft")).toBeVisible();
     expect(screen.getByText("Evidence")).toBeVisible();
     expect(screen.getByText("Checks")).toBeVisible();
+    expect(
+      screen.getByText(
+        "Upload a venue photo from your phone to capture the atmosphere.",
+      ),
+    ).toBeVisible();
     expect(screen.getByText("Sales Workbook")).toBeVisible();
     expect(screen.getByText("Aki")).toBeVisible();
   });
@@ -101,7 +127,7 @@ describe("PrActionPanel", () => {
     expect(screen.getByText("action-run-1")).toBeVisible();
     expect(
       screen.getByText(
-        "https://images.example.com/pr-action-images/action-run-1/poster.png",
+        "https://images.example.com/pr-action-images/action-run-1/poster.svg",
       ),
     ).toBeVisible();
   });
@@ -128,5 +154,32 @@ describe("PrActionPanel", () => {
     expect(screen.getByLabelText("Event name")).toHaveValue("Sample Event");
     expect(screen.getByText("TechPlay preview")).toBeVisible();
     expect(screen.getByText("Sample summary.")).toBeVisible();
+  });
+
+  it("uploads a venue photo and shows the selected preview", async () => {
+    const user = userEvent.setup();
+
+    render(<PrActionPanel dashboardContext={dashboardContext} />);
+
+    const fileInput = screen.getByLabelText("Photo file");
+    const photo = new File(["photo-bytes"], "venue.jpg", {
+      type: "image/jpeg",
+    });
+
+    await user.upload(fileInput, photo);
+    await user.selectOptions(
+      screen.getByLabelText("Photo usage"),
+      "background",
+    );
+
+    expect(createObjectURLMock).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByAltText("Selected venue photo: venue.jpg"),
+    ).toBeVisible();
+    expect(screen.getByText("venue.jpg (Use as background)")).toBeVisible();
+    expect(screen.getByLabelText("Photo usage")).toHaveValue("background");
+    expect(
+      screen.getByText("Venue photo is set to Use as background."),
+    ).toBeVisible();
   });
 });

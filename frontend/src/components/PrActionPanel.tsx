@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { ChangeEvent } from "react";
 import { createActionRun } from "../api/actionRunApi";
 import { previewTechPlayEvent } from "../api/techplayApi";
 import { env } from "../env";
@@ -24,6 +25,17 @@ type PreviewSummary = {
   checks: string[];
   posterTagline: string;
   posterTheme: string;
+  venuePhotoSummary: string;
+  venuePhotoSafety: string;
+};
+
+type VenuePhotoUsage = "context_only" | "background" | "reference";
+
+type VenuePhotoDraft = {
+  fileName: string;
+  objectUrl: string;
+  sizeLabel: string;
+  usage: VenuePhotoUsage;
 };
 
 const POST_TYPES: Array<{ label: string; value: ActionRunPostType }> = [
@@ -48,6 +60,30 @@ const DEFAULT_TECHPLAY_URL = "https://techplay.jp/event/example";
 const DEFAULT_SITUATION =
   "会場は人が集まり始めていて、登壇の熱量が高まっています。";
 
+const DEFAULT_VENUE_PHOTO_USAGE: VenuePhotoUsage = "context_only";
+
+const VENUE_PHOTO_USAGE_OPTIONS: Array<{
+  label: string;
+  value: VenuePhotoUsage;
+  description: string;
+}> = [
+  {
+    label: "Context only",
+    value: "context_only",
+    description: "Use the photo only to understand the venue mood.",
+  },
+  {
+    label: "Use as background",
+    value: "background",
+    description: "Treat the photo as a background reference for the draft.",
+  },
+  {
+    label: "Reference only",
+    value: "reference",
+    description: "Keep it as a reference and do not shape the copy from it.",
+  },
+];
+
 export default function PrActionPanel({
   dashboardContext,
   userDisplayName,
@@ -65,6 +101,10 @@ export default function PrActionPanel({
   const [techplayPreviewError, setTechplayPreviewError] = useState<
     string | null
   >(null);
+  const [venuePhotoUsage, setVenuePhotoUsage] = useState<VenuePhotoUsage>(
+    DEFAULT_VENUE_PHOTO_USAGE,
+  );
+  const [venuePhoto, setVenuePhoto] = useState<VenuePhotoDraft | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [submissionSummary, setSubmissionSummary] =
@@ -77,6 +117,15 @@ export default function PrActionPanel({
     [submissionSummary],
   );
 
+  useEffect(
+    () => () => {
+      if (venuePhoto?.objectUrl) {
+        URL.revokeObjectURL(venuePhoto.objectUrl);
+      }
+    },
+    [venuePhoto?.objectUrl],
+  );
+
   const preview = useMemo(
     () =>
       buildPreview({
@@ -85,8 +134,16 @@ export default function PrActionPanel({
         techplayUrl,
         currentSituation,
         dashboardContext,
+        venuePhoto,
       }),
-    [currentSituation, dashboardContext, eventName, postType, techplayUrl],
+    [
+      currentSituation,
+      dashboardContext,
+      eventName,
+      postType,
+      techplayUrl,
+      venuePhoto,
+    ],
   );
 
   async function handleRunAction() {
@@ -141,6 +198,32 @@ export default function PrActionPanel({
     } finally {
       setIsLoadingTechPlay(false);
     }
+  }
+
+  function handleVenuePhotoChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    setVenuePhoto({
+      fileName: file.name,
+      objectUrl: URL.createObjectURL(file),
+      sizeLabel: formatFileSize(file.size),
+      usage: venuePhotoUsage,
+    });
+  }
+
+  function handleVenuePhotoUsageChange(event: ChangeEvent<HTMLSelectElement>) {
+    const nextUsage = event.currentTarget.value as VenuePhotoUsage;
+    setVenuePhotoUsage(nextUsage);
+    setVenuePhoto((previous) =>
+      previous ? { ...previous, usage: nextUsage } : previous,
+    );
+  }
+
+  function handleVenuePhotoClear() {
+    setVenuePhoto(null);
   }
 
   return (
@@ -283,6 +366,77 @@ export default function PrActionPanel({
             />
           </label>
 
+          <div className="pr-agent-photo-panel" aria-label="Venue photo upload">
+            <div className="pr-agent-photo-panel-header">
+              <div>
+                <p className="pr-agent-context-label">Venue photo</p>
+                <strong>Upload a smartphone photo for context</strong>
+              </div>
+              <span className="pr-agent-card-pill">Optional</span>
+            </div>
+
+            <label className="pr-agent-field">
+              <span>Photo usage</span>
+              <select
+                value={venuePhotoUsage}
+                onChange={handleVenuePhotoUsageChange}
+              >
+                {VENUE_PHOTO_USAGE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="pr-agent-field">
+              <span>Photo file</span>
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleVenuePhotoChange}
+              />
+            </label>
+
+            <div className="pr-agent-photo-help">
+              People may be visible in the photo. We only use it as a reference
+              and do not auto-post from it.
+            </div>
+
+            {venuePhoto ? (
+              <div className="venue-photo-preview" aria-live="polite">
+                <img
+                  src={venuePhoto.objectUrl}
+                  alt={`Selected venue photo: ${venuePhoto.fileName}`}
+                />
+                <div className="venue-photo-preview-copy">
+                  <strong>{venuePhoto.fileName}</strong>
+                  <span>{venuePhoto.sizeLabel}</span>
+                  <span>
+                    Usage:{" "}
+                    {
+                      VENUE_PHOTO_USAGE_OPTIONS.find(
+                        (option) => option.value === venuePhoto.usage,
+                      )?.label
+                    }
+                  </span>
+                  <button
+                    type="button"
+                    className="venue-photo-clear-button"
+                    onClick={handleVenuePhotoClear}
+                  >
+                    Remove photo
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="pr-agent-photo-placeholder">
+                Upload a venue photo from your phone to capture the atmosphere.
+              </div>
+            )}
+          </div>
+
           <div className="pr-agent-hint">
             This phase only prepares the request and preview. No API side
             effects beyond action-runs creation.
@@ -332,6 +486,21 @@ export default function PrActionPanel({
               </div>
             </div>
           </article>
+
+          <section
+            className="mini-output-card"
+            aria-label="Venue photo summary"
+          >
+            <h3>Venue photo</h3>
+            <p className="venue-photo-summary">{preview.venuePhotoSummary}</p>
+            <p className="venue-photo-safety">{preview.venuePhotoSafety}</p>
+            {venuePhoto ? (
+              <div className="venue-photo-summary-chip">
+                <span>{venuePhoto.fileName}</span>
+                <span>{venuePhoto.sizeLabel}</span>
+              </div>
+            ) : null}
+          </section>
 
           <div className="pr-agent-output-grid">
             <section className="mini-output-card" aria-label="Evidence">
@@ -427,11 +596,16 @@ function buildPreview(input: {
   techplayUrl: string;
   currentSituation: string;
   dashboardContext: DashboardContext;
+  venuePhoto: VenuePhotoDraft | null;
 }): PreviewSummary {
   const eventName = input.eventName.trim() || DEFAULT_EVENT_NAME;
   const situation = input.currentSituation.trim() || DEFAULT_SITUATION;
   const hostname = safeHostname(input.techplayUrl);
   const postTypeLabel = getPostTypeLabel(input.postType);
+  const venuePhotoUsageLabel = getVenuePhotoUsageLabel(input.venuePhoto?.usage);
+  const venuePhotoSummary = input.venuePhoto
+    ? `${input.venuePhoto.fileName} (${venuePhotoUsageLabel})`
+    : "No venue photo uploaded yet.";
 
   return {
     title: `${eventName} / ${postTypeLabel}`,
@@ -447,6 +621,9 @@ function buildPreview(input: {
       "The post type matches the current timing.",
       "The event name and URL point to the same event.",
       "The wording does not expose sensitive or inaccurate details.",
+      input.venuePhoto
+        ? `Venue photo is set to ${venuePhotoUsageLabel}.`
+        : "A venue photo can be added later for atmosphere checking.",
     ],
     posterTagline: `Draft for ${postTypeLabel} based on Tableau context.`,
     posterTheme:
@@ -462,6 +639,10 @@ function buildPreview(input: {
                 "\u6b21\u56de\u53c2\u52a0\u306e\u547c\u3073\u304b\u3051"
               ? "Next step"
               : "Pre-event",
+    venuePhotoSummary,
+    venuePhotoSafety: input.venuePhoto
+      ? "Do not auto-post if people are clearly identifiable without approval."
+      : "Use a venue photo when you want context, mood, or background reference.",
   };
 }
 
@@ -493,6 +674,30 @@ function safeHostname(url: string): string {
   }
 }
 
+function getVenuePhotoUsageLabel(usage: VenuePhotoUsage | undefined): string {
+  return (
+    VENUE_PHOTO_USAGE_OPTIONS.find((option) => option.value === usage)?.label ??
+    "Context only"
+  );
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+
+  const units = ["KB", "MB", "GB"];
+  let value = bytes / 1024;
+  let unitIndex = 0;
+
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+
+  return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
 function buildActionRunImageUrl(actionRunId: string): string | null {
   const baseUrl = env.prActionImagePublicBaseUrl.trim();
   if (!baseUrl) {
@@ -500,7 +705,7 @@ function buildActionRunImageUrl(actionRunId: string): string | null {
   }
 
   const prefix = normalizeObjectKeyPrefix(env.prActionImageObjectKeyPrefix);
-  return `${trimTrailingSlashes(baseUrl)}/${prefix}/${actionRunId}/poster.png`;
+  return `${trimTrailingSlashes(baseUrl)}/${prefix}/${actionRunId}/poster.svg`;
 }
 
 function normalizeObjectKeyPrefix(value: string): string {

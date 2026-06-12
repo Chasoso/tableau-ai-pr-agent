@@ -12,7 +12,7 @@ export function buildActionRunImageUrl(input: {
   const objectKeyPrefix = normalizeObjectKeyPrefix(
     config.actionImageObjectKeyPrefix,
   );
-  const objectKey = `${objectKeyPrefix}/${input.actionRunId}/poster.png`;
+  const objectKey = `${objectKeyPrefix}/${input.actionRunId}/poster.svg`;
   return `${trimTrailingSlashes(baseUrl)}/${objectKey}`;
 }
 

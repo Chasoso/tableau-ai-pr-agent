@@ -92,7 +92,7 @@ function buildResult() {
     evidence: ["evidence line"],
     checks: ["check line"],
     imageUrl:
-      "https://images.example.com/pr-action-images/action-run-1/poster.png",
+      "https://images.example.com/pr-action-images/action-run-1/poster.svg",
     analysisSections: [
       {
         key: "post_type_distribution",

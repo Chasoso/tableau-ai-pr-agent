@@ -15,6 +15,7 @@ export type AppConfig = {
     incomingWebhookUrl: string;
   };
   s3: {
+    actionImageBucketName: string;
     actionImagePublicBaseUrl: string;
     actionImageObjectKeyPrefix: string;
   };
@@ -128,6 +129,7 @@ export function getConfig(): AppConfig {
       incomingWebhookUrl: process.env.SLACK_INCOMING_WEBHOOK_URL ?? "",
     },
     s3: {
+      actionImageBucketName: process.env.PR_ACTION_IMAGE_BUCKET_NAME ?? "",
       actionImagePublicBaseUrl:
         process.env.PR_ACTION_IMAGE_PUBLIC_BASE_URL ?? "",
       actionImageObjectKeyPrefix:
