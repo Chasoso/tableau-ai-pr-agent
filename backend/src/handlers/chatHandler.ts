@@ -8,17 +8,20 @@ import {
   safeHash,
 } from "../logging";
 import { ChatJobService } from "../services/chatJobService";
+import { ActionRunService } from "../services/actionRunService";
 import { createChatService } from "../services/chatService";
 import type {
   ApiGatewayProxyEvent,
   ApiGatewayProxyResult,
   LambdaExecutionContext,
 } from "../types/api";
+import type { ActionRunRequest } from "../types/actionRun";
 import type { ChatRequest, ContextRequest } from "../types/chat";
 import { handleNotionRoute } from "./notionHandler";
 import { handleCognitoPopupAuthRoute } from "./cognitoPopupAuthHandler";
 
 const chatJobService = new ChatJobService();
+const actionRunService = new ActionRunService();
 
 export async function handler(
   event: ApiGatewayProxyEvent,
@@ -28,6 +31,7 @@ export async function handler(
   const method = event.httpMethod ?? event.requestContext?.http?.method;
   const routePath = getRoutePath(event);
   const isChatJobRoute = routePath.startsWith("/chat-jobs");
+  const isActionRunRoute = routePath.startsWith("/action-runs");
   const isNotionCallbackRoute = routePath.startsWith("/notion/callback");
   const isCognitoPopupAuthRoute = routePath.startsWith("/auth/cognito/");
 
@@ -110,6 +114,51 @@ export async function handler(
       return jsonResponse(200, response);
     }
 
+    if (routePath === "/action-runs" && method === "POST") {
+      const request = parseRequest(event.body) as ActionRunRequest;
+      const validationError = validateActionRunRequest(request);
+      if (validationError) {
+        logWarn("action.run_request.invalid", {
+          requestId,
+          validationError,
+        });
+        return jsonResponse(400, { message: validationError });
+      }
+
+      const response = await actionRunService.createActionRun({
+        request,
+        authenticatedUser: authResult.user,
+        headers: event.headers,
+        requestId,
+      });
+      logInfo("action.run.request.created", {
+        requestId,
+        actionRunId: response.actionRunId,
+        status: response.status,
+      });
+      return jsonResponse(202, response);
+    }
+
+    if (routePath.startsWith("/action-runs/") && method === "GET") {
+      const actionRunId = parseActionRunId(routePath);
+      if (!actionRunId) {
+        return jsonResponse(400, { message: "actionRunId is required." });
+      }
+
+      const response = await actionRunService.getActionRun({
+        actionRunId,
+        authenticatedUser: authResult.user,
+        headers: event.headers,
+      });
+      logInfo("action.run.request.fetched", {
+        requestId,
+        actionRunId,
+        status: response.status,
+        stage: response.stage,
+      });
+      return jsonResponse(200, response);
+    }
+
     if (routePath === "/chat-jobs" && method !== "POST") {
       return jsonResponse(405, {
         message: "Method not allowed.",
@@ -117,6 +166,18 @@ export async function handler(
     }
 
     if (routePath.startsWith("/chat-jobs/") && method !== "GET") {
+      return jsonResponse(405, {
+        message: "Method not allowed.",
+      });
+    }
+
+    if (routePath === "/action-runs" && method !== "POST") {
+      return jsonResponse(405, {
+        message: "Method not allowed.",
+      });
+    }
+
+    if (routePath.startsWith("/action-runs/") && method !== "GET") {
       return jsonResponse(405, {
         message: "Method not allowed.",
       });
@@ -183,6 +244,21 @@ export async function handler(
       }
     }
 
+    if (isActionRunRoute && method === "GET") {
+      const actionRunRouteError = mapActionRunRouteError(error);
+      if (actionRunRouteError) {
+        logWarn("action.run.request.rejected", {
+          requestId,
+          routePath,
+          statusCode: actionRunRouteError.statusCode,
+          ...safeErrorDetails(error),
+        });
+        return jsonResponse(actionRunRouteError.statusCode, {
+          message: actionRunRouteError.message,
+        });
+      }
+    }
+
     logError("chat.request.failed", { requestId, ...safeErrorDetails(error) });
     return jsonResponse(500, { message: "Failed to generate an answer." });
   }
@@ -213,6 +289,34 @@ function validateRequest(request: ChatRequest): string | null {
 }
 
 function validateContextRequest(request: ContextRequest): string | null {
+  if (!request.dashboardContext) {
+    return "dashboardContext is required.";
+  }
+
+  if (!Array.isArray(request.dashboardContext.worksheets)) {
+    return "dashboardContext.worksheets must be an array.";
+  }
+
+  return null;
+}
+
+function validateActionRunRequest(request: ActionRunRequest): string | null {
+  if (!request.postType?.trim()) {
+    return "postType is required.";
+  }
+
+  if (!request.eventName?.trim()) {
+    return "eventName is required.";
+  }
+
+  if (!request.techplayUrl?.trim()) {
+    return "techplayUrl is required.";
+  }
+
+  if (!request.currentSituation?.trim()) {
+    return "currentSituation is required.";
+  }
+
   if (!request.dashboardContext) {
     return "dashboardContext is required.";
   }
@@ -256,6 +360,16 @@ function parseJobId(routePath: string): string | null {
   return jobId || null;
 }
 
+function parseActionRunId(routePath: string): string | null {
+  const prefix = "/action-runs/";
+  if (!routePath.startsWith(prefix)) {
+    return null;
+  }
+
+  const actionRunId = routePath.slice(prefix.length).trim();
+  return actionRunId || null;
+}
+
 function mapChatJobRouteError(
   error: unknown,
 ): { statusCode: number; message: string } | null {
@@ -272,6 +386,28 @@ function mapChatJobRouteError(
     return {
       statusCode: 403,
       message: "You do not have access to this chat job.",
+    };
+  }
+
+  return null;
+}
+
+function mapActionRunRouteError(
+  error: unknown,
+): { statusCode: number; message: string } | null {
+  const message = error instanceof Error ? error.message : "";
+
+  if (/not found/i.test(message)) {
+    return {
+      statusCode: 404,
+      message: "Action run not found.",
+    };
+  }
+
+  if (/access|unauthorized|forbidden/i.test(message)) {
+    return {
+      statusCode: 403,
+      message: "You do not have access to this action run.",
     };
   }
 

@@ -110,6 +110,487 @@ button {
   line-height: 1.5;
 }
 
+.app-shell:has(.pr-agent-shell) {
+  align-items: stretch;
+  justify-content: center;
+  padding: 12px;
+  background:
+    radial-gradient(circle at top left, rgba(70, 153, 214, 0.18), transparent 34%),
+    radial-gradient(circle at bottom right, rgba(15, 72, 114, 0.14), transparent 30%),
+    linear-gradient(180deg, #f8fbfe 0%, #eef5fb 100%);
+}
+
+.pr-agent-shell {
+  display: grid;
+  gap: 14px;
+  width: min(1120px, 100%);
+  min-height: calc(100vh - 24px);
+  padding: 18px;
+  border: 1px solid rgba(110, 131, 160, 0.22);
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(246, 250, 253, 0.94)),
+    #eef4fb;
+  box-shadow: 0 22px 50px rgba(21, 42, 62, 0.14);
+  color: #123049;
+}
+
+.pr-agent-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 4px 2px 0;
+}
+
+.pr-agent-hero-copy {
+  display: grid;
+  gap: 10px;
+  max-width: 680px;
+}
+
+.pr-agent-eyebrow {
+  display: inline-flex;
+  width: fit-content;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #dbeaf7;
+  color: #0d4167;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pr-agent-hero h1 {
+  margin: 0;
+  color: #123049;
+  font-size: clamp(28px, 3vw, 40px);
+  line-height: 1.08;
+  letter-spacing: -0.04em;
+}
+
+.pr-agent-hero p {
+  margin: 0;
+  color: #5f7085;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.pr-agent-hero-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.pr-agent-hero-badges span,
+.pr-agent-card-pill {
+  border: 1px solid rgba(30, 111, 170, 0.16);
+  border-radius: 999px;
+  padding: 7px 10px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #0d4167;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pr-agent-context {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid rgba(110, 131, 160, 0.22);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.pr-agent-context-label {
+  margin: 0 0 4px;
+  color: #5f7085;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.pr-agent-context strong {
+  color: #123049;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.pr-agent-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.95fr) minmax(360px, 1.05fr);
+  gap: 14px;
+  min-height: 0;
+}
+
+.pr-agent-card {
+  display: grid;
+  gap: 14px;
+  min-height: 0;
+  padding: 18px;
+  border: 1px solid rgba(110, 131, 160, 0.22);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(8px);
+}
+
+.pr-agent-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pr-agent-card-header h2 {
+  margin: 0;
+  color: #123049;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.pr-agent-card-header p {
+  margin: 4px 0 0;
+  color: #5f7085;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.post-type-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.post-type-chip {
+  border: 1px solid rgba(30, 111, 170, 0.16);
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.84);
+  color: #0d4167;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    transform 120ms ease;
+}
+
+.post-type-chip:hover {
+  transform: translateY(-1px);
+}
+
+.post-type-chip.active {
+  border-color: rgba(30, 111, 170, 0.32);
+  background: linear-gradient(180deg, #f3f9fe, #dcecf8);
+  color: #1e6faa;
+}
+
+.pr-agent-field {
+  display: grid;
+  gap: 7px;
+}
+
+.pr-agent-field span {
+  color: #123049;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pr-agent-field input,
+.pr-agent-field textarea {
+  width: 100%;
+  border: 1px solid rgba(102, 122, 147, 0.22);
+  border-radius: 16px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #123049;
+  outline: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.pr-agent-field textarea {
+  resize: vertical;
+  min-height: 120px;
+}
+
+.pr-agent-field input:focus,
+.pr-agent-field textarea:focus {
+  border-color: rgba(30, 111, 170, 0.45);
+  box-shadow: 0 0 0 4px rgba(30, 111, 170, 0.12);
+}
+
+.pr-agent-hint {
+  border-left: 3px solid rgba(30, 111, 170, 0.42);
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(219, 234, 247, 0.55);
+  color: #0d4167;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.slack-copy-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(30, 111, 170, 0.14);
+  border-radius: 18px;
+  background: linear-gradient(180deg, #0f2940, #16395c);
+  color: #ffffff;
+  box-shadow: 0 16px 34px rgba(14, 45, 73, 0.18);
+}
+
+.slack-copy-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.slack-copy-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.68);
+}
+
+.slack-copy-channel {
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.slack-copy-card p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.slack-hashtags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.slack-hashtags span {
+  border-radius: 999px;
+  padding: 6px 9px;
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.poster-preview {
+  display: grid;
+  gap: 16px;
+  min-height: 220px;
+  padding: 16px;
+  border: 1px solid rgba(30, 111, 170, 0.16);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.28), transparent 30%),
+    linear-gradient(135deg, #f8fcff, #d8ecfa 42%, #0c2f4d 42.5%, #08253c 100%);
+  color: #ffffff;
+  overflow: hidden;
+}
+
+.poster-preview-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.poster-preview-body {
+  display: grid;
+  align-content: end;
+  gap: 10px;
+  min-height: 100%;
+  padding: 8px 2px 0;
+}
+
+.poster-preview-eyebrow {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.poster-preview-body h3 {
+  margin: 0;
+  max-width: 20ch;
+  font-size: clamp(22px, 2.8vw, 34px);
+  line-height: 1.06;
+  letter-spacing: -0.04em;
+}
+
+.poster-preview-body p {
+  margin: 0;
+  max-width: 34ch;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.poster-preview-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 6px;
+}
+
+.poster-preview-bar span {
+  border-radius: 999px;
+  padding: 7px 10px;
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pr-agent-output-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.mini-output-card {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid rgba(30, 111, 170, 0.14);
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.mini-output-card h3 {
+  margin: 0;
+  color: #123049;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.mini-output-card ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #5f7085;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.mini-output-card li + li {
+  margin-top: 4px;
+}
+
+.pr-agent-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 2px 0;
+}
+
+.pr-agent-footer-copy {
+  color: #5f7085;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.pr-agent-footer-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.pr-agent-footer-actions button {
+  border: 1px solid rgba(30, 111, 170, 0.16);
+  border-radius: 14px;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.84);
+  color: #0d4167;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: not-allowed;
+}
+
+.pr-agent-action-button {
+  cursor: pointer !important;
+  border: 1px solid rgba(30, 111, 170, 0.22) !important;
+  background: linear-gradient(180deg, #1e6faa, #0d4167) !important;
+  color: #ffffff !important;
+}
+
+.pr-agent-action-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed !important;
+}
+
+.pr-agent-status-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid rgba(30, 111, 170, 0.16);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.pr-agent-status-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pr-agent-status-header h2 {
+  margin: 0;
+  color: #123049;
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+.pr-agent-status-header span {
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #dbeaf7;
+  color: #0d4167;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.pr-agent-status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
+  margin: 0;
+}
+
+.pr-agent-status-grid dt {
+  color: #5f7085;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.pr-agent-status-grid dd {
+  margin: 4px 0 0;
+  color: #123049;
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 .chat-panel {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;

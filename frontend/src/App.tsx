@@ -4,7 +4,7 @@ import { isAuthPopupStart, isAuthRedirect } from "./auth/cognitoAuth";
 import AuthCallback from "./components/AuthCallback";
 import AuthGate from "./components/AuthGate";
 import AuthPopupStart from "./components/AuthPopupStart";
-import ChatPanel from "./components/ChatPanel";
+import PrActionPanel from "./components/PrActionPanel";
 import { initializeTableauExtension } from "./tableau/tableauExtension";
 import type { DashboardContext } from "./types/tableau";
 
@@ -39,7 +39,7 @@ function DashboardExtensionApp() {
           setError(
             unknownError instanceof Error
               ? unknownError.message
-              : "Tableau初期化に失敗しました。",
+              : "Tableau extension initialization failed.",
           );
         }
       });
@@ -56,7 +56,7 @@ function DashboardExtensionApp() {
   if (!dashboardContext) {
     return (
       <div className="app-shell loading-state">
-        ダッシュボード情報を読み込んでいます…
+        Loading Tableau dashboard context...
       </div>
     );
   }
@@ -64,41 +64,15 @@ function DashboardExtensionApp() {
   const renderPanel = ({
     authToken,
     userDisplayName,
-    isAuthenticated,
-    isAuthLoading,
-    isSigningIn,
-    authError,
-    onSignIn,
   }: {
     authToken?: string;
     userDisplayName?: string;
-    isAuthenticated: boolean;
-    isAuthLoading?: boolean;
-    isSigningIn?: boolean;
-    authError?: string | null;
-    onSignIn?: () => Promise<void>;
   }) => (
     <div className="app-shell">
-      <ChatPanel
+      <PrActionPanel
         dashboardContext={dashboardContext}
         authToken={authToken}
         userDisplayName={userDisplayName}
-        isAuthenticated={isAuthenticated}
-        isAuthLoading={Boolean(isAuthLoading)}
-        authOverlay={
-          env.authRequired
-            ? {
-                isSigningIn: Boolean(isSigningIn),
-                error: authError ?? null,
-                onSignIn: onSignIn ?? (() => Promise.resolve()),
-              }
-            : undefined
-        }
-        onDashboardContextPatch={(patch) => {
-          setDashboardContext((current) =>
-            current ? { ...current, ...patch } : current,
-          );
-        }}
       />
     </div>
   );
@@ -106,20 +80,40 @@ function DashboardExtensionApp() {
   if (env.authRequired) {
     return (
       <AuthGate>
-        {({ session, isLoading, isSigningIn, error: authError, startSignIn }) =>
-          renderPanel({
-            authToken: session?.idToken,
-            userDisplayName: session?.nickname,
-            isAuthenticated: Boolean(session),
-            isAuthLoading: isLoading,
-            isSigningIn,
-            authError,
-            onSignIn: startSignIn,
-          })
+        {({
+          session,
+          isLoading,
+          isSigningIn,
+          error: authError,
+          startSignIn,
+        }) =>
+          session ? (
+            renderPanel({
+              authToken: session.idToken,
+              userDisplayName: session.nickname ?? session.email,
+            })
+          ) : (
+            <div className="app-shell auth-state">
+              <div className="auth-card">
+                <h1>AI PR Action</h1>
+                <p>Sign in to continue.</p>
+                {authError ? (
+                  <div className="error-banner">{authError}</div>
+                ) : null}
+                <button
+                  type="button"
+                  disabled={Boolean(isLoading || isSigningIn)}
+                  onClick={() => void startSignIn()}
+                >
+                  {isSigningIn ? "Signing in..." : "Sign in"}
+                </button>
+              </div>
+            </div>
+          )
         }
       </AuthGate>
     );
   }
 
-  return renderPanel({ isAuthenticated: true });
+  return renderPanel({});
 }
