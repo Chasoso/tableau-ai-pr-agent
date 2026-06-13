@@ -73,7 +73,7 @@ function writeLog(
   const payload = JSON.stringify({
     level,
     event,
-    ...details,
+    ...sanitizeLogDetails(details),
   });
 
   if (level === "error") {
@@ -87,6 +87,70 @@ function writeLog(
   }
 
   console.log(payload);
+}
+
+function sanitizeLogDetails(
+  details: Record<string, unknown>,
+): Record<string, unknown> {
+  const sanitized = sanitizeValue(details, undefined);
+  if (sanitized && typeof sanitized === "object" && !Array.isArray(sanitized)) {
+    return sanitized as Record<string, unknown>;
+  }
+
+  return details;
+}
+
+function sanitizeValue(value: unknown, key?: string): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeValue(item));
+  }
+
+  if (value && typeof value === "object") {
+    const output: Record<string, unknown> = {};
+    for (const [childKey, childValue] of Object.entries(value)) {
+      output[childKey] = sanitizeValue(childValue, childKey);
+    }
+    return output;
+  }
+
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  if (key && isSensitiveKey(key)) {
+    return "[REDACTED]";
+  }
+
+  return redactSensitiveString(value);
+}
+
+function isSensitiveKey(key: string): boolean {
+  return /(^|_)(secret|token|password|credential|verifier|webhook|cookie|authorization|api[_-]?key|client[_-]?secret|access[_-]?token|refresh[_-]?token|private[_-]?key|account[_-]?id)($|_)/i.test(
+    key,
+  );
+}
+
+function redactSensitiveString(value: string): string {
+  if (
+    /\b(secret|token|password|credential|verifier|authorization)\b/i.test(
+      value,
+    ) &&
+    value.length >= 12
+  ) {
+    return "[REDACTED]";
+  }
+
+  return value
+    .replace(
+      /https:\/\/hooks\.slack\.com\/services\/[^\s"'<>]+/gi,
+      "[REDACTED_SLACK_WEBHOOK_URL]",
+    )
+    .replace(/AKIA[0-9A-Z]{16}/g, "[REDACTED_AWS_ACCESS_KEY]")
+    .replace(/ASIA[0-9A-Z]{16}/g, "[REDACTED_AWS_ACCESS_KEY]")
+    .replace(/xox[baprs]-[A-Za-z0-9-]{10,}/g, "[REDACTED_SLACK_TOKEN]")
+    .replace(/gh[pousr]_[A-Za-z0-9_]{10,}/g, "[REDACTED_GITHUB_TOKEN]")
+    .replace(/github_pat_[A-Za-z0-9_]{10,}/g, "[REDACTED_GITHUB_TOKEN]")
+    .replace(/\b\d{12}\b/g, "[REDACTED_AWS_ACCOUNT]");
 }
 
 function shouldLog(level: LogLevel): boolean {

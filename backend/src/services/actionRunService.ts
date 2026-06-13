@@ -48,6 +48,7 @@ export class ActionRunService {
     });
     const jobId = randomUUID();
     const createdAt = new Date().toISOString();
+    const runId = jobId;
 
     const record: ActionRunRecord = {
       jobId,
@@ -76,6 +77,7 @@ export class ActionRunService {
 
     await repository.create(record);
     logInfo("action_run.created", {
+      runId,
       actionRunId: jobId,
       requestId: input.requestId,
       authenticated: Boolean(input.authenticatedUser),
@@ -86,6 +88,7 @@ export class ActionRunService {
 
     if (!config.actionRun.workerFunctionName) {
       logWarn("action_run.dispatch_inline", {
+        runId,
         actionRunId: jobId,
         requestId: input.requestId,
       });
@@ -96,6 +99,7 @@ export class ActionRunService {
         input.authenticatedUser,
       ).catch((error) => {
         logError("action_run.inline_worker_failed", {
+          runId,
           actionRunId: jobId,
           ...safeErrorDetails(error),
         });
@@ -111,6 +115,7 @@ export class ActionRunService {
         );
       } catch (error) {
         logError("action_run.dispatch_failed", {
+          runId,
           actionRunId: jobId,
           ...safeErrorDetails(error),
         });
@@ -206,6 +211,7 @@ export class ActionRunService {
     });
 
     const slackWebhook = await slackWebhookService.postActionRun({
+      runId: input.actionRunId,
       request: record.request,
       result: approvedResult,
     });
@@ -228,6 +234,7 @@ export class ActionRunService {
     });
 
     logInfo("action_run.approved", {
+      runId: input.actionRunId,
       actionRunId: input.actionRunId,
       requestId: input.requestId,
       slackSent: slackWebhook.sent,
@@ -262,12 +269,14 @@ export class ActionRunService {
 
     if (!claimed) {
       logWarn("action_run.claim_skipped", {
+        runId: input.actionRunId,
         actionRunId: input.actionRunId,
       });
       return;
     }
 
     logInfo("action_run.claimed", {
+      runId: input.actionRunId,
       actionRunId: input.actionRunId,
       ownerType: claimed.ownerType,
       attemptCount: claimed.attemptCount ?? 1,
@@ -295,6 +304,7 @@ export class ActionRunService {
       });
       const generatedImage = await imageService.generateActionRunPoster({
         actionRunId: input.actionRunId,
+        runId: input.actionRunId,
         request: claimed.request,
         result: response,
       });
@@ -333,6 +343,7 @@ export class ActionRunService {
         },
       });
       logInfo("action_run.completed", {
+        runId: input.actionRunId,
         actionRunId: input.actionRunId,
         sectionCount: completedResult.analysisSections?.length ?? 0,
         hasImageUrl: Boolean(imageUrl),
@@ -340,6 +351,7 @@ export class ActionRunService {
       });
     } catch (error) {
       logError("action_run.failed", {
+        runId: input.actionRunId,
         actionRunId: input.actionRunId,
         ...safeErrorDetails(error),
       });

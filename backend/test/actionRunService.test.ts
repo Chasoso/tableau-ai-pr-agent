@@ -155,6 +155,34 @@ describe("ActionRunService", () => {
     );
   });
 
+  it("includes runId in action run lifecycle logs", async () => {
+    repositoryMock.create.mockResolvedValue(undefined);
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {
+      // noop
+    });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {
+      // noop
+    });
+    const service = new ActionRunService();
+
+    await service.createActionRun({
+      request: buildRequest(),
+      headers: {
+        "X-Action-Run-Owner-Token": "owner-token-123",
+      },
+    });
+
+    const payloads = [...logSpy.mock.calls, ...warnSpy.mock.calls]
+      .map(
+        ([payload]) => JSON.parse(String(payload)) as Record<string, unknown>,
+      )
+      .filter((payload) => payload.event === "action_run.created");
+
+    expect(payloads).toHaveLength(1);
+    expect(payloads[0]?.runId).toBe(payloads[0]?.actionRunId);
+    expect(payloads[0]?.requestId).toBeUndefined();
+  });
+
   it("processes an action run with fixed Tableau analysis", async () => {
     repositoryMock.claim.mockResolvedValue(buildActionRunRecord());
     repositoryMock.updateProgress.mockResolvedValue(buildActionRunRecord());

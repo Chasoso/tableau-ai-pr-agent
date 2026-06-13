@@ -19,9 +19,11 @@ export class SlackWebhookService {
   async postActionRun(input: {
     request: ActionRunRequest;
     result: ActionRunResult;
+    runId?: string;
   }): Promise<SlackWebhookPostResult> {
     if (getConfig().demoMode) {
       logWarn("slack.webhook.skipped", {
+        ...(input.runId ? { runId: input.runId } : {}),
         reason: "demo_mode",
         eventName: input.request.eventName,
       });
@@ -31,6 +33,7 @@ export class SlackWebhookService {
     const webhookUrl = getConfig().slack.incomingWebhookUrl.trim();
     if (!webhookUrl) {
       logWarn("slack.webhook.skipped", {
+        ...(input.runId ? { runId: input.runId } : {}),
         reason: "missing_webhook_url",
         eventName: input.request.eventName,
       });
@@ -50,6 +53,7 @@ export class SlackWebhookService {
       if (!response.ok) {
         const error = `Slack webhook returned ${response.status}`;
         logWarn("slack.webhook.failed", {
+          ...(input.runId ? { runId: input.runId } : {}),
           eventName: input.request.eventName,
           statusCode: response.status,
         });
@@ -62,6 +66,7 @@ export class SlackWebhookService {
       }
 
       logInfo("slack.webhook.sent", {
+        ...(input.runId ? { runId: input.runId } : {}),
         eventName: input.request.eventName,
         sectionCount: input.result.analysisSections?.length ?? 0,
       });
@@ -73,6 +78,7 @@ export class SlackWebhookService {
     } catch (error) {
       const details = safeErrorDetails(error);
       logWarn("slack.webhook.failed", {
+        ...(input.runId ? { runId: input.runId } : {}),
         eventName: input.request.eventName,
         ...details,
       });

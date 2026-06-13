@@ -20,6 +20,7 @@ export class ActionRunImageService {
 
   async generateActionRunPoster(input: {
     actionRunId: string;
+    runId?: string;
     request: ActionRunRequest;
     result: ActionRunResult;
   }): Promise<GeneratedActionRunImage | null> {
@@ -30,6 +31,7 @@ export class ActionRunImageService {
     const bucketName = getConfig().s3.actionImageBucketName.trim();
     if (!bucketName) {
       logWarn("action_run.image_generation.skipped", {
+        runId: input.runId ?? input.actionRunId,
         actionRunId: input.actionRunId,
         reason: "missing_bucket_name",
       });
@@ -57,6 +59,7 @@ export class ActionRunImageService {
       );
     } catch (error) {
       logWarn("action_run.image_generation.fallback", {
+        runId: input.runId ?? input.actionRunId,
         actionRunId: input.actionRunId,
         reason: "s3_upload_failed",
         errorName: error instanceof Error ? error.name : undefined,
@@ -70,6 +73,7 @@ export class ActionRunImageService {
     }
 
     logInfo("action_run.image_generation.completed", {
+      runId: input.runId ?? input.actionRunId,
       actionRunId: input.actionRunId,
       objectKey,
     });
