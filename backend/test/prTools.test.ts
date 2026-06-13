@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildPrDraftOutput, reviewPrDraft } from "../src/agents/tools/prTools";
+import {
+  buildPrDraftOutput,
+  collectPrSourceInfoSchema,
+  prToolDefinitions,
+  reviewPrDraft,
+} from "../src/agents/tools/prTools";
 
 describe("prTools", () => {
   it("builds draft-only output and surfaces missing fields", () => {
@@ -27,7 +32,67 @@ describe("prTools", () => {
     expect(review.issues.join(" ")).toContain("publish");
     expect(review.status).toBe("needs_review");
   });
+
+  it("parses collect source input and returns normalized source info", async () => {
+    const input = collectPrSourceInfoSchema.parse(buildCollectInput());
+    const output = await prToolDefinitions.collectPrSourceInfo.callback(input);
+
+    expect(output.eventName).toBe("Tableau User Group Tokyo 2026");
+    expect(output.analysisHighlights).toContain(
+      "Post type distribution: Checked post type counts.",
+    );
+  });
+
+  it("keeps each tool callback testable in isolation", async () => {
+    const sourceInfo = buildSourceInfo();
+    const summary = await prToolDefinitions.summarizePrSourceInfo.callback({
+      sourceInfo,
+    });
+    const announcementDraft =
+      await prToolDefinitions.generateAnnouncementDraft.callback({
+        sourceInfo,
+        summary,
+      });
+    const socialPostDraft =
+      await prToolDefinitions.generateSocialPostDraft.callback({
+        platform: "x",
+        sourceInfo,
+        summary,
+      });
+    const review = await prToolDefinitions.reviewPrDraft.callback({
+      sourceInfo,
+      announcementDraft,
+      socialPostDrafts: {
+        x: socialPostDraft,
+        linkedin: socialPostDraft,
+      },
+    });
+    const output = await prToolDefinitions.createDraftOutput.callback({
+      sourceInfo,
+      summary,
+      announcementDraft,
+      socialPostDraft,
+      socialPostDrafts: {
+        x: socialPostDraft,
+        linkedin: socialPostDraft,
+      },
+      review,
+    });
+
+    expect(summary).toContain("Event: Tableau User Group Tokyo 2026");
+    expect(announcementDraft).toContain("# Tableau User Group Tokyo 2026");
+    expect(socialPostDraft).toContain("https://techplay.jp/event/123");
+    expect(output.drafts.x).toContain("https://techplay.jp/event/123");
+    expect(output.review.status).toBe("needs_review");
+  });
 });
+
+function buildCollectInput() {
+  return {
+    request: buildRequest(),
+    analysisSections: buildAnalysisSections(),
+  };
+}
 
 function buildRequest() {
   return {

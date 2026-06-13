@@ -1,4 +1,9 @@
 import { z } from "zod";
+import type {
+  InvokableTool,
+  JSONValue,
+  ZodToolConfig,
+} from "@strands-agents/sdk";
 import { logError, logInfo, safeErrorDetails } from "../../logging";
 import type {
   ActionRunAnalysisSection,
@@ -54,16 +59,57 @@ export type PrDraftOutput = {
   missingFields: string[];
 };
 
-type PrToolFactoryConfig = {
+export type CollectPrSourceInfoInput = z.input<
+  typeof collectPrSourceInfoSchema
+>;
+export type CollectPrSourceInfoOutput = PrDraftSourceInfo;
+export type SummarizePrSourceInfoInput = { sourceInfo: PrDraftSourceInfo };
+export type SummarizePrSourceInfoOutput = string;
+export type GenerateAnnouncementDraftInput = {
+  sourceInfo: PrDraftSourceInfo;
+  summary: string;
+};
+export type GenerateAnnouncementDraftOutput = string;
+export type GenerateSocialPostDraftInput = {
+  platform: PrDraftPlatform;
+  sourceInfo: PrDraftSourceInfo;
+  summary: string;
+};
+export type GenerateSocialPostDraftOutput = string;
+export type ReviewPrDraftInput = {
+  sourceInfo: PrDraftSourceInfo;
+  announcementDraft: string;
+  socialPostDrafts: { x: string; linkedin: string };
+};
+export type ReviewPrDraftOutput = PrDraftReview;
+export type CreateDraftOutputInput = {
+  sourceInfo: PrDraftSourceInfo;
+  summary: string;
+  announcementDraft: string;
+  socialPostDraft: string;
+  socialPostDrafts: { x: string; linkedin: string };
+  review: PrDraftReview;
+};
+export type CreateDraftOutputOutput = PrDraftOutput;
+
+type PrToolDefinition<
+  TSchema extends z.ZodTypeAny,
+  TReturn extends JSONValue,
+> = {
   name: string;
   description: string;
-  inputSchema: z.ZodTypeAny;
-  callback: (input: unknown) => Promise<unknown>;
+  inputSchema: TSchema;
+  callback: (input: z.output<TSchema>) => Promise<TReturn>;
 };
 
-export type PrToolFactory = (config: PrToolFactoryConfig) => unknown;
+export type PrToolFactory = <
+  TInput extends z.ZodType,
+  TReturn extends JSONValue = JSONValue,
+>(
+  config: ZodToolConfig<TInput, TReturn>,
+) => InvokableTool<z.infer<TInput>, TReturn>;
 
-const collectPrSourceInfoSchema = z.object({
+export const collectPrSourceInfoSchema = z.object({
   request: z.object({
     postType: z.string().min(1),
     eventName: z.string().min(1),
@@ -102,22 +148,22 @@ const collectPrSourceInfoSchema = z.object({
     .default([]),
 });
 
-const summarizePrSourceInfoSchema = z.object({
+export const summarizePrSourceInfoSchema = z.object({
   sourceInfo: z.custom<PrDraftSourceInfo>(),
 });
 
-const generateAnnouncementDraftSchema = z.object({
+export const generateAnnouncementDraftSchema = z.object({
   sourceInfo: z.custom<PrDraftSourceInfo>(),
   summary: z.string().min(1),
 });
 
-const generateSocialPostDraftSchema = z.object({
+export const generateSocialPostDraftSchema = z.object({
   platform: z.enum(["x", "linkedin"]),
   sourceInfo: z.custom<PrDraftSourceInfo>(),
   summary: z.string().min(1),
 });
 
-const reviewPrDraftSchema = z.object({
+export const reviewPrDraftSchema = z.object({
   sourceInfo: z.custom<PrDraftSourceInfo>(),
   announcementDraft: z.string().min(1),
   socialPostDrafts: z.object({
@@ -126,7 +172,7 @@ const reviewPrDraftSchema = z.object({
   }),
 });
 
-const createDraftOutputSchema = z.object({
+export const createDraftOutputSchema = z.object({
   sourceInfo: z.custom<PrDraftSourceInfo>(),
   summary: z.string().min(1),
   announcementDraft: z.string().min(1),
@@ -138,96 +184,125 @@ const createDraftOutputSchema = z.object({
   review: z.custom<PrDraftReview>(),
 });
 
+function definePrToolDefinition<
+  TSchema extends z.ZodTypeAny,
+  TReturn extends JSONValue,
+>(
+  definition: PrToolDefinition<TSchema, TReturn>,
+): PrToolDefinition<TSchema, TReturn> {
+  return definition;
+}
+
 export function createPrTools(toolFactory: PrToolFactory) {
   return [
-    toolFactory({
-      name: "collectPrSourceInfo",
-      description:
-        "Collect and normalize event, Tableau, and reference preview information for PR drafting. Never invent missing facts.",
-      inputSchema: collectPrSourceInfoSchema,
-      callback: async (input: z.infer<typeof collectPrSourceInfoSchema>) =>
-        executeLoggedTool("collectPrSourceInfo", input, async () =>
-          collectPrSourceInfo(input),
-        ),
-    }),
-    toolFactory({
-      name: "summarizePrSourceInfo",
-      description:
-        "Summarize the collected source information into concise drafting notes and surface missing fields.",
-      inputSchema: summarizePrSourceInfoSchema,
-      callback: async (input: z.infer<typeof summarizePrSourceInfoSchema>) =>
-        executeLoggedTool("summarizePrSourceInfo", input, async () =>
-          summarizePrSourceInfo(input.sourceInfo),
-        ),
-    }),
-    toolFactory({
-      name: "generateAnnouncementDraft",
-      description:
-        "Generate a long-form announcement draft for human review only.",
-      inputSchema: generateAnnouncementDraftSchema,
-      callback: async (
-        input: z.infer<typeof generateAnnouncementDraftSchema>,
-      ) =>
-        executeLoggedTool("generateAnnouncementDraft", input, async () =>
-          generateAnnouncementDraft(input.sourceInfo, input.summary),
-        ),
-    }),
-    toolFactory({
-      name: "generateSocialPostDraft",
-      description:
-        "Generate a short social post draft for the selected platform without posting it.",
-      inputSchema: generateSocialPostDraftSchema,
-      callback: async (input: z.infer<typeof generateSocialPostDraftSchema>) =>
-        executeLoggedTool("generateSocialPostDraft", input, async () =>
-          generateSocialPostDraft(
-            input.platform,
-            input.sourceInfo,
-            input.summary,
-          ),
-        ),
-    }),
-    toolFactory({
-      name: "reviewPrDraft",
-      description:
-        "Review draft copy for missing information, overclaim risk, URL issues, and tone problems.",
-      inputSchema: reviewPrDraftSchema,
-      callback: async (input: z.infer<typeof reviewPrDraftSchema>) =>
-        executeLoggedTool("reviewPrDraft", input, async () =>
-          reviewPrDraft(
-            input.sourceInfo,
-            input.announcementDraft,
-            input.socialPostDrafts,
-          ),
-        ),
-    }),
-    toolFactory({
-      name: "createDraftOutput",
-      description:
-        "Assemble the final draft-only output for downstream preview and review.",
-      inputSchema: createDraftOutputSchema,
-      callback: async (input: z.infer<typeof createDraftOutputSchema>) =>
-        executeLoggedTool("createDraftOutput", input, async () =>
-          createDraftOutput(
-            input.sourceInfo,
-            input.summary,
-            input.announcementDraft,
-            input.socialPostDraft,
-            input.socialPostDrafts,
-            input.review,
-          ),
-        ),
-    }),
+    createPrTool(toolFactory, prToolDefinitions.collectPrSourceInfo),
+    createPrTool(toolFactory, prToolDefinitions.summarizePrSourceInfo),
+    createPrTool(toolFactory, prToolDefinitions.generateAnnouncementDraft),
+    createPrTool(toolFactory, prToolDefinitions.generateSocialPostDraft),
+    createPrTool(toolFactory, prToolDefinitions.reviewPrDraft),
+    createPrTool(toolFactory, prToolDefinitions.createDraftOutput),
   ];
 }
 
+function createPrTool<TSchema extends z.ZodTypeAny, TReturn extends JSONValue>(
+  toolFactory: PrToolFactory,
+  definition: PrToolDefinition<TSchema, TReturn>,
+): InvokableTool<z.output<TSchema>, TReturn> {
+  return toolFactory({
+    name: definition.name,
+    description: definition.description,
+    inputSchema: definition.inputSchema,
+    callback: definition.callback,
+  });
+}
+
+export const prToolDefinitions = {
+  collectPrSourceInfo: definePrToolDefinition({
+    name: "collectPrSourceInfo",
+    description:
+      "Collect and normalize event, Tableau, and reference preview information for PR drafting. Never invent missing facts.",
+    inputSchema: collectPrSourceInfoSchema,
+    callback: async (input: z.output<typeof collectPrSourceInfoSchema>) =>
+      executeLoggedTool("collectPrSourceInfo", input, async () =>
+        collectPrSourceInfo(input),
+      ),
+  }),
+  summarizePrSourceInfo: definePrToolDefinition({
+    name: "summarizePrSourceInfo",
+    description:
+      "Summarize the collected source information into concise drafting notes and surface missing fields.",
+    inputSchema: summarizePrSourceInfoSchema,
+    callback: async (input: z.output<typeof summarizePrSourceInfoSchema>) =>
+      executeLoggedTool("summarizePrSourceInfo", input, async () =>
+        summarizePrSourceInfo(input.sourceInfo),
+      ),
+  }),
+  generateAnnouncementDraft: definePrToolDefinition({
+    name: "generateAnnouncementDraft",
+    description:
+      "Generate a long-form announcement draft for human review only.",
+    inputSchema: generateAnnouncementDraftSchema,
+    callback: async (input: z.output<typeof generateAnnouncementDraftSchema>) =>
+      executeLoggedTool("generateAnnouncementDraft", input, async () =>
+        generateAnnouncementDraft(input.sourceInfo, input.summary),
+      ),
+  }),
+  generateSocialPostDraft: definePrToolDefinition({
+    name: "generateSocialPostDraft",
+    description:
+      "Generate a short social post draft for the selected platform without posting it.",
+    inputSchema: generateSocialPostDraftSchema,
+    callback: async (input: z.output<typeof generateSocialPostDraftSchema>) =>
+      executeLoggedTool("generateSocialPostDraft", input, async () =>
+        generateSocialPostDraft(
+          input.platform,
+          input.sourceInfo,
+          input.summary,
+        ),
+      ),
+  }),
+  reviewPrDraft: definePrToolDefinition({
+    name: "reviewPrDraft",
+    description:
+      "Review draft copy for missing information, overclaim risk, URL issues, and tone problems.",
+    inputSchema: reviewPrDraftSchema,
+    callback: async (input: z.output<typeof reviewPrDraftSchema>) =>
+      executeLoggedTool("reviewPrDraft", input, async () =>
+        reviewPrDraft(
+          input.sourceInfo,
+          input.announcementDraft,
+          input.socialPostDrafts,
+        ),
+      ),
+  }),
+  createDraftOutput: definePrToolDefinition({
+    name: "createDraftOutput",
+    description:
+      "Assemble the final draft-only output for downstream preview and review.",
+    inputSchema: createDraftOutputSchema,
+    callback: async (input: z.output<typeof createDraftOutputSchema>) =>
+      executeLoggedTool("createDraftOutput", input, async () =>
+        createDraftOutput(
+          input.sourceInfo,
+          input.summary,
+          input.announcementDraft,
+          input.socialPostDraft,
+          input.socialPostDrafts,
+          input.review,
+        ),
+      ),
+  }),
+} as const;
+
 export function collectPrSourceInfo(
-  input: z.infer<typeof collectPrSourceInfoSchema>,
+  input: CollectPrSourceInfoInput,
 ): PrDraftSourceInfo {
-  const request = input.request;
+  const parsed = collectPrSourceInfoSchema.parse(input);
+  const request = parsed.request;
   const worksheetNames = request.dashboardContext.worksheets
     .map((worksheet) => worksheet.name.trim())
     .filter(Boolean);
-  const analysisHighlights = input.analysisSections
+  const analysisHighlights = parsed.analysisSections
     .flatMap((section) => {
       const firstRow = section.rows?.[0];
       const rowLabel = firstRow?.label?.trim();
@@ -245,8 +320,8 @@ export function collectPrSourceInfo(
     .filter((line): line is string => Boolean(line));
   const missingFields = getMissingSourceFields({
     request,
-    techplayPreview: input.techplayPreview,
-    analysisSections: input.analysisSections,
+    techplayPreview: parsed.techplayPreview,
+    analysisSections: parsed.analysisSections,
   });
 
   return {
@@ -258,10 +333,10 @@ export function collectPrSourceInfo(
     workbookName: request.dashboardContext.workbookName?.trim() || undefined,
     worksheetNames,
     capturedAt: request.dashboardContext.capturedAt,
-    techplayEventName: input.techplayPreview?.eventName?.trim() || undefined,
+    techplayEventName: parsed.techplayPreview?.eventName?.trim() || undefined,
     techplayEventDateText:
-      input.techplayPreview?.eventDateText?.trim() || undefined,
-    techplaySummary: input.techplayPreview?.summary?.trim() || undefined,
+      parsed.techplayPreview?.eventDateText?.trim() || undefined,
+    techplaySummary: parsed.techplayPreview?.summary?.trim() || undefined,
     analysisHighlights: analysisHighlights.slice(0, 10),
     missingFields,
   };
