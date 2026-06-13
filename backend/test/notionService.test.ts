@@ -91,11 +91,17 @@ describe("NotionService draft flow", () => {
       repository as never,
       oauthService as never,
     );
-    const response = await service.createPostIdea(undefined, {
-      title: "Draft title",
-      reason: "Why this matters",
-      suggestedPostText: "Post body",
-    });
+    const response = await service.createPostIdea(
+      {
+        userId: "sub-123",
+        email: "test@example.com",
+      },
+      {
+        title: "Draft title",
+        reason: "Why this matters",
+        suggestedPostText: "Post body",
+      },
+    );
 
     expect(response.ok).toBe(true);
     expect(response.pageTitle).toBe("Draft title");

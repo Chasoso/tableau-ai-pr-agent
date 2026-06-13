@@ -15,7 +15,7 @@ The workflow intentionally avoids printing AWS account IDs, ARNs, bucket names, 
 5. The `deploy` job starts only after `needs: ci`.
 6. The backend is bundled with `esbuild`.
 7. A Lambda package is created with production `node_modules` so Lambda can launch `@tableau/mcp-server`.
-8. The frontend is built and `.trex` is rewritten with `EXTENSION_SOURCE_URL`.
+8. The frontend is built and `.trex` is rewritten with `TABLEAU_AI_PR_AGENT_EXTENSION_SOURCE_URL` or `EXTENSION_SOURCE_URL`.
 9. GitHub OIDC deploy role is assumed.
 10. The backend artifact is uploaded to the private artifact bucket.
 11. `infra/cloudformation.yaml` is deployed.
@@ -48,7 +48,8 @@ Store these as GitHub Secrets:
 | `AWS_ARTIFACT_BUCKET` | Private S3 bucket for Lambda artifacts. |
 | `FRONTEND_BUCKET_NAME` | Private S3 bucket for frontend hosting. |
 | `VITE_API_BASE_URL` | Usually `/api` when using the CloudFront proxy behavior. |
-| `EXTENSION_SOURCE_URL` | Deployed HTTPS frontend URL for `.trex`. |
+| `TABLEAU_AI_PR_AGENT_EXTENSION_SOURCE_URL` | Deployed HTTPS frontend URL for `.trex`. Preferred app-specific env var. |
+| `EXTENSION_SOURCE_URL` | Backward-compatible fallback HTTPS frontend URL for `.trex`. |
 | `CORS_ALLOWED_ORIGIN` | Allowed frontend origin. |
 | `TABLEAU_SERVER_URL` | Tableau Cloud / Server URL. |
 | `TABLEAU_SITE_CONTENT_URL` | Tableau site content URL. |
@@ -156,7 +157,7 @@ The Lambda package now includes production `node_modules` because the MCP provid
 
 - Do not delete older hashed frontend assets during deploys.
 - Upload `assets/` with long cache headers such as `public, max-age=31536000, immutable`.
-- Upload `index.html` and `tableau-chat-extension.trex` with `no-cache`.
+- Upload `index.html` and `tableau-ai-pr-agent.trex` with `no-cache`.
 - Avoid CloudFront `404/403 -> /index.html` fallback for all paths, because missing JS/CSS files can otherwise return HTML and break the extension with module MIME errors.
 
 ### Logging Rules
@@ -182,7 +183,7 @@ Actionsログには AWSアカウントID、ARN、バケット名、CloudFront/AP
 2. `esbuild` で Lambda handler を bundle する。
 3. Lambda 内で `@tableau/mcp-server` を起動できるように production `node_modules` を含めて zip 化する。
 4. フロントエンドを install / typecheck / build する。
-5. build済み `.trex` のURLを `EXTENSION_SOURCE_URL` で書き換える。
+5. build済み `.trex` のURLを `TABLEAU_AI_PR_AGENT_EXTENSION_SOURCE_URL` で書き換える。未設定時のみ `EXTENSION_SOURCE_URL` を使う。
 6. GitHub OIDC deploy role を Assume する。
 7. backend artifact を private artifact bucket にアップロードする。
 8. `infra/cloudformation.yaml` をデプロイする。
@@ -201,7 +202,8 @@ Actionsログには AWSアカウントID、ARN、バケット名、CloudFront/AP
 | `AWS_ARTIFACT_BUCKET` | Lambda artifact用private S3 bucket |
 | `FRONTEND_BUCKET_NAME` | frontend hosting用private S3 bucket |
 | `VITE_API_BASE_URL` | 通常は CloudFront proxy を使うため `/api` |
-| `EXTENSION_SOURCE_URL` | `.trex` に埋め込む HTTPS frontend URL |
+| `TABLEAU_AI_PR_AGENT_EXTENSION_SOURCE_URL` | `.trex` に埋め込む HTTPS frontend URL |
+| `EXTENSION_SOURCE_URL` | 互換用の HTTPS frontend URL |
 | `CORS_ALLOWED_ORIGIN` | 許可するfrontend origin |
 | `TABLEAU_SERVER_URL` | Tableau Cloud / Server URL |
 | `TABLEAU_SITE_CONTENT_URL` | Tableau site content URL |

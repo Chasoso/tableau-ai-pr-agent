@@ -21,7 +21,7 @@ npm run dev
 ```
 
 3. In Tableau Desktop or Tableau Cloud dashboard authoring, add an Extension object.
-4. Select `frontend/public/tableau-chat-extension.trex`.
+4. Select `frontend/public/tableau-ai-pr-agent.trex`.
 5. The extension loads `http://localhost:5173/`.
 
 ### Mock Mode Outside Tableau
@@ -49,7 +49,7 @@ Depending on your site settings, an administrator may need to:
 For production:
 
 1. Build and host the frontend on HTTPS.
-2. Update `frontend/public/tableau-chat-extension.trex`.
+2. Update `frontend/public/tableau-ai-pr-agent.trex`.
 3. Replace the local `source-location` URL with the production URL.
 4. Update Tableau allowed domains and backend CORS to the same production origin.
 
@@ -74,7 +74,7 @@ npm run dev
 ```
 
 3. Tableau Desktop または Tableau Cloud のダッシュボード編集画面で Extension オブジェクトを追加します。
-4. `frontend/public/tableau-chat-extension.trex` を選択します。
+4. `frontend/public/tableau-ai-pr-agent.trex` を選択します。
 5. Extension は `http://localhost:5173/` を読み込みます。
 
 ### Tableau 外でのモックモード
@@ -102,7 +102,7 @@ VITE_API_BASE_URL=http://localhost:3001
 本番では以下を行います。
 
 1. フロントエンドをビルドし、HTTPS でホストします。
-2. `frontend/public/tableau-chat-extension.trex` を更新します。
+2. `frontend/public/tableau-ai-pr-agent.trex` を更新します。
 3. ローカル用の `source-location` URL を本番URLへ置き換えます。
 4. Tableau の許可ドメインとバックエンド CORS を同じ本番 Origin に更新します。
 

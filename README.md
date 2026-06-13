@@ -151,9 +151,11 @@ Notes:
 
 ### Tableau Extension
 
-Use `frontend/public/tableau-chat-extension.trex` for local development, or the built `.trex` from `frontend/dist` after deployment.
+Use `frontend/public/tableau-ai-pr-agent.trex` for local development, or the built `.trex` from `frontend/dist` after deployment.
 
 The manifest `source-location` must point to the deployed HTTPS frontend URL. Tableau Cloud may require an administrator to allow network-enabled extensions and approve the extension domain.
+
+`TABLEAU_AI_PR_AGENT_EXTENSION_SOURCE_URL` should be the public HTTPS URL of the frontend that Tableau should load, such as `https://d1234567890.cloudfront.net/` or `https://app.example.com/`. For local development, leave it unset and keep the localhost URL inside the manifest.
 
 ### Authentication
 
@@ -520,7 +522,7 @@ MODEL_PROVIDER=mock
 
 ### Tableau への配置
 
-ローカルでは `frontend/public/tableau-chat-extension.trex` を使います。デプロイ後は `frontend/dist` に出力された `.trex` を使います。
+ローカルでは `frontend/public/tableau-ai-pr-agent.trex` を使います。デプロイ後は `frontend/dist` に出力された `.trex` を使います。
 
 `.trex` の `source-location` は HTTPS の本番フロントエンドURLに合わせる必要があります。Tableau Cloud 側で Network-enabled Extension の許可やドメイン許可が必要な場合があります。
 
