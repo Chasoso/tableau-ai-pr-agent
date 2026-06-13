@@ -1,40 +1,22 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
-async function mockApis(page: Page) {
-  await page.route("**/api/context", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        dashboardContextPatch: {
-          workbookName: "Mock Sales Workbook",
-        },
-      }),
-    });
-  });
-
-  await page.route("**/api/notion/status", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        connected: false,
-        status: "disconnected",
-        targetParentPageIdConfigured: true,
-        targetDatabaseIdConfigured: false,
-      }),
-    });
-  });
-}
-
-test.describe("chat panel visual", () => {
+test.describe("AI PR Action visual", () => {
   test("@visual matches the baseline on initial render", async ({ page }) => {
-    await mockApis(page);
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.goto("/");
     await page.waitForLoadState("networkidle");
 
-    const panel = page.locator(".chat-panel");
+    const panel = page.locator(".pr-agent-shell");
     await expect(panel).toBeVisible();
-    await expect(panel).toHaveScreenshot("chat-panel-initial.png", {
+    await expect(
+      page.getByRole("heading", { name: "AI PR Action" }),
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Input" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Preview" })).toBeVisible();
+    await expect(page.getByText("Draft only")).toBeVisible();
+    await expect(page.getByText("Run action")).toBeVisible();
+
+    await expect(panel).toHaveScreenshot("ai-pr-action-initial.png", {
       animations: "disabled",
       caret: "hide",
       scale: "css",
