@@ -1,7 +1,17 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ActionRunAnalysisService } from "../src/services/actionRunAnalysisService";
 
 describe("ActionRunAnalysisService", () => {
+  const originalDemoMode = process.env.DEMO_MODE;
+
+  afterEach(() => {
+    if (originalDemoMode === undefined) {
+      delete process.env.DEMO_MODE;
+    } else {
+      process.env.DEMO_MODE = originalDemoMode;
+    }
+  });
+
   it("builds fixed Tableau analysis sections from MCP context", async () => {
     const provider = {
       name: "tableau-mcp" as const,
@@ -53,6 +63,31 @@ describe("ActionRunAnalysisService", () => {
       "(12 posts)",
     );
     expect(result.debug?.tableau?.qualityReview?.score).toBeGreaterThan(0);
+  });
+
+  it("uses deterministic fallback sections in demo mode", async () => {
+    process.env.DEMO_MODE = "true";
+    const provider = {
+      name: "tableau-mcp" as const,
+      getAdditionalContext: vi.fn(),
+    };
+
+    const service = new ActionRunAnalysisService(provider as never);
+    const result = await service.analyzeActionRun({
+      request: buildRequest(),
+    });
+
+    expect(provider.getAdditionalContext).not.toHaveBeenCalled();
+    expect(result.analysisSections?.[0]?.summary).toContain(
+      "Demo fallback analysis was used",
+    );
+    expect(result.analysisSections?.[0]?.rows?.[0]).toMatchObject({
+      label: "事前告知",
+      value: 12,
+    });
+    expect(result.safetyReview?.notes?.[0]).toContain(
+      "Human approval is required",
+    );
   });
 });
 

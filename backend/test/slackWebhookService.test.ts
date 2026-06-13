@@ -1,12 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SlackWebhookService } from "../src/services/slackWebhookService";
+import type { ActionRunRequest, ActionRunResult } from "../src/types/actionRun";
 
 describe("SlackWebhookService", () => {
   const originalWebhookUrl = process.env.SLACK_INCOMING_WEBHOOK_URL;
+  const originalDemoMode = process.env.DEMO_MODE;
 
   beforeEach(() => {
     process.env.SLACK_INCOMING_WEBHOOK_URL =
       "https://hooks.slack.com/services/T000/B000/SECRET";
+    delete process.env.DEMO_MODE;
   });
 
   afterEach(() => {
@@ -14,6 +17,12 @@ describe("SlackWebhookService", () => {
       delete process.env.SLACK_INCOMING_WEBHOOK_URL;
     } else {
       process.env.SLACK_INCOMING_WEBHOOK_URL = originalWebhookUrl;
+    }
+
+    if (originalDemoMode === undefined) {
+      delete process.env.DEMO_MODE;
+    } else {
+      process.env.DEMO_MODE = originalDemoMode;
     }
   });
 
@@ -65,9 +74,46 @@ describe("SlackWebhookService", () => {
 
     expect(response).toEqual({ sent: false, skipped: true });
   });
+
+  it("skips posting in demo mode", async () => {
+    process.env.DEMO_MODE = "true";
+    const fetchMock = vi.fn();
+    const service = new SlackWebhookService(fetchMock as never);
+
+    const response = await service.postActionRun({
+      request: buildRequest(),
+      result: buildResult(),
+    });
+
+    expect(response).toEqual({ sent: false, skipped: true });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("omits data URL images from the payload", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+    });
+    const service = new SlackWebhookService(fetchMock as never);
+    const result = buildResult();
+
+    await service.postActionRun({
+      request: buildRequest(),
+      result: {
+        ...result,
+        imageUrl: "data:image/svg+xml;charset=utf-8,hello",
+      },
+    });
+
+    const [, init] = fetchMock.mock.calls[0];
+    const payload = JSON.parse((init as RequestInit).body as string) as {
+      blocks: Array<{ type: string; [key: string]: unknown }>;
+    };
+    expect(payload.blocks.some((block) => block.type === "image")).toBe(false);
+  });
 });
 
-function buildRequest() {
+function buildRequest(): ActionRunRequest {
   return {
     postType: "\u4e8b\u524d\u544a\u77e5",
     eventName: "Tableau User Group Tokyo 2026",
@@ -81,10 +127,10 @@ function buildRequest() {
       parameters: [],
       capturedAt: "2026-06-08T00:00:00.000Z",
     },
-  } as never;
+  };
 }
 
-function buildResult() {
+function buildResult(): ActionRunResult {
   return {
     summary: "analysis summary",
     suggestedSlackPostText: "draft text",
@@ -102,5 +148,5 @@ function buildResult() {
         rows: [{ label: "事前告知", value: 12 }],
       },
     ],
-  } as never;
+  };
 }

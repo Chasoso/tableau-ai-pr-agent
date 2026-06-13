@@ -71,4 +71,21 @@ describe("TechPlayService", () => {
       }),
     ).rejects.toThrow("TechPlay URL must point to techplay.jp.");
   });
+
+  it("returns a deterministic fallback when the page request fails", async () => {
+    fetchMock.mockRejectedValue(new Error("network down"));
+
+    const service = new TechPlayService();
+    const preview = await service.previewTechPlayEvent({
+      techplayUrl: "https://techplay.jp/event/983048",
+    });
+
+    expect(preview).toMatchObject({
+      techplayUrl: "https://techplay.jp/event/983048",
+      eventName: "TechPlay demo event",
+      extractedFrom: "text",
+    });
+    expect(preview.summary).toContain("Demo fallback preview");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });

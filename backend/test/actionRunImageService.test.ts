@@ -91,8 +91,33 @@ describe("ActionRunImageService", () => {
       result: buildResult(),
     });
 
-    expect(result).toBeNull();
+    expect(result).toMatchObject({
+      contentType: "image/svg+xml",
+      objectKey: "demo/action-run-1/poster.svg",
+    });
+    expect(result?.imageUrl).toContain("data:image/svg+xml");
     expect(send).not.toHaveBeenCalled();
+  });
+
+  it("returns a deterministic fallback when the upload fails", async () => {
+    const send = vi.fn().mockRejectedValue(new Error("s3 unavailable"));
+    const service = new ActionRunImageService(
+      { send } as never,
+      () => "generated-id-123",
+    );
+
+    const result = await service.generateActionRunPoster({
+      actionRunId: "action-run-1",
+      request: buildRequest(),
+      result: buildResult(),
+    });
+
+    expect(result).toMatchObject({
+      contentType: "image/svg+xml",
+      objectKey: "demo/action-run-1/poster.svg",
+    });
+    expect(result?.imageUrl).toContain("data:image/svg+xml");
+    expect(send).toHaveBeenCalledTimes(1);
   });
 });
 

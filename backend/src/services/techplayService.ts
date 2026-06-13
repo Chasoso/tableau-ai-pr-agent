@@ -1,3 +1,5 @@
+import { getConfig } from "../config";
+import { logWarn } from "../logging";
 import type { TechPlayPreviewResponse } from "../types/techplay";
 
 export class TechPlayService {
@@ -5,34 +7,46 @@ export class TechPlayService {
     techplayUrl: string;
   }): Promise<TechPlayPreviewResponse> {
     const url = validateTechPlayUrl(input.techplayUrl);
-    const response = await fetch(url.toString(), {
-      headers: {
-        Accept: "text/html,application/xhtml+xml",
-      },
-    });
-
-    if (response.status === 404) {
-      throw new Error("TechPlay page not found.");
+    if (getConfig().demoMode) {
+      return buildFallbackPreview(url.toString());
     }
 
-    if (!response.ok) {
-      throw new Error(
-        `TechPlay page request failed with status ${response.status}.`,
-      );
+    try {
+      const response = await fetch(url.toString(), {
+        headers: {
+          Accept: "text/html,application/xhtml+xml",
+        },
+      });
+
+      if (!response.ok) {
+        logWarn("techplay.preview.fallback", {
+          techplayUrl: url.toString(),
+          status: response.status,
+          reason: response.status === 404 ? "not_found" : "non_success_status",
+        });
+        return buildFallbackPreview(url.toString());
+      }
+
+      const html = await response.text();
+      const extracted = extractPreviewFromHtml(html);
+
+      return {
+        techplayUrl: url.toString(),
+        eventName: extracted.eventName,
+        eventDateText: extracted.eventDateText,
+        summary: extracted.summary,
+        sourceTitle: extracted.sourceTitle,
+        sourceDescription: extracted.sourceDescription,
+        extractedFrom: extracted.extractedFrom,
+      };
+    } catch (error) {
+      logWarn("techplay.preview.fallback", {
+        techplayUrl: url.toString(),
+        reason: "request_failed",
+        errorName: error instanceof Error ? error.name : undefined,
+      });
+      return buildFallbackPreview(url.toString());
     }
-
-    const html = await response.text();
-    const extracted = extractPreviewFromHtml(html);
-
-    return {
-      techplayUrl: url.toString(),
-      eventName: extracted.eventName,
-      eventDateText: extracted.eventDateText,
-      summary: extracted.summary,
-      sourceTitle: extracted.sourceTitle,
-      sourceDescription: extracted.sourceDescription,
-      extractedFrom: extracted.extractedFrom,
-    };
   }
 }
 
@@ -50,6 +64,20 @@ function validateTechPlayUrl(input: string): URL {
   }
 
   return url;
+}
+
+function buildFallbackPreview(techplayUrl: string): TechPlayPreviewResponse {
+  return {
+    techplayUrl,
+    eventName: "TechPlay demo event",
+    eventDateText: "Demo schedule",
+    summary:
+      "Demo fallback preview used because the TechPlay page could not be loaded.",
+    sourceTitle: "TechPlay demo event",
+    sourceDescription:
+      "This preview is a deterministic fallback for demo stability.",
+    extractedFrom: "text",
+  };
 }
 
 function extractPreviewFromHtml(

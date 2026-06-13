@@ -61,25 +61,40 @@ export class ActionRunAnalysisService {
     request: ActionRunRequest;
     authenticatedUser?: AuthenticatedUser;
   }): Promise<ActionRunResult> {
+    const demoMode = getConfig().demoMode;
     const tableauSubject = resolveTableauSubject(input.authenticatedUser);
     const fixedAnalyses: ActionRunAnalysisSection[] = [];
 
     for (const analysis of FIXED_ANALYSES) {
-      const additionalContext =
-        await this.tableauContextProvider.getAdditionalContext({
-          question: analysis.question,
-          planningQuestion: analysis.question,
-          dashboardContext: input.request.dashboardContext,
-          authenticatedUser: input.authenticatedUser,
-          tableauSubject,
-        });
+      if (demoMode) {
+        fixedAnalyses.push(buildDemoAnalysisSection(analysis));
+        continue;
+      }
 
-      fixedAnalyses.push(
-        buildAnalysisSection({
-          analysis,
-          additionalContext,
-        }),
-      );
+      try {
+        const additionalContext =
+          await this.tableauContextProvider.getAdditionalContext({
+            question: analysis.question,
+            planningQuestion: analysis.question,
+            dashboardContext: input.request.dashboardContext,
+            authenticatedUser: input.authenticatedUser,
+            tableauSubject,
+          });
+
+        fixedAnalyses.push(
+          buildAnalysisSection({
+            analysis,
+            additionalContext,
+          }),
+        );
+      } catch (error) {
+        fixedAnalyses.push(
+          buildFallbackAnalysisSection({
+            analysis,
+            error,
+          }),
+        );
+      }
     }
 
     const warnings = fixedAnalyses.flatMap((section) => section.warnings ?? []);
@@ -189,10 +204,68 @@ function buildAnalysisSection(input: {
   };
 }
 
+function buildDemoAnalysisSection(
+  analysis: FixedAnalysis,
+): ActionRunAnalysisSection {
+  return buildFallbackAnalysisSection({
+    analysis,
+    error: new Error("Demo mode fixed analysis was used."),
+  });
+}
+
+function buildFallbackAnalysisSection(input: {
+  analysis: FixedAnalysis;
+  error: unknown;
+}): ActionRunAnalysisSection {
+  const warning =
+    input.error instanceof Error
+      ? input.error.message
+      : "Tableau fallback analysis was used.";
+
+  return {
+    key: input.analysis.key,
+    title: input.analysis.title,
+    question: input.analysis.question,
+    summary: `${input.analysis.leadIn} Demo fallback analysis was used because Tableau MCP results were unavailable.`,
+    rows: buildFallbackRows(input.analysis.key),
+    warnings: [warning],
+  };
+}
+
 function selectPrimaryInsight(
   additionalContext: TableauAdditionalContext,
 ): QueryDatasourceInsight | undefined {
   return additionalContext.queryInsights?.[0];
+}
+
+function buildFallbackRows(
+  key: ActionRunAnalysisSection["key"],
+): Array<{ label: string; value: number | null }> {
+  switch (key) {
+    case "post_type_distribution":
+      return [
+        { label: "事前告知", value: 12 },
+        { label: "開催中", value: 9 },
+        { label: "お礼", value: 6 },
+      ];
+    case "keyword_tendency":
+      return [
+        { label: "#Tableau", value: 14 },
+        { label: "#TechPlay", value: 11 },
+        { label: "#Community", value: 8 },
+      ];
+    case "weekday_time_tendency":
+      return [
+        { label: "土曜 10時台", value: 10 },
+        { label: "平日 19時台", value: 8 },
+        { label: "日曜 14時台", value: 5 },
+      ];
+    case "image_presence_tendency":
+      return [
+        { label: "画像あり", value: 13 },
+        { label: "画像なし", value: 7 },
+      ];
+  }
 }
 
 function buildSectionSummary(input: {

@@ -20,6 +20,14 @@ export class SlackWebhookService {
     request: ActionRunRequest;
     result: ActionRunResult;
   }): Promise<SlackWebhookPostResult> {
+    if (getConfig().demoMode) {
+      logWarn("slack.webhook.skipped", {
+        reason: "demo_mode",
+        eventName: input.request.eventName,
+      });
+      return { sent: false, skipped: true };
+    }
+
     const webhookUrl = getConfig().slack.incomingWebhookUrl.trim();
     if (!webhookUrl) {
       logWarn("slack.webhook.skipped", {
@@ -140,13 +148,15 @@ function buildSlackPayload(input: {
           ]
         : []),
       ...(input.result.imageUrl
-        ? [
-            {
-              type: "image",
-              image_url: input.result.imageUrl,
-              alt_text: `${input.request.eventName} poster image`,
-            },
-          ]
+        ? input.result.imageUrl.startsWith("http")
+          ? [
+              {
+                type: "image",
+                image_url: input.result.imageUrl,
+                alt_text: `${input.request.eventName} poster image`,
+              },
+            ]
+          : []
         : []),
       {
         type: "section",

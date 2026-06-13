@@ -1,4 +1,5 @@
 export type AppConfig = {
+  demoMode: boolean;
   chatHistoryTableName?: string;
   chatJobsTableName?: string;
   useInMemoryRepository: boolean;
@@ -106,6 +107,7 @@ export type AppConfig = {
 export function getConfig(): AppConfig {
   const notionAllowedTools = parseCsv(process.env.NOTION_MCP_ALLOWED_TOOLS);
   return {
+    demoMode: process.env.DEMO_MODE === "true",
     chatHistoryTableName: process.env.CHAT_HISTORY_TABLE_NAME,
     chatJobsTableName: process.env.CHAT_JOBS_TABLE_NAME,
     useInMemoryRepository: process.env.USE_IN_MEMORY_REPOSITORY !== "false",

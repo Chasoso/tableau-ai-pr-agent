@@ -23,13 +23,17 @@ export class ActionRunImageService {
     request: ActionRunRequest;
     result: ActionRunResult;
   }): Promise<GeneratedActionRunImage | null> {
+    if (getConfig().demoMode) {
+      return buildFallbackGeneratedImage(input);
+    }
+
     const bucketName = getConfig().s3.actionImageBucketName.trim();
     if (!bucketName) {
       logWarn("action_run.image_generation.skipped", {
         actionRunId: input.actionRunId,
         reason: "missing_bucket_name",
       });
-      return null;
+      return buildFallbackGeneratedImage(input);
     }
 
     const objectKey = buildActionRunImageObjectKey(input.actionRunId);
@@ -40,16 +44,25 @@ export class ActionRunImageService {
       generatedId: this.idFactory(),
     });
 
-    await this.s3Client.send(
-      new PutObjectCommand({
-        Bucket: bucketName,
-        Key: objectKey,
-        Body: svg,
-        ContentType: "image/svg+xml",
-        CacheControl: "public, max-age=31536000, immutable",
-        ContentDisposition: `inline; filename="poster-${input.actionRunId}.svg"`,
-      }),
-    );
+    try {
+      await this.s3Client.send(
+        new PutObjectCommand({
+          Bucket: bucketName,
+          Key: objectKey,
+          Body: svg,
+          ContentType: "image/svg+xml",
+          CacheControl: "public, max-age=31536000, immutable",
+          ContentDisposition: `inline; filename="poster-${input.actionRunId}.svg"`,
+        }),
+      );
+    } catch (error) {
+      logWarn("action_run.image_generation.fallback", {
+        actionRunId: input.actionRunId,
+        reason: "s3_upload_failed",
+        errorName: error instanceof Error ? error.name : undefined,
+      });
+      return buildFallbackGeneratedImage(input);
+    }
 
     const imageUrl = buildActionRunImageUrl({ actionRunId: input.actionRunId });
     if (!imageUrl) {
@@ -175,4 +188,20 @@ function escapeXml(value: string): string {
     .replace(/>/gu, "&gt;")
     .replace(/"/gu, "&quot;")
     .replace(/'/gu, "&apos;");
+}
+
+function buildFallbackGeneratedImage(input: {
+  actionRunId: string;
+  request: ActionRunRequest;
+  result: ActionRunResult;
+}): GeneratedActionRunImage {
+  const svg = renderActionRunPosterSvg({
+    ...input,
+    generatedId: `demo-${input.actionRunId}`,
+  });
+  return {
+    imageUrl: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`,
+    objectKey: `demo/${input.actionRunId}/poster.svg`,
+    contentType: "image/svg+xml",
+  };
 }
