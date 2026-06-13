@@ -30,7 +30,7 @@ export class NotionMcpClient {
       },
     });
     const client = new Client({
-      name: "tableau-chat-extension-notion-client",
+      name: "tableau-ai-pr-agent-notion-client",
       version: "0.1.0",
     });
 

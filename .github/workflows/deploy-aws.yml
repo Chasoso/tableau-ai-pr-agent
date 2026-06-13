@@ -320,7 +320,7 @@ jobs:
           npm ci --prefix frontend --no-audit --no-fund
           npm run typecheck --prefix frontend
           npm run build --prefix frontend
-          node frontend/scripts/update-trex-url.mjs frontend/dist/tableau-chat-extension.trex
+          node frontend/scripts/update-trex-url.mjs frontend/dist/tableau-ai-pr-agent.trex
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
@@ -453,13 +453,13 @@ jobs:
             --no-progress \
             --only-show-errors \
             --cache-control "no-cache, no-store, must-revalidate"
-          aws s3 cp frontend/dist/tableau-chat-extension.trex "s3://${FRONTEND_BUCKET_NAME}/tableau-chat-extension.trex" \
+          aws s3 cp frontend/dist/tableau-ai-pr-agent.trex "s3://${FRONTEND_BUCKET_NAME}/tableau-ai-pr-agent.trex" \
             --no-progress \
             --only-show-errors \
             --cache-control "no-cache, no-store, must-revalidate"
           aws cloudfront create-invalidation \
             --distribution-id "$DISTRIBUTION_ID" \
-            --paths "/" "/index.html" "/tableau-chat-extension.trex" \
+            --paths "/" "/index.html" "/tableau-ai-pr-agent.trex" \
             --output json > /dev/null
 
       - name: Deployment completed

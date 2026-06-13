@@ -14,7 +14,7 @@
 
 - リポジトリ: `Chasoso/tableau-ai-pr-agent`
 - アプリ名: `tableau-ai-pr-agent`
-- 旧 `tableau-chat-extension` は互換コードや名残が残っていても、運用文書上の主語は新アプリに揃える
+- 旧アプリ名は互換コードや名残が残っていても、運用文書上の主語は新アプリに揃える
 - 変更しないもの: frontend / backend / infra / GitHub Actions の実装そのもの
 
 ## 3. ローカルセットアップ

@@ -248,7 +248,7 @@ export class TableauMcpContextProvider implements TableauContextProvider {
         mcpStderrTail = appendSanitizedStderrTail(mcpStderrTail, chunk);
       });
       client = new Client({
-        name: "tableau-chat-extension-backend",
+        name: "tableau-ai-pr-agent-backend",
         version: "0.1.0",
       });
 

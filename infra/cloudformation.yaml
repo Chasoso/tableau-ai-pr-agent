@@ -76,7 +76,7 @@ Parameters:
   CognitoAuthTransactionKeyParam:
     Type: String
     NoEcho: true
-    Default: "/tableau-chat-extension/cognito/popup-auth-key"
+    Default: "/tableau-ai-pr-agent/cognito/popup-auth-key"
   CognitoAuthTransactionTtlSeconds:
     Type: Number
     Default: 600
@@ -174,7 +174,7 @@ Parameters:
   NotionTokenEncryptionKeyParam:
     Type: String
     NoEcho: true
-    Default: "/tableau-chat-extension/notion/token-encryption-key"
+    Default: "/tableau-ai-pr-agent/notion/token-encryption-key"
   NotionMcpAllowedTools:
     Type: String
     NoEcho: true

@@ -87,7 +87,7 @@ These can be repository Variables if acceptable:
 | `TABLEAU_CONTEXT_PROVIDER` | `mock` | `mock`, `direct-api`, or `mcp`. |
 | `AUTH_REQUIRED` | `false` | Enables Cognito JWT verification. |
 | `COGNITO_REGION` | none | Cognito region. |
-| `COGNITO_AUTH_TRANSACTION_KEY_PARAM` | `/tableau-chat-extension/cognito/popup-auth-key` | SSM SecureString parameter name for popup auth AES key. |
+| `COGNITO_AUTH_TRANSACTION_KEY_PARAM` | `/tableau-ai-pr-agent/cognito/popup-auth-key` | SSM SecureString parameter name for popup auth AES key. |
 | `COGNITO_AUTH_TRANSACTION_TTL_SECONDS` | `600` | Popup auth transaction TTL in seconds. |
 | `TABLEAU_MCP_TRANSPORT` | `stdio` | Recommended MCP transport for low-cost Lambda PoC. |
 | `TABLEAU_MCP_AUTH_MODE` | `direct-trust` | MCP authentication mode. |
@@ -112,7 +112,7 @@ These can be repository Variables if acceptable:
 | `CHAT_DEBUG_MAX_CHARS` | `12000` | Max characters for debug-level chat input/output logs. |
 | `NOTION_MCP_ENABLED` | `false` | Enable backend Notion MCP integration routes. |
 | `NOTION_MCP_URL` | `https://mcp.notion.com/mcp` | Notion MCP endpoint. |
-| `NOTION_TOKEN_ENCRYPTION_KEY_PARAM` | `/tableau-chat-extension/notion/token-encryption-key` | SSM SecureString parameter name for AES key. |
+| `NOTION_TOKEN_ENCRYPTION_KEY_PARAM` | `/tableau-ai-pr-agent/notion/token-encryption-key` | SSM SecureString parameter name for AES key. |
 | `NOTION_MCP_ALLOWED_TOOLS` | `notion-create-pages,notion-fetch` | Allowed Notion MCP tools. |
 | `NOTION_LOCAL_DEV_USER_ID` | `local-dev-user` | Local fallback user id when auth is disabled. |
 

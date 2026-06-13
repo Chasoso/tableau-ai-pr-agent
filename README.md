@@ -313,7 +313,7 @@ The current Notion path is draft-only. It is used to prepare a preview of the po
 - `NOTION_REDIRECT_URI=<https callback URL to /notion/callback>`
 - `NOTION_CONNECTIONS_TABLE=<dynamodb table name>`
 - `NOTION_OAUTH_STATES_TABLE=<dynamodb table name>`
-- `NOTION_TOKEN_ENCRYPTION_KEY_PARAM=/tableau-chat-extension/notion/token-encryption-key`
+- `NOTION_TOKEN_ENCRYPTION_KEY_PARAM=/tableau-ai-pr-agent/notion/token-encryption-key`
 - `NOTION_MCP_ALLOWED_TOOLS=notion-create-pages,notion-fetch`
 - `NOTION_DEFAULT_TARGET_PARENT_PAGE_ID=<optional default parent page>`
 - `NOTION_DEFAULT_TARGET_DATABASE_ID=<optional default database>`
@@ -345,7 +345,7 @@ If DCR succeeds, static `NOTION_OAUTH_CLIENT_ID/SECRET` are not required.
 ```bash
 openssl rand -base64 32
 aws ssm put-parameter \
-  --name /tableau-chat-extension/notion/token-encryption-key \
+  --name /tableau-ai-pr-agent/notion/token-encryption-key \
   --type SecureString \
   --value "<base64-key>" \
   --overwrite

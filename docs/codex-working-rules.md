@@ -14,7 +14,7 @@
 
 確認した結果、`Chasoso/tableau-ai-pr-agent` と `tableau-ai-pr-agent` に一致しない場合は、作業を止めて報告します。
 
-特に `tableau-chat-extension` を向いている場合は、ファイル変更を行いません。
+特に旧アプリ名を向いている場合は、ファイル変更を行いません。
 
 ## 1 回 1 Phase
 

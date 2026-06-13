@@ -110,7 +110,7 @@
 
 ## 既存アプリから流用するもの
 
-既存の `tableau-chat-extension` 相当の基盤から、次を壊さず流用します。
+既存の旧基盤から、次を壊さず流用します。
 
 - Tableau Extension SDK 初期化
 - Cognito 認証

@@ -110,7 +110,7 @@ These files should be removed in a later migration step after the new app path i
 
 These names should be used in the next infrastructure pass:
 
-- Stack name: `tableau-chat-extension` -> `tableau-ai-pr-agent`
+- Stack name: old app prefix -> `tableau-ai-pr-agent`
 - Lambda function names: `*-chat` -> `*-action-runner`, `*-chat-job-worker` -> `*-action-job-worker`
 - DynamoDB tables: `*-chat-history` -> `*-action-history`, `*-chat-jobs` -> `*-action-jobs`
 - API Gateway route groups: `/chat*` -> `/actions*` or `/action-runs*`

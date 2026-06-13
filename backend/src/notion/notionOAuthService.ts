@@ -570,7 +570,7 @@ async function registerDynamicClient(input: {
     },
     body: JSON.stringify({
       client_name: "Tableau Chat Extension PoC",
-      client_uri: "https://github.com/Chasoso/tableau-chat-extension",
+      client_uri: "https://github.com/Chasoso/tableau-ai-pr-agent",
       redirect_uris: [input.redirectUri],
       grant_types: ["authorization_code", "refresh_token"],
       response_types: ["code"],
