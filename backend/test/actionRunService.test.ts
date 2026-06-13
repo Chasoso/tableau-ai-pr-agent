@@ -248,7 +248,7 @@ describe("ActionRunService", () => {
     );
   });
 
-  it("sends Slack only after explicit approval", async () => {
+  it("keeps approval draft-only and does not send Slack", async () => {
     repositoryMock.get.mockResolvedValue(
       buildActionRunRecord({
         result: buildActionRunResult(),
@@ -263,12 +263,11 @@ describe("ActionRunService", () => {
       progressMessages: [],
       result: buildActionRunResult({
         safetyReview: {
-          status: "sent_to_slack",
+          status: "approved",
           required: true,
           checklist: ["Confirm permissions before posting"],
           notes: ["Human approval is required before any Slack post is sent."],
           reviewedAt: "2026-06-08T00:00:00.000Z",
-          sentAt: "2026-06-08T00:01:00.000Z",
           reviewerNote: "Looks good.",
         },
       }),
@@ -277,12 +276,6 @@ describe("ActionRunService", () => {
       expiresAt: 1_999_999_999,
       ownerType: "anonymous",
     });
-    slackMock.postActionRun.mockResolvedValue({
-      sent: true,
-      skipped: false,
-      statusCode: 200,
-    });
-
     const service = new ActionRunService();
     const response = await service.approveActionRun({
       actionRunId: "action-run-1",
@@ -295,14 +288,13 @@ describe("ActionRunService", () => {
       },
     });
 
-    expect(slackMock.postActionRun).toHaveBeenCalledTimes(1);
+    expect(slackMock.postActionRun).not.toHaveBeenCalled();
     expect(repositoryMock.updateResult).toHaveBeenCalled();
     expect(response.slackWebhook).toEqual({
-      sent: true,
-      skipped: false,
-      statusCode: 200,
+      sent: false,
+      skipped: true,
     });
-    expect(response.result?.safetyReview?.status).toBe("sent_to_slack");
+    expect(response.result?.safetyReview?.status).toBe("approved");
   });
 
   it("returns a public view when polling action runs", async () => {

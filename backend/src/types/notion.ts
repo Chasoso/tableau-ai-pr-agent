@@ -105,4 +105,5 @@ export type NotionPostIdeaSaveResponse = {
   ok: true;
   pageUrl?: string;
   pageTitle: string;
+  draftMarkdown?: string;
 };

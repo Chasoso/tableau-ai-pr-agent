@@ -13,6 +13,7 @@ import type {
   QueryDatasourceInsight,
   TableauAdditionalContext,
 } from "../types/tableau";
+import { runPrDraftAgent } from "../agents/prAgent";
 
 type FixedAnalysis = {
   key: ActionRunAnalysisSection["key"];
@@ -106,15 +107,26 @@ export class ActionRunAnalysisService {
         fixedAnalyses,
       ),
     });
-    const suggestedSlackPostText = qualityReview.finalText;
+    const prDraft = await runPrDraftAgent({
+      request: input.request,
+      analysisSections: fixedAnalyses,
+    });
+    const suggestedSlackPostText =
+      prDraft.drafts.x || qualityReview.finalText;
 
     return {
-      summary: buildSummary(input.request, fixedAnalyses),
+      summary: prDraft.summary || buildSummary(input.request, fixedAnalyses),
       suggestedSlackPostText,
-      hashtags: buildHashtags(input.request),
-      evidence: buildEvidenceLines(input.request, fixedAnalyses),
-      checks: buildChecks(input.request),
-      imageCaption: buildImageCaption(input.request, fixedAnalyses),
+      draftVariants: prDraft.drafts,
+      draftReview: prDraft.review,
+      hashtags: prDraft.hashtags.length
+        ? prDraft.hashtags
+        : buildHashtags(input.request),
+      evidence: prDraft.evidence.length
+        ? prDraft.evidence
+        : buildEvidenceLines(input.request, fixedAnalyses),
+      checks: prDraft.checks.length ? prDraft.checks : buildChecks(input.request),
+      imageCaption: prDraft.imageCaption || buildImageCaption(input.request, fixedAnalyses),
       analysisSections: fixedAnalyses,
       safetyReview: buildSafetyReview({
         request: input.request,
@@ -140,6 +152,12 @@ export class ActionRunAnalysisService {
             signals: qualityReview.signals,
             draftLength: qualityReview.originalLength,
             refinedLength: qualityReview.finalLength,
+          },
+          prAgent: {
+            enabled: getConfig().prAgent.useStrandsAgent,
+            reviewStatus: prDraft.review.status,
+            riskLevel: prDraft.review.riskLevel,
+            missingFieldCount: prDraft.missingFields.length,
           },
         },
       },

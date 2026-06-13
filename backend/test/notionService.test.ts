@@ -1,6 +1,7 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildNotionMarkdown,
+  NotionService,
   resolveNotionUserId,
 } from "../src/notion/notionService";
 
@@ -64,5 +65,39 @@ describe("buildNotionMarkdown", () => {
     expect(markdown).not.toContain("## 推奨投稿文");
     expect(markdown).not.toContain("## 参照ポスト");
     expect(markdown).not.toContain("n/a");
+  });
+});
+
+describe("NotionService draft flow", () => {
+  it("returns a draft preview without creating a Notion page", async () => {
+    const repository = {
+      getConnection: vi.fn(),
+      putConnection: vi.fn(),
+      deleteConnection: vi.fn(),
+    };
+    const oauthService = {
+      buildAuthorizationUrl: vi.fn(),
+      handleCallback: vi.fn(),
+      getConnectionForUse: vi.fn().mockResolvedValue({
+        connection: {
+          targetParentPageId: "parent-page",
+          targetDatabaseId: "database-id",
+        },
+        accessToken: "token",
+      }),
+    };
+
+    const service = new NotionService(repository as never, oauthService as never);
+    const response = await service.createPostIdea(undefined, {
+      title: "Draft title",
+      reason: "Why this matters",
+      suggestedPostText: "Post body",
+    });
+
+    expect(response.ok).toBe(true);
+    expect(response.pageTitle).toBe("Draft title");
+    expect(response.pageUrl).toBeUndefined();
+    expect(response.draftMarkdown).toContain("Draft title");
+    expect(repository.putConnection).not.toHaveBeenCalled();
   });
 });

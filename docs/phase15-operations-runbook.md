@@ -330,7 +330,7 @@ npm run dev
 
 ### 推奨順
 
-1. Slack webhook を無効化する
+1. Slack の送信経路を無効化する
 2. Cognito app / connected app の利用停止を確認する
 3. S3 bucket の画像を削除する
 4. DynamoDB テーブルを削除する

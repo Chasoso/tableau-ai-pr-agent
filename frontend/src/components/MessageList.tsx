@@ -10,6 +10,7 @@ export type NotionCompletion = {
   title: string;
   summary: string;
   pageUrl?: string | null;
+  draftMarkdown?: string | null;
   expanded: boolean;
 };
 
@@ -25,7 +26,7 @@ type Props = {
 export default function MessageList({
   messages,
   isLoading,
-  loadingText = "データを確認しています…",
+  loadingText = "繝・・繧ｿ繧堤｢ｺ隱阪＠縺ｦ縺・∪縺吮ｦ",
   job,
   notionCompletion,
   onToggleNotionCompletion,
@@ -55,12 +56,12 @@ export default function MessageList({
       {job ? (
         <article
           className={`message-bubble assistant job-progress-inline ${job.status}`}
-          aria-label="回答を生成中"
+          aria-label="蝗樒ｭ斐ｒ逕滓・荳ｭ"
         >
           <div className="job-progress-inline-top">
             <span className="spinner job-progress-spinner" aria-hidden />
             <div className="job-progress-inline-copy">
-              <h2 className="job-progress-inline-title">回答を生成中</h2>
+              <h2 className="job-progress-inline-title">蝗樒ｭ斐ｒ逕滓・荳ｭ</h2>
             </div>
           </div>
 
@@ -88,29 +89,29 @@ export default function MessageList({
       ) : null}
 
       {notionCompletion ? (
-        <section className="notion-completion-row" aria-label="Notion保存結果">
+        <section className="notion-completion-row" aria-label="Notion菫晏ｭ倡ｵ先棡">
           <button
             type="button"
             className="notion-completion-toggle"
             onClick={onToggleNotionCompletion}
             aria-expanded={notionCompletion.expanded}
-            aria-label="Notionメッセージを開閉"
+            aria-label="Notion繝｡繝・そ繝ｼ繧ｸ繧帝幕髢・"
           >
             <span
               className={`toggle-icon ${notionCompletion.expanded ? "open" : ""}`}
               aria-hidden
             >
-              ▸
+              笆ｸ
             </span>
-            <span>Notionに保存しました</span>
+            <span>Notion縺ｫ菫晏ｭ倥＠縺ｾ縺励◆</span>
           </button>
           {notionCompletion.expanded ? (
             <div className="notion-completion-body">
               <p>
-                <strong>保存タイトル:</strong> {notionCompletion.title}
+                <strong>菫晏ｭ倥ち繧､繝医Ν:</strong> {notionCompletion.title}
               </p>
               <p>
-                <strong>保存内容の要約:</strong> {notionCompletion.summary}
+                <strong>菫晏ｭ伜・螳ｹ縺ｮ隕∫ｴ・</strong> {notionCompletion.summary}
               </p>
               {notionCompletion.pageUrl ? (
                 <p>
@@ -119,9 +120,13 @@ export default function MessageList({
                     target="_blank"
                     rel="noreferrer"
                   >
-                    Notionページを開く
+                    Notion繝壹・繧ｸ繧帝幕縺・
                   </a>
                 </p>
+              ) : notionCompletion.draftMarkdown ? (
+                <pre className="notion-completion-markdown">
+                  {notionCompletion.draftMarkdown}
+                </pre>
               ) : null}
             </div>
           ) : null}

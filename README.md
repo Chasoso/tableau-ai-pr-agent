@@ -10,7 +10,7 @@
 
 ## English
 
-This repository is being prepared as the base for `tableau-ai-pr-agent`, a Tableau Dashboard Extension for AI-assisted PR and social publishing workflows. The current code still contains the chat-oriented PoC implementation, but the naming and deployment scaffold are being aligned for the new app.
+This repository is the working base for `tableau-ai-pr-agent`, a Tableau Dashboard Extension for AI-assisted PR and social publishing workflows. The implementation now includes a Strands Agents-based PR draft path behind a feature flag, while keeping the existing chat/job API surface stable.
 
 The backend keeps Tableau access and secrets server-side. It can switch context providers with `TABLEAU_CONTEXT_PROVIDER`:
 
@@ -22,6 +22,24 @@ Answer generation can switch with `MODEL_PROVIDER`:
 
 - `mock`: deterministic context-based answer.
 - `bedrock`: Amazon Bedrock Converse API. The recommended visual-capable model for this PoC is Nova 2 Lite via `us.amazon.nova-2-lite-v1:0` in `us-east-1`.
+
+### PR Draft Agent Migration
+
+The PR drafting path now has a Strands Agents-based implementation behind a feature flag.
+
+- `USE_STRANDS_AGENT=true` enables the Strands-powered PR draft flow.
+- The agent is initialized in `backend/src/agents/prAgent.ts`.
+- Tool wrappers live in `backend/src/agents/tools/prTools.ts`.
+- The system prompt lives in `backend/src/agents/prompts/prSystemPrompt.ts`.
+- Existing Bedrock settings are reused for the agent: `MODEL_PROVIDER`, `BEDROCK_REGION`, `BEDROCK_MODEL_ID`, `BEDROCK_MAX_OUTPUT_TOKENS`, and `BEDROCK_TEMPERATURE`.
+- If Strands initialization or execution fails, the backend falls back to the deterministic local draft builder so the existing API keeps working.
+
+Safety rules for this path:
+
+- No automatic posting, sending, publishing, or scheduling.
+- Slack approval is draft-only and does not call the Slack webhook.
+- Notion save flows return a draft preview instead of creating a real page.
+- Missing information is returned as missing fields rather than guessed.
 
 ### Architecture
 
@@ -276,12 +294,12 @@ For the selected PoC model:
 
 The current implementation sends text context to Bedrock. Screenshot/image input is the next step because Nova 2 Lite supports multimodal use cases, but the first implementation keeps data minimized.
 
-### Notion MCP PoC (Phase 2)
+### Notion MCP Draft Preview Flow
 
-This PoC adds a backend-managed Notion integration for low-cost small-team usage.
+The current Notion path is draft-only. It is used to prepare a preview of the post idea, not to create a live Notion page.
 
 - OAuth and token handling stay in Lambda only.
-- Frontend receives only status, workspace name, and saved page URL.
+- Frontend receives only status, workspace name, and draft preview content.
 - Notion access/refresh tokens are encrypted with AES-256-GCM before DynamoDB storage.
 - Encryption key is loaded from SSM Parameter Store SecureString at runtime.
 - No AWS Secrets Manager dependency in this phase.
@@ -342,9 +360,9 @@ aws ssm put-parameter \
 #### Chat UX (Two-Step Save)
 
 1. Chat generates analysis answer and `notionPostIdeaDraft` preview.
-2. Only when user clicks `Notionに保存`, frontend calls `POST /notion/create-post-idea`.
+2. Only when user clicks `Notionに保存`, frontend calls `POST /notion/create-post-idea` and receives draft preview output.
 
-The app never writes to Notion directly from a plain chat question without explicit user approval.
+The app never writes to Notion directly from a plain chat question without explicit user approval, and the current implementation stops at preview output instead of creating a page.
 
 #### Security Notes (PoC)
 
@@ -352,6 +370,7 @@ The app never writes to Notion directly from a plain chat question without expli
 - Never return token values from API.
 - Never store token values in frontend localStorage/sessionStorage.
 - Restrict Notion MCP tools with allowlist (`notion-create-pages`, `notion-fetch`).
+- Do not auto-create or auto-publish Notion pages from the draft flow.
 
 PoC note:
 "This PoC prioritizes low cost by using SSM Parameter Store Standard SecureString and DynamoDB instead of Secrets Manager. Notion OAuth tokens are stored in DynamoDB only after backend AES-256-GCM encryption. For production, add stronger key management, auditing, and permission controls."
@@ -364,7 +383,7 @@ PoC note:
 4. Verify DynamoDB token fields are ciphertext/iv/authTag and not plaintext token.
 5. `GET /notion/status` after connect returns `connected=true` and `workspaceName`.
 6. Chat a request that includes Notion save intent and confirm preview appears in UI.
-7. Click `Notionに保存` and confirm `pageUrl` is returned and link opens.
+7. Click `Notionに保存` and confirm draft markdown is returned and shown in the UI.
 8. `POST /notion/disconnect` removes connection and `status` becomes disconnected.
 9. Force expired token and verify refresh path runs; on refresh failure, status becomes `refresh_failed`.
 

@@ -90,7 +90,7 @@ export async function disconnectNotion(accessToken?: string): Promise<void> {
 export async function savePostIdeaToNotion(
   draft: NotionPostIdeaDraft,
   accessToken?: string,
-): Promise<{ pageUrl?: string }> {
+): Promise<{ pageUrl?: string; draftMarkdown?: string }> {
   const response = await fetch(
     `${env.apiBaseUrl.replace(/\/$/, "")}/notion/create-post-idea`,
     {
@@ -105,7 +105,7 @@ export async function savePostIdeaToNotion(
   if (!response.ok) {
     throw await toApiError(response);
   }
-  return response.json() as Promise<{ pageUrl?: string }>;
+  return response.json() as Promise<{ pageUrl?: string; draftMarkdown?: string }>;
 }
 
 async function toApiError(response: Response): Promise<Error> {

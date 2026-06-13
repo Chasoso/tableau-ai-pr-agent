@@ -23,8 +23,8 @@ describe("ActionRunAnalysisService", () => {
             dimensionField: "post_type",
             metricField: "post_count",
             rows: [
-              { label: "莠句燕蜻顔衍", value: 12 },
-              { label: "髢句ぎ荳ｭ", value: 9 },
+              { label: "Post A", value: 12 },
+              { label: "Post B", value: 9 },
             ],
           },
         ],
@@ -43,13 +43,17 @@ describe("ActionRunAnalysisService", () => {
       key: "post_type_distribution",
       title: "Post type distribution",
       rows: [
-        { label: "莠句燕蜻顔衍", value: 12 },
-        { label: "髢句ぎ荳ｭ", value: 9 },
+        { label: "Post A", value: 12 },
+        { label: "Post B", value: 9 },
       ],
     });
     expect(result.summary).toContain("Tableau User Group Tokyo 2026");
-    expect(result.suggestedSlackPostText).toContain("Tableau signals:");
-    expect(result.suggestedSlackPostText).toContain("Action angle:");
+    expect(result.suggestedSlackPostText).toContain(
+      "Tableau User Group Tokyo 2026",
+    );
+    expect(result.suggestedSlackPostText).toContain("#Tableau");
+    expect(result.draftVariants?.x).toContain("Tableau User Group Tokyo 2026");
+    expect(result.draftReview?.status).toMatch(/pass|needs_info|needs_review/);
     expect(result.debug?.tableau?.warnings).toContain("warning from provider");
     expect(result.safetyReview?.required).toBe(true);
     expect(result.safetyReview?.status).toBe("pending_manual_review");
@@ -85,6 +89,7 @@ describe("ActionRunAnalysisService", () => {
       label: "事前告知",
       value: 12,
     });
+    expect(result.draftVariants?.notion).toContain("Tableau User Group Tokyo 2026");
     expect(result.safetyReview?.notes?.[0]).toContain(
       "Human approval is required",
     );

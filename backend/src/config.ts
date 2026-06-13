@@ -19,6 +19,9 @@ export type AppConfig = {
     workerFunctionName: string;
     ownerTokenHeaderName: string;
   };
+  prAgent: {
+    useStrandsAgent: boolean;
+  };
   slack: {
     incomingWebhookUrl: string;
   };
@@ -166,6 +169,9 @@ export function getConfig(): AppConfig {
           process.env.ACTION_RUN_OWNER_TOKEN_HEADER_NAME,
           process.env.CHAT_JOB_OWNER_TOKEN_HEADER_NAME,
         ) ?? "x-action-run-owner-token",
+    },
+    prAgent: {
+      useStrandsAgent: process.env.USE_STRANDS_AGENT === "true",
     },
     slack: {
       incomingWebhookUrl: process.env.SLACK_INCOMING_WEBHOOK_URL ?? "",

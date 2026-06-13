@@ -15,13 +15,13 @@ describe("MessageList", () => {
           },
         ]}
         isLoading
-        loadingText="データを確認しています…"
+        loadingText="繝・・繧ｿ繧堤｢ｺ隱阪＠縺ｦ縺・∪縺吮ｦ"
       />,
     );
 
     expect(screen.getByRole("heading", { name: "Summary" })).toBeVisible();
     expect(screen.getByText("Point A")).toBeVisible();
-    expect(screen.getByText("データを確認しています…")).toBeVisible();
+    expect(screen.getByText("繝・・繧ｿ繧堤｢ｺ隱阪＠縺ｦ縺・∪縺吮ｦ")).toBeVisible();
   });
 
   it("shows a compact job progress block without card chrome", () => {
@@ -36,7 +36,7 @@ describe("MessageList", () => {
             {
               at: new Date().toISOString(),
               stage: "queued",
-              message: "分析を開始しました",
+              message: "蛻・梵繧帝幕蟋九＠縺ｾ縺励◆",
               debug: {
                 provider: "chat-job",
               },
@@ -44,7 +44,7 @@ describe("MessageList", () => {
             {
               at: new Date().toISOString(),
               stage: "loading_history",
-              message: "会話履歴を確認中...",
+              message: "莨夊ｩｱ螻･豁ｴ繧堤｢ｺ隱堺ｸｭ...",
               debug: {
                 provider: "tableau-mcp",
                 passCount: 2,
@@ -54,27 +54,27 @@ describe("MessageList", () => {
             {
               at: new Date().toISOString(),
               stage: "loading_dashboard_context",
-              message: "ダッシュボード情報を取得中...",
+              message: "繝繝・す繝･繝懊・繝画ュ蝣ｱ繧貞叙蠕嶺ｸｭ...",
             },
             {
               at: new Date().toISOString(),
               stage: "planning",
-              message: "分析計画を作成中...",
+              message: "蛻・梵險育判繧剃ｽ懈・荳ｭ...",
             },
           ],
         }}
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "回答を生成中" })).toBeVisible();
-    expect(screen.getByText("分析を開始しました")).toBeVisible();
-    expect(screen.getByText("会話履歴を確認中...")).toBeVisible();
-    expect(screen.getByText("ダッシュボード情報を取得中...")).toBeVisible();
-    expect(screen.getByText("分析計画を作成中...")).toBeVisible();
+    expect(screen.getByRole("heading", { name: "蝗樒ｭ斐ｒ逕滓・荳ｭ" })).toBeVisible();
+    expect(screen.getByText("蛻・梵繧帝幕蟋九＠縺ｾ縺励◆")).toBeVisible();
+    expect(screen.getByText("莨夊ｩｱ螻･豁ｴ繧堤｢ｺ隱堺ｸｭ...")).toBeVisible();
+    expect(screen.getByText("繝繝・す繝･繝懊・繝画ュ蝣ｱ繧貞叙蠕嶺ｸｭ...")).toBeVisible();
+    expect(screen.getByText("蛻・梵險育判繧剃ｽ懈・荳ｭ...")).toBeVisible();
     expect(screen.getByText("pass 2")).toBeVisible();
     expect(screen.getByText("tools 4")).toBeVisible();
     expect(screen.getByText("provider tableau-mcp")).toBeVisible();
-    expect(screen.queryByText("4件")).toBeNull();
+    expect(screen.queryByText("4莉ｶ")).toBeNull();
     expect(screen.queryByRole("region")).toBeNull();
   });
 
@@ -86,8 +86,8 @@ describe("MessageList", () => {
         messages={[]}
         isLoading={false}
         notionCompletion={{
-          title: "保存メモ",
-          summary: "分析メモの要約",
+          title: "菫晏ｭ倥Γ繝｢",
+          summary: "蛻・梵繝｡繝｢縺ｮ隕∫ｴ・",
           pageUrl: "https://www.notion.so/example",
           expanded: true,
         }}
@@ -95,10 +95,33 @@ describe("MessageList", () => {
       />,
     );
 
-    expect(screen.getByLabelText("Notion保存結果")).toBeVisible();
-    expect(screen.getByText("保存メモ")).toBeVisible();
+    expect(screen.getByLabelText("Notion菫晏ｭ倡ｵ先棡")).toBeVisible();
+    expect(screen.getByText("菫晏ｭ倥Γ繝｢")).toBeVisible();
     expect(
-      screen.getByRole("link", { name: "Notionページを開く" }),
+      screen.getByRole("link", { name: "Notion繝壹・繧ｸ繧帝幕縺・" }),
     ).toHaveAttribute("href", "https://www.notion.so/example");
+  });
+
+  it("shows a notion draft preview when no page url is available", () => {
+    render(
+      <MessageList
+        messages={[]}
+        isLoading={false}
+        notionCompletion={{
+          title: "Draft title",
+          summary: "Draft summary",
+          draftMarkdown: "# Draft title\n\nDraft summary",
+          expanded: true,
+        }}
+      />,
+    );
+
+    expect(
+      screen.getByText((_, element) =>
+        element?.tagName.toLowerCase() === "pre" &&
+        element.textContent?.includes("# Draft title"),
+      ),
+    ).toBeVisible();
+    expect(screen.getByText("Draft summary")).toBeVisible();
   });
 });

@@ -13,7 +13,6 @@ import { ActionRunAnalysisService } from "./actionRunAnalysisService";
 import { ActionRunImageService } from "./actionRunImageService";
 import { buildActionRunImageUrl } from "./actionRunImageUrlService";
 import { ActionRunRepository } from "../repositories/actionRunRepository";
-import { SlackWebhookService } from "./slackWebhookService";
 import type { AuthenticatedUser } from "../types/auth";
 import type {
   ActionRunApprovalRequest,
@@ -32,7 +31,6 @@ export type ActionRunApprovalResponse = ActionRunGetResponse & {
 const repository = new ActionRunRepository();
 const analysisService = new ActionRunAnalysisService();
 const imageService = new ActionRunImageService();
-const slackWebhookService = new SlackWebhookService();
 
 export class ActionRunService {
   async createActionRun(input: {
@@ -177,11 +175,11 @@ export class ActionRunService {
     }
 
     if (record.result.safetyReview?.status === "sent_to_slack") {
-      throw new Error("Action run has already been sent to Slack.");
+      throw new Error("Action run has already been finalized.");
     }
 
     if (!input.request.approved) {
-      throw new Error("Action run approval is required before Slack posting.");
+      throw new Error("Action run approval is required before finalizing the draft.");
     }
 
     const nowIso = new Date().toISOString();
@@ -210,19 +208,14 @@ export class ActionRunService {
       result: approvedResult,
     });
 
-    const slackWebhook = await slackWebhookService.postActionRun({
-      runId: input.actionRunId,
-      request: record.request,
-      result: approvedResult,
-    });
-
-    const finalSafetyReview: NonNullable<
-      ActionRunRecord["result"]
-    >["safetyReview"] = {
-      ...approvedSafetyReview,
-      status: slackWebhook.sent ? "sent_to_slack" : "approved",
-      ...(slackWebhook.sent ? { sentAt: nowIso } : {}),
+    const slackWebhook: SlackWebhookPostResult = {
+      sent: false,
+      skipped: true,
     };
+    const finalSafetyReview: NonNullable<ActionRunRecord["result"]>["safetyReview"] =
+      {
+        ...approvedSafetyReview,
+      };
     const finalResult: ActionRunResult = {
       ...approvedResult,
       safetyReview: finalSafetyReview,
@@ -237,8 +230,8 @@ export class ActionRunService {
       runId: input.actionRunId,
       actionRunId: input.actionRunId,
       requestId: input.requestId,
-      slackSent: slackWebhook.sent,
-      slackSkipped: slackWebhook.skipped,
+      slackSent: false,
+      slackSkipped: true,
     });
 
     return {

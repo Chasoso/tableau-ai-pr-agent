@@ -109,15 +109,16 @@ When enabled, the backend logs:
 Keep this disabled in production because prompts may include user-entered text and dashboard context details.
 If you also need chat input/output text, set `LOG_LEVEL=debug`. This enables `chat.message.input_debug` and `chat.message.output_debug` logs (truncated by `CHAT_DEBUG_MAX_CHARS`).
 
-### Notion MCP PoC Extension
+### Notion Draft Preview Flow
 
-Phase 2 adds backend-managed Notion MCP integration:
+The current Notion integration is draft-only:
 
 - OAuth Authorization Code + PKCE with temporary `state` storage in DynamoDB (`NotionOAuthStates`).
 - Encrypted Notion token storage in DynamoDB (`NotionConnections`) using AES-256-GCM.
 - Encryption key from SSM SecureString to reduce fixed monthly cost versus Secrets Manager in this PoC.
 - Tool allowlist by default: `notion-create-pages`, `notion-fetch`.
-- Explicit user approval flow: chat creates preview first, then user presses save button to create Notion page.
+- Explicit user approval flow: chat creates preview first, then user presses save button to create draft output only.
+- No automatic Notion page creation or publish path is enabled in the current implementation.
 
 TODO:
 

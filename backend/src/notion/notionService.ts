@@ -10,14 +10,12 @@ import type {
   NotionPostIdeaSaveResponse,
   NotionStatusResponse,
 } from "../types/notion";
-import { categorizeNotionMcpError, NotionMcpClient } from "./notionMcpClient";
 import { NotionOAuthService } from "./notionOAuthService";
 
 export class NotionService {
   constructor(
     private readonly repository = new NotionRepository(),
     private readonly oauthService = new NotionOAuthService(),
-    private readonly notionMcpClient = new NotionMcpClient(),
   ) {}
 
   async getStatus(
@@ -93,20 +91,11 @@ export class NotionService {
     payload: CreateNotionPostIdeaRequest,
   ): Promise<NotionPostIdeaSaveResponse> {
     const userId = resolveNotionUserId(user);
-    const { connection, accessToken } =
-      await this.oauthService.getConnectionForUse(userId);
-    const config = getConfig().notion;
-    const targetParentPageId =
-      connection.targetParentPageId ?? config.defaultTargetParentPageId;
-    const targetDatabaseId =
-      connection.targetDatabaseId ?? config.defaultTargetDatabaseId;
-    if (!targetParentPageId && !targetDatabaseId) {
-      throw new Error("Notion target is not configured.");
-    }
+    const { connection } = await this.oauthService.getConnectionForUse(userId);
     logDebug("notion.create_post_idea.started", {
       userIdPresent: Boolean(userId),
-      hasTargetParentPageId: Boolean(targetParentPageId),
-      hasTargetDatabaseId: Boolean(targetDatabaseId),
+      hasTargetParentPageId: Boolean(connection.targetParentPageId),
+      hasTargetDatabaseId: Boolean(connection.targetDatabaseId),
       draftKind: payload.draftKind ?? "post_idea",
     });
 
@@ -118,65 +107,20 @@ export class NotionService {
       analysisBodyLength: payload.analysisBody?.length ?? 0,
     });
 
-    let created;
-    try {
-      try {
-        created = await this.notionMcpClient.createPostIdeaPage({
-          accessToken,
-          title: payload.title,
-          markdownBody,
-          targetParentPageId,
-          targetDatabaseId,
-        });
-      } catch (error) {
-        if (!isInvalidTokenError(error)) {
-          throw error;
-        }
-
-        logDebug("notion.create_post_idea.retry_after_token_refresh", {
-          userIdPresent: Boolean(userId),
-        });
-        const refreshed = await this.oauthService.getConnectionForUse(userId, {
-          forceRefresh: true,
-        });
-        created = await this.notionMcpClient.createPostIdeaPage({
-          accessToken: refreshed.accessToken,
-          title: payload.title,
-          markdownBody,
-          targetParentPageId,
-          targetDatabaseId,
-        });
-      }
-    } catch (error) {
-      if (categorizeNotionMcpError(error) === "invalid_token") {
-        await this.repository.putConnection({
-          ...connection,
-          status: "refresh_failed",
-          updatedAt: new Date().toISOString(),
-        });
-        throw new Error(
-          "Notion access token is invalid after refresh. Please reconnect Notion.",
-        );
-      }
-      throw error;
-    }
-
-    logDebug("notion.create_post_idea.completed", {
+    logDebug("notion.create_post_idea.draft_only", {
       userIdPresent: Boolean(userId),
-      hasPageUrl: Boolean(created.pageUrl),
       draftKind: payload.draftKind ?? "post_idea",
+      hasMarkdownPreview: Boolean(markdownBody),
+      targetConfigured:
+        Boolean(connection.targetParentPageId) ||
+        Boolean(connection.targetDatabaseId),
     });
     return {
       ok: true,
-      pageUrl: created.pageUrl,
       pageTitle: payload.title,
+      draftMarkdown: markdownBody,
     };
   }
-}
-
-function isInvalidTokenError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return /invalid_token|Invalid access token|401|unauthorized/i.test(message);
 }
 
 export function buildNotionMarkdown(

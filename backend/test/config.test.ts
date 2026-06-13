@@ -13,6 +13,7 @@ describe("config aliases", () => {
     chatJobProgress: process.env.CHAT_JOB_PROGRESS_MESSAGE_LIMIT,
     chatJobWorker: process.env.CHAT_JOB_WORKER_FUNCTION_NAME,
     chatJobHeader: process.env.CHAT_JOB_OWNER_TOKEN_HEADER_NAME,
+    useStrandsAgent: process.env.USE_STRANDS_AGENT,
   };
 
   afterEach(() => {
@@ -29,6 +30,7 @@ describe("config aliases", () => {
     restoreEnv("CHAT_JOB_PROGRESS_MESSAGE_LIMIT", originals.chatJobProgress);
     restoreEnv("CHAT_JOB_WORKER_FUNCTION_NAME", originals.chatJobWorker);
     restoreEnv("CHAT_JOB_OWNER_TOKEN_HEADER_NAME", originals.chatJobHeader);
+    restoreEnv("USE_STRANDS_AGENT", originals.useStrandsAgent);
   });
 
   it("prefers action run env names and keeps chat job env names as fallback", () => {
@@ -59,6 +61,17 @@ describe("config aliases", () => {
       workerFunctionName: "chat-job-worker",
       ownerTokenHeaderName: "x-chat-owner-token",
     });
+    expect(config.prAgent).toEqual({
+      useStrandsAgent: false,
+    });
+  });
+
+  it("enables the strands agent flag when requested", () => {
+    process.env.USE_STRANDS_AGENT = "true";
+
+    const config = getConfig();
+
+    expect(config.prAgent.useStrandsAgent).toBe(true);
   });
 });
 

@@ -31,7 +31,7 @@
 
 ## 削除前
 
-- Slack webhook を止める
+- Slack の送信経路を止める
 - S3 bucket 内の画像を削除する
 - DynamoDB テーブルを削除する
 - CloudFormation stack を削除する

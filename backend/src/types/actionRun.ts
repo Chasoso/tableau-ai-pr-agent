@@ -32,6 +32,20 @@ export type ActionRunSafetyReview = {
 export type ActionRunResult = {
   summary: string;
   suggestedSlackPostText: string;
+  draftVariants?: {
+    x: string;
+    linkedin: string;
+    email: string;
+    notion: string;
+  };
+  draftReview?: {
+    status: "pass" | "needs_info" | "needs_review";
+    riskLevel: "low" | "medium" | "high";
+    missingFields: string[];
+    issues: string[];
+    checklist: string[];
+    notes: string[];
+  };
   hashtags: string[];
   evidence: string[];
   checks: string[];
@@ -55,6 +69,12 @@ export type ActionRunResult = {
         signals: string[];
         draftLength: number;
         refinedLength: number;
+      };
+      prAgent?: {
+        enabled: boolean;
+        reviewStatus: "pass" | "needs_info" | "needs_review";
+        riskLevel: "low" | "medium" | "high";
+        missingFieldCount: number;
       };
     };
   };

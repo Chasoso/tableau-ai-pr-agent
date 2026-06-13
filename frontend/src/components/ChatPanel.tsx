@@ -499,6 +499,7 @@ export default function ChatPanel({
         title: notionDraft.title,
         summary: buildDraftSummary(notionDraft),
         pageUrl: saved.pageUrl ?? null,
+        draftMarkdown: saved.draftMarkdown ?? null,
         expanded: false,
       });
       setNotionDraft(null);
