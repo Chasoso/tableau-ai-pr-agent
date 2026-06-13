@@ -1,5 +1,13 @@
 # Tableau AI PR Agent Extension Migration Scaffold
 
+## Operations
+
+- [Phase 15 Operations Runbook](docs/phase15-operations-runbook.md)
+- [Phase 15 Operations Quick Reference](docs/phase15-operations-quick-reference.md)
+- [GitHub Actions Deployment Guide](docs/github-actions-deployment.md)
+- [Security Notes](docs/security-notes.md)
+- [Local Development](docs/local-development.md)
+
 ## English
 
 This repository is being prepared as the base for `tableau-ai-pr-agent`, a Tableau Dashboard Extension for AI-assisted PR and social publishing workflows. The current code still contains the chat-oriented PoC implementation, but the naming and deployment scaffold are being aligned for the new app.
