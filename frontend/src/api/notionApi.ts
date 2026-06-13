@@ -105,7 +105,10 @@ export async function savePostIdeaToNotion(
   if (!response.ok) {
     throw await toApiError(response);
   }
-  return response.json() as Promise<{ pageUrl?: string; draftMarkdown?: string }>;
+  return response.json() as Promise<{
+    pageUrl?: string;
+    draftMarkdown?: string;
+  }>;
 }
 
 async function toApiError(response: Response): Promise<Error> {

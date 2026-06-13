@@ -19,14 +19,10 @@ describe("prTools", () => {
   });
 
   it("flags publish language in review", () => {
-    const review = reviewPrDraft(
-      buildSourceInfo(),
-      "Please post this now",
-      {
-        x: "Please post this now",
-        linkedin: "Please publish this update",
-      },
-    );
+    const review = reviewPrDraft(buildSourceInfo(), "Please post this now", {
+      x: "Please post this now",
+      linkedin: "Please publish this update",
+    });
 
     expect(review.issues.join(" ")).toContain("publish");
     expect(review.status).toBe("needs_review");

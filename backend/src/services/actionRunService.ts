@@ -179,7 +179,9 @@ export class ActionRunService {
     }
 
     if (!input.request.approved) {
-      throw new Error("Action run approval is required before finalizing the draft.");
+      throw new Error(
+        "Action run approval is required before finalizing the draft.",
+      );
     }
 
     const nowIso = new Date().toISOString();
@@ -212,10 +214,11 @@ export class ActionRunService {
       sent: false,
       skipped: true,
     };
-    const finalSafetyReview: NonNullable<ActionRunRecord["result"]>["safetyReview"] =
-      {
-        ...approvedSafetyReview,
-      };
+    const finalSafetyReview: NonNullable<
+      ActionRunRecord["result"]
+    >["safetyReview"] = {
+      ...approvedSafetyReview,
+    };
     const finalResult: ActionRunResult = {
       ...approvedResult,
       safetyReview: finalSafetyReview,

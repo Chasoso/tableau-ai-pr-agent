@@ -87,7 +87,10 @@ describe("NotionService draft flow", () => {
       }),
     };
 
-    const service = new NotionService(repository as never, oauthService as never);
+    const service = new NotionService(
+      repository as never,
+      oauthService as never,
+    );
     const response = await service.createPostIdea(undefined, {
       title: "Draft title",
       reason: "Why this matters",

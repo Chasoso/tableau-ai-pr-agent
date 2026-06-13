@@ -89,7 +89,9 @@ describe("ActionRunAnalysisService", () => {
       label: "事前告知",
       value: 12,
     });
-    expect(result.draftVariants?.notion).toContain("Tableau User Group Tokyo 2026");
+    expect(result.draftVariants?.notion).toContain(
+      "Tableau User Group Tokyo 2026",
+    );
     expect(result.safetyReview?.notes?.[0]).toContain(
       "Human approval is required",
     );

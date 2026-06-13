@@ -111,8 +111,7 @@ export class ActionRunAnalysisService {
       request: input.request,
       analysisSections: fixedAnalyses,
     });
-    const suggestedSlackPostText =
-      prDraft.drafts.x || qualityReview.finalText;
+    const suggestedSlackPostText = prDraft.drafts.x || qualityReview.finalText;
 
     return {
       summary: prDraft.summary || buildSummary(input.request, fixedAnalyses),
@@ -125,8 +124,11 @@ export class ActionRunAnalysisService {
       evidence: prDraft.evidence.length
         ? prDraft.evidence
         : buildEvidenceLines(input.request, fixedAnalyses),
-      checks: prDraft.checks.length ? prDraft.checks : buildChecks(input.request),
-      imageCaption: prDraft.imageCaption || buildImageCaption(input.request, fixedAnalyses),
+      checks: prDraft.checks.length
+        ? prDraft.checks
+        : buildChecks(input.request),
+      imageCaption:
+        prDraft.imageCaption || buildImageCaption(input.request, fixedAnalyses),
       analysisSections: fixedAnalyses,
       safetyReview: buildSafetyReview({
         request: input.request,

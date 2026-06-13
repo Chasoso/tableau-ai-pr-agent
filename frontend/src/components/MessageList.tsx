@@ -89,7 +89,10 @@ export default function MessageList({
       ) : null}
 
       {notionCompletion ? (
-        <section className="notion-completion-row" aria-label="Notion菫晏ｭ倡ｵ先棡">
+        <section
+          className="notion-completion-row"
+          aria-label="Notion菫晏ｭ倡ｵ先棡"
+        >
           <button
             type="button"
             className="notion-completion-toggle"
@@ -111,7 +114,8 @@ export default function MessageList({
                 <strong>菫晏ｭ倥ち繧､繝医Ν:</strong> {notionCompletion.title}
               </p>
               <p>
-                <strong>菫晏ｭ伜・螳ｹ縺ｮ隕∫ｴ・</strong> {notionCompletion.summary}
+                <strong>菫晏ｭ伜・螳ｹ縺ｮ隕∫ｴ・</strong>{" "}
+                {notionCompletion.summary}
               </p>
               {notionCompletion.pageUrl ? (
                 <p>

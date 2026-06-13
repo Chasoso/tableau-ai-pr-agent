@@ -54,6 +54,15 @@ export type PrDraftOutput = {
   missingFields: string[];
 };
 
+type PrToolFactoryConfig = {
+  name: string;
+  description: string;
+  inputSchema: z.ZodTypeAny;
+  callback: (input: unknown) => Promise<unknown>;
+};
+
+export type PrToolFactory = (config: PrToolFactoryConfig) => unknown;
+
 const collectPrSourceInfoSchema = z.object({
   request: z.object({
     postType: z.string().min(1),
@@ -129,7 +138,7 @@ const createDraftOutputSchema = z.object({
   review: z.custom<PrDraftReview>(),
 });
 
-export function createPrTools(toolFactory: (config: any) => any) {
+export function createPrTools(toolFactory: PrToolFactory) {
   return [
     toolFactory({
       name: "collectPrSourceInfo",
@@ -156,7 +165,9 @@ export function createPrTools(toolFactory: (config: any) => any) {
       description:
         "Generate a long-form announcement draft for human review only.",
       inputSchema: generateAnnouncementDraftSchema,
-      callback: async (input: z.infer<typeof generateAnnouncementDraftSchema>) =>
+      callback: async (
+        input: z.infer<typeof generateAnnouncementDraftSchema>,
+      ) =>
         executeLoggedTool("generateAnnouncementDraft", input, async () =>
           generateAnnouncementDraft(input.sourceInfo, input.summary),
         ),
@@ -168,7 +179,11 @@ export function createPrTools(toolFactory: (config: any) => any) {
       inputSchema: generateSocialPostDraftSchema,
       callback: async (input: z.infer<typeof generateSocialPostDraftSchema>) =>
         executeLoggedTool("generateSocialPostDraft", input, async () =>
-          generateSocialPostDraft(input.platform, input.sourceInfo, input.summary),
+          generateSocialPostDraft(
+            input.platform,
+            input.sourceInfo,
+            input.summary,
+          ),
         ),
     }),
     toolFactory({
@@ -533,8 +548,12 @@ function buildHashtags(eventName: string, platform: PrDraftPlatform): string[] {
 
 function getMissingSourceFields(input: {
   request: z.infer<typeof collectPrSourceInfoSchema>["request"];
-  techplayPreview?: z.infer<typeof collectPrSourceInfoSchema>["techplayPreview"];
-  analysisSections: z.infer<typeof collectPrSourceInfoSchema>["analysisSections"];
+  techplayPreview?: z.infer<
+    typeof collectPrSourceInfoSchema
+  >["techplayPreview"];
+  analysisSections: z.infer<
+    typeof collectPrSourceInfoSchema
+  >["analysisSections"];
 }): string[] {
   const missing: string[] = [];
 
@@ -581,9 +600,7 @@ function containsOverclaimLanguage(value: string): boolean {
 }
 
 function containsPublishLanguage(value: string): boolean {
-  return /(post|publish|send|submit|schedule|公開|送信|投稿|配信)/i.test(
-    value,
-  );
+  return /(post|publish|send|submit|schedule|公開|送信|投稿|配信)/i.test(value);
 }
 
 function firstSentence(value: string): string | undefined {

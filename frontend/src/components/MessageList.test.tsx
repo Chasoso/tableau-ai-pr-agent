@@ -21,7 +21,9 @@ describe("MessageList", () => {
 
     expect(screen.getByRole("heading", { name: "Summary" })).toBeVisible();
     expect(screen.getByText("Point A")).toBeVisible();
-    expect(screen.getByText("繝・・繧ｿ繧堤｢ｺ隱阪＠縺ｦ縺・∪縺吮ｦ")).toBeVisible();
+    expect(
+      screen.getByText("繝・・繧ｿ繧堤｢ｺ隱阪＠縺ｦ縺・∪縺吮ｦ"),
+    ).toBeVisible();
   });
 
   it("shows a compact job progress block without card chrome", () => {
@@ -66,10 +68,14 @@ describe("MessageList", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "蝗樒ｭ斐ｒ逕滓・荳ｭ" })).toBeVisible();
+    expect(
+      screen.getByRole("heading", { name: "蝗樒ｭ斐ｒ逕滓・荳ｭ" }),
+    ).toBeVisible();
     expect(screen.getByText("蛻・梵繧帝幕蟋九＠縺ｾ縺励◆")).toBeVisible();
     expect(screen.getByText("莨夊ｩｱ螻･豁ｴ繧堤｢ｺ隱堺ｸｭ...")).toBeVisible();
-    expect(screen.getByText("繝繝・す繝･繝懊・繝画ュ蝣ｱ繧貞叙蠕嶺ｸｭ...")).toBeVisible();
+    expect(
+      screen.getByText("繝繝・す繝･繝懊・繝画ュ蝣ｱ繧貞叙蠕嶺ｸｭ..."),
+    ).toBeVisible();
     expect(screen.getByText("蛻・梵險育判繧剃ｽ懈・荳ｭ...")).toBeVisible();
     expect(screen.getByText("pass 2")).toBeVisible();
     expect(screen.getByText("tools 4")).toBeVisible();
@@ -117,9 +123,10 @@ describe("MessageList", () => {
     );
 
     expect(
-      screen.getByText((_, element) =>
-        element?.tagName.toLowerCase() === "pre" &&
-        element.textContent?.includes("# Draft title"),
+      screen.getByText(
+        (_, element) =>
+          element?.tagName.toLowerCase() === "pre" &&
+          element.textContent?.includes("# Draft title"),
       ),
     ).toBeVisible();
     expect(screen.getByText("Draft summary")).toBeVisible();
