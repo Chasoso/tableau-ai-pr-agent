@@ -13,8 +13,8 @@ describe("ActionRunAnalysisService", () => {
             dimensionField: "post_type",
             metricField: "post_count",
             rows: [
-              { label: "事前告知", value: 12 },
-              { label: "開催中", value: 9 },
+              { label: "莠句燕蜻顔衍", value: 12 },
+              { label: "髢句ぎ荳ｭ", value: 9 },
             ],
           },
         ],
@@ -33,13 +33,26 @@ describe("ActionRunAnalysisService", () => {
       key: "post_type_distribution",
       title: "Post type distribution",
       rows: [
-        { label: "事前告知", value: 12 },
-        { label: "開催中", value: 9 },
+        { label: "莠句燕蜻顔衍", value: 12 },
+        { label: "髢句ぎ荳ｭ", value: 9 },
       ],
     });
     expect(result.summary).toContain("Tableau User Group Tokyo 2026");
-    expect(result.suggestedSlackPostText).toContain("Tableau");
+    expect(result.suggestedSlackPostText).toContain("Tableau signals:");
+    expect(result.suggestedSlackPostText).toContain("Action angle:");
     expect(result.debug?.tableau?.warnings).toContain("warning from provider");
+    expect(result.safetyReview?.required).toBe(true);
+    expect(result.safetyReview?.status).toBe("pending_manual_review");
+    expect(result.safetyReview?.notes?.[0]).toContain(
+      "Human approval is required",
+    );
+    expect(result.debug?.tableau?.qualityReview?.signals?.[0]).toContain(
+      "Post type distribution:",
+    );
+    expect(result.debug?.tableau?.qualityReview?.signals?.[0]).toContain(
+      "(12 posts)",
+    );
+    expect(result.debug?.tableau?.qualityReview?.score).toBeGreaterThan(0);
   });
 });
 

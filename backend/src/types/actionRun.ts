@@ -19,6 +19,16 @@ export type ActionRunRequest = {
   clientContext?: ClientContext;
 };
 
+export type ActionRunSafetyReview = {
+  status: "pending_manual_review" | "approved" | "rejected" | "sent_to_slack";
+  required: true;
+  checklist: string[];
+  notes: string[];
+  reviewerNote?: string;
+  reviewedAt?: string;
+  sentAt?: string;
+};
+
 export type ActionRunResult = {
   summary: string;
   suggestedSlackPostText: string;
@@ -28,6 +38,7 @@ export type ActionRunResult = {
   imageCaption?: string;
   imageUrl?: string;
   analysisSections?: ActionRunAnalysisSection[];
+  safetyReview?: ActionRunSafetyReview;
   debug?: {
     source?: "stub";
     requestEcho?: Pick<
@@ -38,8 +49,20 @@ export type ActionRunResult = {
       provider: string;
       analysisQuestions: string[];
       warnings: string[];
+      qualityReview?: {
+        score: number;
+        issues: string[];
+        signals: string[];
+        draftLength: number;
+        refinedLength: number;
+      };
     };
   };
+};
+
+export type ActionRunApprovalRequest = {
+  approved: boolean;
+  reviewerNote?: string;
 };
 
 export type ActionRunAnalysisSection = {

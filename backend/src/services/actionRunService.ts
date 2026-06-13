@@ -16,11 +16,18 @@ import { ActionRunRepository } from "../repositories/actionRunRepository";
 import { SlackWebhookService } from "./slackWebhookService";
 import type { AuthenticatedUser } from "../types/auth";
 import type {
-  ActionRunCreateResponse,
+  ActionRunApprovalRequest,
   ActionRunGetResponse,
+  ActionRunCreateResponse,
   ActionRunRecord,
   ActionRunRequest,
+  ActionRunResult,
 } from "../types/actionRun";
+import type { SlackWebhookPostResult } from "./slackWebhookService";
+
+export type ActionRunApprovalResponse = ActionRunGetResponse & {
+  slackWebhook: SlackWebhookPostResult;
+};
 
 const repository = new ActionRunRepository();
 const analysisService = new ActionRunAnalysisService();
@@ -145,6 +152,95 @@ export class ActionRunService {
     return repository.toPublicView(record);
   }
 
+  async approveActionRun(input: {
+    actionRunId: string;
+    request: ActionRunApprovalRequest;
+    authenticatedUser?: AuthenticatedUser;
+    headers?: Record<string, string | undefined>;
+    requestId?: string;
+  }): Promise<ActionRunApprovalResponse> {
+    const record = await repository.get(input.actionRunId);
+    if (!record) {
+      throw new Error("Action run not found.");
+    }
+
+    this.assertOwner(record, input.authenticatedUser, input.headers);
+
+    if (!record.result) {
+      throw new Error("Action run result is not ready for approval.");
+    }
+
+    if (record.result.safetyReview?.status === "sent_to_slack") {
+      throw new Error("Action run has already been sent to Slack.");
+    }
+
+    if (!input.request.approved) {
+      throw new Error("Action run approval is required before Slack posting.");
+    }
+
+    const nowIso = new Date().toISOString();
+    const reviewerNote = input.request.reviewerNote?.trim();
+    const safetyReview = record.result.safetyReview ?? {
+      status: "pending_manual_review" as const,
+      required: true as const,
+      checklist: record.result.checks,
+      notes: [],
+    };
+    const approvedSafetyReview: NonNullable<
+      ActionRunRecord["result"]
+    >["safetyReview"] = {
+      ...safetyReview,
+      status: "approved",
+      reviewedAt: nowIso,
+      ...(reviewerNote ? { reviewerNote } : {}),
+    };
+    const approvedResult: ActionRunResult = {
+      ...record.result,
+      safetyReview: approvedSafetyReview,
+    };
+
+    await repository.updateResult({
+      actionRunId: input.actionRunId,
+      result: approvedResult,
+    });
+
+    const slackWebhook = await slackWebhookService.postActionRun({
+      request: record.request,
+      result: approvedResult,
+    });
+
+    const finalSafetyReview: NonNullable<
+      ActionRunRecord["result"]
+    >["safetyReview"] = {
+      ...approvedSafetyReview,
+      status: slackWebhook.sent ? "sent_to_slack" : "approved",
+      ...(slackWebhook.sent ? { sentAt: nowIso } : {}),
+    };
+    const finalResult: ActionRunResult = {
+      ...approvedResult,
+      safetyReview: finalSafetyReview,
+    };
+
+    const updatedRecord = await repository.updateResult({
+      actionRunId: input.actionRunId,
+      result: finalResult,
+    });
+
+    logInfo("action_run.approved", {
+      actionRunId: input.actionRunId,
+      requestId: input.requestId,
+      slackSent: slackWebhook.sent,
+      slackSkipped: slackWebhook.skipped,
+    });
+
+    return {
+      ...(updatedRecord
+        ? await repository.toPublicView(updatedRecord)
+        : await repository.toPublicView({ ...record, result: finalResult })),
+      slackWebhook,
+    };
+  }
+
   async processActionRun(
     input: {
       actionRunId: string;
@@ -211,14 +307,22 @@ export class ActionRunService {
         ...(imageUrl ? { imageUrl } : {}),
       };
 
+      await repository.markCompleted({
+        actionRunId: input.actionRunId,
+        result: completedResult,
+      });
+
       await this.reportProgress(input.actionRunId, {
-        stage: "finalizing",
-        message: "Posting the draft to Slack...",
-        status: "finalizing",
+        stage: "completed",
+        message:
+          "Draft analysis completed. Human approval is required before Slack posting.",
+        status: "completed",
         debug: {
-          summaryLength: response.summary.length,
-          sectionCount: response.analysisSections?.length ?? 0,
+          summaryLength: completedResult.summary.length,
+          sectionCount: completedResult.analysisSections?.length ?? 0,
           hasImageUrl: Boolean(imageUrl),
+          safetyReviewStatus:
+            completedResult.safetyReview?.status ?? "pending_manual_review",
           imageGeneration: generatedImage
             ? {
                 contentType: generatedImage.contentType,
@@ -227,61 +331,11 @@ export class ActionRunService {
             : { skipped: true },
         },
       });
-
-      const slackResult = await slackWebhookService.postActionRun({
-        request: claimed.request,
-        result: completedResult,
-      });
-
-      await repository.markCompleted({
-        actionRunId: input.actionRunId,
-        result: completedResult,
-      });
-
-      if (!slackResult.sent && !slackResult.skipped) {
-        await repository.markFailed({
-          actionRunId: input.actionRunId,
-          error: {
-            code: "slack_webhook_failed",
-            message:
-              slackResult.error ??
-              "Slack webhook returned a non-success status.",
-            details: {
-              statusCode: slackResult.statusCode,
-            },
-          },
-        });
-        await this.reportProgress(input.actionRunId, {
-          stage: "failed",
-          message: "Slack webhook post failed.",
-          status: "failed",
-          debug: {
-            statusCode: slackResult.statusCode,
-            skipped: slackResult.skipped,
-          },
-        });
-        return;
-      }
-
-      await this.reportProgress(input.actionRunId, {
-        stage: "completed",
-        message: slackResult.skipped
-          ? "Draft analysis completed. Slack webhook is not configured."
-          : "Posted the draft to Slack.",
-        status: "completed",
-        debug: {
-          summaryLength: completedResult.summary.length,
-          sectionCount: completedResult.analysisSections?.length ?? 0,
-          hasImageUrl: Boolean(imageUrl),
-          slackWebhook: slackResult,
-        },
-      });
       logInfo("action_run.completed", {
         actionRunId: input.actionRunId,
         sectionCount: completedResult.analysisSections?.length ?? 0,
         hasImageUrl: Boolean(imageUrl),
-        slackSent: slackResult.sent,
-        slackSkipped: slackResult.skipped,
+        humanApprovalRequired: true,
       });
     } catch (error) {
       logError("action_run.failed", {

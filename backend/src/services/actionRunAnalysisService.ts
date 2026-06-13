@@ -83,18 +83,28 @@ export class ActionRunAnalysisService {
     }
 
     const warnings = fixedAnalyses.flatMap((section) => section.warnings ?? []);
-
-    return {
-      summary: buildSummary(input.request, fixedAnalyses),
+    const qualityReview = evaluateSuggestedSlackPostQuality({
+      request: input.request,
+      analysisSections: fixedAnalyses,
       suggestedSlackPostText: buildSuggestedSlackPostText(
         input.request,
         fixedAnalyses,
       ),
+    });
+    const suggestedSlackPostText = qualityReview.finalText;
+
+    return {
+      summary: buildSummary(input.request, fixedAnalyses),
+      suggestedSlackPostText,
       hashtags: buildHashtags(input.request),
       evidence: buildEvidenceLines(input.request, fixedAnalyses),
       checks: buildChecks(input.request),
       imageCaption: buildImageCaption(input.request, fixedAnalyses),
       analysisSections: fixedAnalyses,
+      safetyReview: buildSafetyReview({
+        request: input.request,
+        warnings,
+      }),
       debug: {
         source: "stub",
         requestEcho: {
@@ -109,6 +119,13 @@ export class ActionRunAnalysisService {
             (analysis) => analysis.question,
           ),
           warnings,
+          qualityReview: {
+            score: qualityReview.score,
+            issues: qualityReview.issues,
+            signals: qualityReview.signals,
+            draftLength: qualityReview.originalLength,
+            refinedLength: qualityReview.finalLength,
+          },
         },
       },
     };
@@ -208,13 +225,7 @@ function buildSummary(
   request: ActionRunRequest,
   analysisSections: ActionRunAnalysisSection[],
 ): string {
-  const keyPoints = analysisSections
-    .slice(0, 2)
-    .flatMap((section) => section.rows.slice(0, 1).map((row) => row.label))
-    .filter((label): label is string => Boolean(label));
-  const keyPointText = keyPoints.length
-    ? `The main signals are ${keyPoints.join(" / ")}.`
-    : "The fixed Tableau MCP analysis framework was prepared.";
+  const keyPointText = buildTableauSignalSummary(analysisSections);
 
   return `${request.eventName} ${request.postType} draft prepared. ${keyPointText}`;
 }
@@ -223,22 +234,95 @@ function buildSuggestedSlackPostText(
   request: ActionRunRequest,
   analysisSections: ActionRunAnalysisSection[],
 ): string {
-  const topHighlights = analysisSections
-    .flatMap((section) => section.rows.slice(0, 1))
-    .map((row) => `${row.label}${row.value === null ? "" : ` (${row.value})`}`)
-    .filter((value): value is string => Boolean(value))
-    .slice(0, 3);
+  const topHighlights = collectTableauSignals(analysisSections).slice(0, 3);
+  const currentSituation = normalizeSentenceFragment(request.currentSituation);
+  const postTypeAngle = buildPostTypeAngle(request.postType);
 
   return [
     `${request.postType} | ${request.eventName}`,
     "",
-    `Current status: ${request.currentSituation.trim()}.`,
+    `Current status: ${currentSituation}.`,
     topHighlights.length
-      ? `Tableau fixed analysis suggests ${topHighlights.join(" / ")}.`
-      : "Tableau fixed analysis was prepared for the draft.",
+      ? `Tableau signals: ${topHighlights.join(" / ")}.`
+      : "Tableau signals: fixed analysis was prepared for the draft.",
+    `Action angle: ${postTypeAngle}.`,
     "",
     `More info: ${request.techplayUrl}`,
   ].join("\n");
+}
+
+function evaluateSuggestedSlackPostQuality(input: {
+  request: ActionRunRequest;
+  analysisSections: ActionRunAnalysisSection[];
+  suggestedSlackPostText: string;
+}): {
+  finalText: string;
+  score: number;
+  issues: string[];
+  signals: string[];
+  originalLength: number;
+  finalLength: number;
+} {
+  const originalText = input.suggestedSlackPostText;
+  const signals = collectTableauSignals(input.analysisSections);
+  const normalizedLines = originalText
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter((line) => Boolean(line));
+  const dedupedLines: string[] = [];
+  const seen = new Set<string>();
+  for (const line of normalizedLines) {
+    const key = line.toLowerCase();
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    dedupedLines.push(line);
+  }
+
+  const cleanedSignals = Array.from(
+    new Set(signals.map((signal) => signal.replace(/\s+/gu, " ").trim())),
+  ).filter((signal) => Boolean(signal));
+  const revisedText = [
+    `${input.request.postType} | ${input.request.eventName}`,
+    "",
+    `Current status: ${normalizeSentenceFragment(input.request.currentSituation)}.`,
+    cleanedSignals.length
+      ? `Tableau signals: ${cleanedSignals.slice(0, 3).join(" / ")}.`
+      : "Tableau signals: fixed analysis was prepared for the draft.",
+    `Action angle: ${buildPostTypeAngle(input.request.postType)}.`,
+    "",
+    `More info: ${input.request.techplayUrl}`,
+  ]
+    .join("\n")
+    .replace(/\n{3,}/gu, "\n\n");
+
+  const issues: string[] = [];
+  if (dedupedLines.length !== normalizedLines.length) {
+    issues.push("Duplicate lines were removed from the draft.");
+  }
+  if (cleanedSignals.length === 0) {
+    issues.push("No Tableau signals were available for the draft.");
+  }
+  if (revisedText.length > 420) {
+    issues.push("Draft length is still long for Slack and should be reviewed.");
+  }
+
+  const score = clampScore(
+    45 +
+      Math.min(cleanedSignals.length, 3) * 15 -
+      (dedupedLines.length !== normalizedLines.length ? 10 : 0) -
+      (revisedText.length > 420 ? 10 : 0),
+  );
+
+  return {
+    finalText: revisedText,
+    score,
+    issues,
+    signals: cleanedSignals,
+    originalLength: originalText.length,
+    finalLength: revisedText.length,
+  };
 }
 
 function buildHashtags(request: ActionRunRequest): string[] {
@@ -257,17 +341,35 @@ function buildChecks(request: ActionRunRequest): string[] {
     "Confirm the event name and TechPlay URL match.",
     "Confirm the current situation matches the venue reality.",
     `Confirm the requested post type "${request.postType}" is appropriate.`,
-    "Check for people or sensitive content before publishing.",
+    "Check for faces, badges, name tags, and sensitive content before publishing.",
+    "If a photo is attached, strip EXIF metadata before posting.",
   ];
+}
+
+function buildSafetyReview(input: {
+  request: ActionRunRequest;
+  warnings: string[];
+}): NonNullable<ActionRunResult["safetyReview"]> {
+  const notes = [
+    "Human approval is required before any Slack post is sent.",
+    "Review any uploaded photo for faces, badges, slides, and screens before posting.",
+    "Strip EXIF metadata from any uploaded photo before reuse.",
+    ...input.warnings.map((warning) => `Tableau warning: ${warning}`),
+  ];
+
+  return {
+    status: "pending_manual_review",
+    required: true,
+    checklist: buildChecks(input.request),
+    notes,
+  };
 }
 
 function buildImageCaption(
   request: ActionRunRequest,
   analysisSections: ActionRunAnalysisSection[],
 ): string {
-  const topLabel =
-    analysisSections.flatMap((section) => section.rows.slice(0, 1))[0]?.label ??
-    "in progress";
+  const topLabel = collectTableauSignals(analysisSections)[0] ?? "in progress";
 
   return `${request.eventName} ${request.postType} image draft. Emphasize ${topLabel}.`;
 }
@@ -281,4 +383,61 @@ function buildEvidenceLines(
     `Current situation: ${request.currentSituation}`,
     ...fixedAnalyses.map((section) => `${section.title}: ${section.summary}`),
   ];
+}
+
+function collectTableauSignals(
+  analysisSections: ActionRunAnalysisSection[],
+): string[] {
+  return analysisSections
+    .map((section) => {
+      const firstRow = section.rows[0];
+      const label = firstRow?.label?.trim() || section.title;
+      const value =
+        firstRow?.value === undefined
+          ? null
+          : firstRow?.value === null
+            ? null
+            : firstRow.value;
+      const valueText =
+        value === null
+          ? "count unavailable"
+          : `${value.toLocaleString()} posts`;
+      return `${section.title}: ${label} (${valueText})`;
+    })
+    .filter((signal) => Boolean(signal));
+}
+
+function buildTableauSignalSummary(
+  analysisSections: ActionRunAnalysisSection[],
+): string {
+  const signals = collectTableauSignals(analysisSections).slice(0, 2);
+  if (!signals.length) {
+    return "The fixed Tableau MCP analysis framework was prepared.";
+  }
+
+  return `The main Tableau signals are ${signals.join(" / ")}.`;
+}
+
+function buildPostTypeAngle(postType: ActionRunRequest["postType"]): string {
+  switch (postType) {
+    case "\u958b\u50ac\u76f4\u524d\u30ea\u30de\u30a4\u30f3\u30c9":
+      return "remind people to head to the venue";
+    case "\u958b\u50ac\u4e2d\u306e\u5b9f\u6cc1":
+      return "share a live atmosphere update";
+    case "\u958b\u50ac\u5f8c\u306e\u304a\u793c\u30fb\u30ec\u30dd\u30fc\u30c8":
+      return "thank attendees and summarize the event";
+    case "\u6b21\u56de\u53c2\u52a0\u306e\u547c\u3073\u304b\u3051":
+      return "invite people to the next event";
+    case "\u4e8b\u524d\u544a\u77e5":
+    default:
+      return "announce the upcoming event clearly";
+  }
+}
+
+function clampScore(value: number): number {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function normalizeSentenceFragment(text: string): string {
+  return text.trim().replace(/[。．.]+$/u, "");
 }

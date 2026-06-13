@@ -119,6 +119,26 @@ function buildSlackPayload(input: {
           text: `*Summary*\n${input.result.summary}`,
         },
       },
+      ...(input.result.safetyReview
+        ? [
+            {
+              type: "section",
+              text: {
+                type: "mrkdwn",
+                text: [
+                  "*Human review*",
+                  `Status: ${input.result.safetyReview.status}`,
+                  ...input.result.safetyReview.checklist.map(
+                    (line) => `- ${line}`,
+                  ),
+                  ...input.result.safetyReview.notes
+                    .slice(0, 4)
+                    .map((line) => `- ${line}`),
+                ].join("\n"),
+              },
+            },
+          ]
+        : []),
       ...(input.result.imageUrl
         ? [
             {

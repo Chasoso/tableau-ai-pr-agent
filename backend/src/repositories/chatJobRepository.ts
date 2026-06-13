@@ -156,6 +156,16 @@ export class ChatJobRepository {
     });
   }
 
+  async updateResult(input: {
+    jobId: string;
+    result: ChatJobResult;
+  }): Promise<ChatJobRecord | null> {
+    return this.update(input.jobId, {
+      result: input.result,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
   async markFailed(input: {
     jobId: string;
     error: ChatJobRecord["error"];

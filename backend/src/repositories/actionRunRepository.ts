@@ -62,6 +62,17 @@ export class ActionRunRepository {
     return record ? (record as unknown as ActionRunRecord) : null;
   }
 
+  async updateResult(input: {
+    actionRunId: string;
+    result: ActionRunResult;
+  }): Promise<ActionRunRecord | null> {
+    const record = await this.chatJobRepository.updateResult({
+      jobId: input.actionRunId,
+      result: input.result as unknown as NonNullable<ChatJobRecord["result"]>,
+    });
+    return record ? (record as unknown as ActionRunRecord) : null;
+  }
+
   async markFailed(input: {
     actionRunId: string;
     error: ChatJobRecord["error"];

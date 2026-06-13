@@ -10,6 +10,7 @@ const repositoryMock = vi.hoisted(() => ({
   updateProgress: vi.fn(),
   markCompleted: vi.fn(),
   markFailed: vi.fn(),
+  updateResult: vi.fn(),
 }));
 
 const analysisMock = vi.hoisted(() => ({
@@ -61,6 +62,7 @@ describe("ActionRunService", () => {
     repositoryMock.updateProgress.mockReset();
     repositoryMock.markCompleted.mockReset();
     repositoryMock.markFailed.mockReset();
+    repositoryMock.updateResult.mockReset();
     analysisMock.analyzeActionRun.mockReset();
     slackMock.postActionRun.mockReset();
     imageMock.generateActionRunPoster.mockReset();
@@ -124,11 +126,6 @@ describe("ActionRunService", () => {
     repositoryMock.claim.mockResolvedValue(buildActionRunRecord());
     repositoryMock.updateProgress.mockResolvedValue(buildActionRunRecord());
     repositoryMock.markCompleted.mockResolvedValue(buildActionRunRecord());
-    slackMock.postActionRun.mockResolvedValue({
-      sent: true,
-      skipped: false,
-      statusCode: 200,
-    });
     imageMock.generateActionRunPoster.mockResolvedValue({
       imageUrl:
         "https://images.example.com/pr-action-images/action-run-1/poster.svg",
@@ -142,6 +139,12 @@ describe("ActionRunService", () => {
       evidence: ["evidence line"],
       checks: ["check line"],
       analysisSections: [],
+      safetyReview: {
+        status: "pending_manual_review",
+        required: true,
+        checklist: ["Confirm permissions before posting"],
+        notes: ["Human approval is required before any Slack post is sent."],
+      },
       debug: { source: "stub" },
     });
 
@@ -158,20 +161,16 @@ describe("ActionRunService", () => {
     );
     expect(analysisMock.analyzeActionRun).toHaveBeenCalledTimes(1);
     expect(imageMock.generateActionRunPoster).toHaveBeenCalledTimes(1);
-    expect(slackMock.postActionRun).toHaveBeenCalledTimes(1);
+    expect(slackMock.postActionRun).not.toHaveBeenCalled();
     expect(repositoryMock.markCompleted).toHaveBeenCalledWith({
       actionRunId: "action-run-1",
       result: expect.objectContaining({
         summary: "analysis summary",
         imageUrl:
           "https://images.example.com/pr-action-images/action-run-1/poster.svg",
-      }),
-    });
-    expect(slackMock.postActionRun).toHaveBeenCalledWith({
-      request: expect.any(Object),
-      result: expect.objectContaining({
-        imageUrl:
-          "https://images.example.com/pr-action-images/action-run-1/poster.svg",
+        safetyReview: expect.objectContaining({
+          status: "pending_manual_review",
+        }),
       }),
     });
 
@@ -181,8 +180,68 @@ describe("ActionRunService", () => {
       expect.objectContaining({
         stage: "completed",
         status: "completed",
+        debug: expect.objectContaining({
+          safetyReviewStatus: "pending_manual_review",
+        }),
       }),
     );
+  });
+
+  it("sends Slack only after explicit approval", async () => {
+    repositoryMock.get.mockResolvedValue(
+      buildActionRunRecord({
+        result: buildActionRunResult(),
+      }),
+    );
+    repositoryMock.updateResult.mockResolvedValue(buildActionRunRecord());
+    repositoryMock.toPublicView.mockResolvedValue({
+      actionRunId: "action-run-1",
+      jobType: "action_run",
+      status: "completed",
+      stage: "completed",
+      progressMessages: [],
+      result: buildActionRunResult({
+        safetyReview: {
+          status: "sent_to_slack",
+          required: true,
+          checklist: ["Confirm permissions before posting"],
+          notes: ["Human approval is required before any Slack post is sent."],
+          reviewedAt: "2026-06-08T00:00:00.000Z",
+          sentAt: "2026-06-08T00:01:00.000Z",
+          reviewerNote: "Looks good.",
+        },
+      }),
+      createdAt: "2026-06-08T00:00:00.000Z",
+      updatedAt: "2026-06-08T00:01:00.000Z",
+      expiresAt: 1_999_999_999,
+      ownerType: "anonymous",
+    });
+    slackMock.postActionRun.mockResolvedValue({
+      sent: true,
+      skipped: false,
+      statusCode: 200,
+    });
+
+    const service = new ActionRunService();
+    const response = await service.approveActionRun({
+      actionRunId: "action-run-1",
+      request: {
+        approved: true,
+        reviewerNote: "Looks good.",
+      },
+      headers: {
+        "X-Chat-Owner-Token": "owner-token-123",
+      },
+    });
+
+    expect(slackMock.postActionRun).toHaveBeenCalledTimes(1);
+    expect(repositoryMock.updateResult).toHaveBeenCalled();
+    expect(response.slackWebhook).toEqual({
+      sent: true,
+      skipped: false,
+      statusCode: 200,
+    });
+    expect(response.result?.safetyReview?.status).toBe("sent_to_slack");
   });
 
   it("returns a public view when polling action runs", async () => {
@@ -246,7 +305,9 @@ function buildRequest() {
   } as never;
 }
 
-function buildActionRunRecord(): ActionRunRecord {
+function buildActionRunRecord(
+  overrides: Partial<ActionRunRecord> = {},
+): ActionRunRecord {
   return {
     jobId: "action-run-1",
     jobType: "action_run",
@@ -265,5 +326,27 @@ function buildActionRunRecord(): ActionRunRecord {
     createdAt: "2026-06-08T00:00:00.000Z",
     updatedAt: "2026-06-08T00:00:00.000Z",
     expiresAt: 1_999_999_999,
+    ...overrides,
   };
+}
+
+function buildActionRunResult(
+  overrides: Partial<NonNullable<ActionRunRecord["result"]>> = {},
+) {
+  return {
+    summary: "analysis summary",
+    suggestedSlackPostText: "draft text",
+    hashtags: ["#Tableau"],
+    evidence: ["evidence line"],
+    checks: ["check line"],
+    analysisSections: [],
+    safetyReview: {
+      status: "pending_manual_review",
+      required: true,
+      checklist: ["Confirm permissions before posting"],
+      notes: ["Human approval is required before any Slack post is sent."],
+    },
+    debug: { source: "stub" },
+    ...overrides,
+  } as never;
 }

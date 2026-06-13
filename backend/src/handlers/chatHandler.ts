@@ -16,7 +16,10 @@ import type {
   ApiGatewayProxyResult,
   LambdaExecutionContext,
 } from "../types/api";
-import type { ActionRunRequest } from "../types/actionRun";
+import type {
+  ActionRunApprovalRequest,
+  ActionRunRequest,
+} from "../types/actionRun";
 import type { TechPlayPreviewRequest } from "../types/techplay";
 import type { ChatRequest, ContextRequest } from "../types/chat";
 import { handleNotionRoute } from "./notionHandler";
@@ -35,6 +38,8 @@ export async function handler(
   const routePath = getRoutePath(event);
   const isChatJobRoute = routePath.startsWith("/chat-jobs");
   const isActionRunRoute = routePath.startsWith("/action-runs");
+  const isActionRunApprovalRoute =
+    routePath.startsWith("/action-runs/") && routePath.endsWith("/approval");
   const isTechPlayRoute = routePath.startsWith("/techplay");
   const isNotionCallbackRoute = routePath.startsWith("/notion/callback");
   const isCognitoPopupAuthRoute = routePath.startsWith("/auth/cognito/");
@@ -185,6 +190,38 @@ export async function handler(
       return jsonResponse(200, response);
     }
 
+    if (isActionRunApprovalRoute && method === "POST") {
+      const actionRunId = parseActionRunApprovalId(routePath);
+      if (!actionRunId) {
+        return jsonResponse(400, { message: "actionRunId is required." });
+      }
+
+      const request = parseRequest(event.body) as ActionRunApprovalRequest;
+      const validationError = validateActionRunApprovalRequest(request);
+      if (validationError) {
+        logWarn("action.run_approval_request.invalid", {
+          requestId,
+          validationError,
+        });
+        return jsonResponse(400, { message: validationError });
+      }
+
+      const response = await actionRunService.approveActionRun({
+        actionRunId,
+        request,
+        authenticatedUser: authResult.user,
+        headers: event.headers,
+        requestId,
+      });
+      logInfo("action.run.approval.completed", {
+        requestId,
+        actionRunId,
+        slackSent: response.slackWebhook.sent,
+        slackSkipped: response.slackWebhook.skipped,
+      });
+      return jsonResponse(200, response);
+    }
+
     if (routePath === "/chat-jobs" && method !== "POST") {
       return jsonResponse(405, {
         message: "Method not allowed.",
@@ -210,6 +247,12 @@ export async function handler(
     }
 
     if (routePath.startsWith("/action-runs/") && method !== "GET") {
+      if (isActionRunApprovalRoute && method === "POST") {
+        return jsonResponse(405, {
+          message: "Method not allowed.",
+        });
+      }
+
       return jsonResponse(405, {
         message: "Method not allowed.",
       });
@@ -287,6 +330,21 @@ export async function handler(
         });
         return jsonResponse(actionRunRouteError.statusCode, {
           message: actionRunRouteError.message,
+        });
+      }
+    }
+
+    if (isActionRunApprovalRoute && method === "POST") {
+      const actionRunApprovalRouteError = mapActionRunApprovalRouteError(error);
+      if (actionRunApprovalRouteError) {
+        logWarn("action.run.approval.rejected", {
+          requestId,
+          routePath,
+          statusCode: actionRunApprovalRouteError.statusCode,
+          ...safeErrorDetails(error),
+        });
+        return jsonResponse(actionRunApprovalRouteError.statusCode, {
+          message: actionRunApprovalRouteError.message,
         });
       }
     }
@@ -375,6 +433,20 @@ function validateActionRunRequest(request: ActionRunRequest): string | null {
   return null;
 }
 
+function validateActionRunApprovalRequest(
+  request: ActionRunApprovalRequest,
+): string | null {
+  if (typeof request.approved !== "boolean") {
+    return "approved is required.";
+  }
+
+  if (!request.approved) {
+    return "approved must be true to send Slack.";
+  }
+
+  return null;
+}
+
 function validateTechPlayPreviewRequest(
   request: TechPlayPreviewRequest,
 ): string | null {
@@ -437,6 +509,18 @@ function parseActionRunId(routePath: string): string | null {
   return actionRunId || null;
 }
 
+function parseActionRunApprovalId(routePath: string): string | null {
+  const suffix = "/approval";
+  if (!routePath.startsWith("/action-runs/") || !routePath.endsWith(suffix)) {
+    return null;
+  }
+
+  const actionRunId = routePath
+    .slice("/action-runs/".length, -suffix.length)
+    .trim();
+  return actionRunId || null;
+}
+
 function mapChatJobRouteError(
   error: unknown,
 ): { statusCode: number; message: string } | null {
@@ -475,6 +559,39 @@ function mapActionRunRouteError(
     return {
       statusCode: 403,
       message: "You do not have access to this action run.",
+    };
+  }
+
+  return null;
+}
+
+function mapActionRunApprovalRouteError(
+  error: unknown,
+): { statusCode: number; message: string } | null {
+  const message = error instanceof Error ? error.message : "";
+
+  if (/not found/i.test(message)) {
+    return {
+      statusCode: 404,
+      message: "Action run not found.",
+    };
+  }
+
+  if (/access|unauthorized|forbidden/i.test(message)) {
+    return {
+      statusCode: 403,
+      message: "You do not have access to this action run.",
+    };
+  }
+
+  if (
+    /approval is required|not ready for approval|approval must be true|already been sent/i.test(
+      message,
+    )
+  ) {
+    return {
+      statusCode: 409,
+      message,
     };
   }
 

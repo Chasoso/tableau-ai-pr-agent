@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const actionRunMocks = vi.hoisted(() => ({
   createActionRun: vi.fn(),
   getActionRun: vi.fn(),
+  approveActionRun: vi.fn(),
 }));
 
 vi.mock("../src/services/actionRunService", () => ({
@@ -18,6 +19,7 @@ describe("action run routes", () => {
     delete process.env.AUTH_REQUIRED;
     actionRunMocks.createActionRun.mockReset();
     actionRunMocks.getActionRun.mockReset();
+    actionRunMocks.approveActionRun.mockReset();
   });
 
   afterEach(() => {
@@ -136,6 +138,57 @@ describe("action run routes", () => {
     expect(response.statusCode).toBe(404);
     expect(JSON.parse(response.body)).toEqual({
       message: "Action run not found.",
+    });
+  });
+
+  it("approves an action run and returns the Slack result", async () => {
+    actionRunMocks.approveActionRun.mockResolvedValue({
+      actionRunId: "action-run-123",
+      jobType: "action_run",
+      status: "completed",
+      stage: "completed",
+      progressMessages: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      expiresAt: Math.floor(Date.now() / 1000) + 3600,
+      ownerType: "anonymous",
+      slackWebhook: {
+        sent: true,
+        skipped: false,
+        statusCode: 200,
+      },
+    });
+
+    const response = await handler({
+      httpMethod: "POST",
+      rawPath: "/action-runs/action-run-123/approval",
+      headers: {},
+      body: JSON.stringify({
+        approved: true,
+        reviewerNote: "Looks good.",
+      }),
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toMatchObject({
+      actionRunId: "action-run-123",
+      jobType: "action_run",
+      slackWebhook: {
+        sent: true,
+        skipped: false,
+        statusCode: 200,
+      },
+    });
+    expect(actionRunMocks.approveActionRun).toHaveBeenCalledTimes(1);
+    expect(actionRunMocks.approveActionRun).toHaveBeenCalledWith({
+      actionRunId: "action-run-123",
+      request: {
+        approved: true,
+        reviewerNote: "Looks good.",
+      },
+      authenticatedUser: undefined,
+      headers: {},
+      requestId: undefined,
     });
   });
 });
