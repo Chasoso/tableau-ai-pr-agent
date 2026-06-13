@@ -70,7 +70,8 @@ export class ActionRunService {
       createdAt,
       updatedAt: createdAt,
       expiresAt:
-        Math.floor(Date.now() / 1000) + Math.max(60, config.chatJob.ttlSeconds),
+        Math.floor(Date.now() / 1000) +
+        Math.max(60, config.actionRun.ttlSeconds),
     };
 
     await repository.create(record);
@@ -83,7 +84,7 @@ export class ActionRunService {
       eventName: input.request.eventName,
     });
 
-    if (!config.chatJob.workerFunctionName) {
+    if (!config.actionRun.workerFunctionName) {
       logWarn("action_run.dispatch_inline", {
         actionRunId: jobId,
         requestId: input.requestId,
@@ -103,7 +104,7 @@ export class ActionRunService {
       try {
         await getLambdaClient().send(
           new InvokeCommand({
-            FunctionName: config.chatJob.workerFunctionName,
+            FunctionName: config.actionRun.workerFunctionName,
             InvocationType: "Event",
             Payload: Buffer.from(JSON.stringify({ jobId })),
           }),
@@ -251,7 +252,7 @@ export class ActionRunService {
     void input.getRemainingTimeInMillis;
     const nowIso = new Date().toISOString();
     const leaseExpiresAtIso = new Date(
-      Date.now() + Math.max(30, getConfig().chatJob.leaseSeconds) * 1000,
+      Date.now() + Math.max(30, getConfig().actionRun.leaseSeconds) * 1000,
     ).toISOString();
     const claimed = await repository.claim(input.actionRunId, {
       workerId: `worker-${randomUUID()}`,
@@ -384,7 +385,7 @@ export class ActionRunService {
   ): Promise<void> {
     await repository.updateProgress(actionRunId, {
       ...update,
-      maxMessages: getConfig().chatJob.progressMessageLimit,
+      maxMessages: getConfig().actionRun.progressMessageLimit,
     });
   }
 
@@ -412,8 +413,10 @@ function resolveOwnerContext(input: {
     return { ownerKey: `user:${input.authenticatedUser.userId}` };
   }
 
+  const config = getConfig();
   const ownerToken =
-    getHeader(input.headers, getConfig().chatJob.ownerTokenHeaderName) ||
+    getHeader(input.headers, config.actionRun.ownerTokenHeaderName) ||
+    getHeader(input.headers, config.chatJob.ownerTokenHeaderName) ||
     randomUUID();
   return {
     ownerKey: `anon:${ownerToken}`,

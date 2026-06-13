@@ -208,14 +208,14 @@ For Lambda-local Tableau MCP:
 - `TABLEAU_MCP_QUERY_MAX_FIELDS=6`: hard cap for `query-datasource` field count.
 - `TABLEAU_MCP_COMMAND` and `TABLEAU_MCP_ARGS`: optional override. If omitted, Lambda runs the installed `@tableau/mcp-server` package with Node.js.
 
-Async chat job settings:
+Action run settings:
 
-- `CHAT_JOBS_TABLE_NAME=<dynamodb table name>`: job state table used by `POST /chat-jobs` and `GET /chat-jobs/{jobId}`.
-- `CHAT_JOB_WORKER_FUNCTION_NAME=<lambda function name>`: async worker Lambda name for job execution.
-- `CHAT_JOB_TTL_SECONDS=86400`: TTL for completed / failed jobs.
-- `CHAT_JOB_LEASE_SECONDS=120`: worker lease duration for claim / retry protection.
-- `CHAT_JOB_PROGRESS_MESSAGE_LIMIT=12`: max progress messages retained per job record.
-- `CHAT_JOB_OWNER_TOKEN_HEADER_NAME=x-chat-owner-token`: anonymous job ownership header used for polling and history continuity.
+- `CHAT_JOBS_TABLE_NAME=<dynamodb table name>`: shared job state table used by `POST /action-runs` and `GET /action-runs/{actionRunId}`. Existing chat job flows still use the same table.
+- `ACTION_RUN_WORKER_FUNCTION_NAME=<lambda function name>`: async worker Lambda name for action-run execution. `CHAT_JOB_WORKER_FUNCTION_NAME` is still accepted as a compatibility fallback.
+- `ACTION_RUN_TTL_SECONDS=86400`: TTL for completed / failed action runs. `CHAT_JOB_TTL_SECONDS` is still accepted as a compatibility fallback.
+- `ACTION_RUN_LEASE_SECONDS=120`: worker lease duration for claim / retry protection. `CHAT_JOB_LEASE_SECONDS` is still accepted as a compatibility fallback.
+- `ACTION_RUN_PROGRESS_MESSAGE_LIMIT=12`: max progress messages retained per action-run record. `CHAT_JOB_PROGRESS_MESSAGE_LIMIT` is still accepted as a compatibility fallback.
+- `ACTION_RUN_OWNER_TOKEN_HEADER_NAME=x-action-run-owner-token`: anonymous action-run ownership header used for polling and history continuity. `CHAT_JOB_OWNER_TOKEN_HEADER_NAME` is still accepted as a compatibility fallback.
 
 Recommended limited-agent settings:
 

@@ -65,8 +65,8 @@ Store these as GitHub Secrets:
 | `TABLEAU_MCP_SERVER_URL` | Optional only for HTTP MCP mode. |
 | `TABLEAU_MCP_COMMAND` | Optional override for MCP command. Usually empty. |
 | `TABLEAU_MCP_ARGS` | Optional override for MCP args. Usually empty. |
-| `CHAT_JOBS_TABLE_NAME` | DynamoDB table for async chat job state and progress. |
-| `CHAT_JOB_WORKER_FUNCTION_NAME` | Async worker Lambda name invoked by the job starter. |
+| `CHAT_JOBS_TABLE_NAME` | DynamoDB table for shared job state and progress. |
+| `ACTION_RUN_WORKER_FUNCTION_NAME` | Async worker Lambda name invoked by the action-run starter. `CHAT_JOB_WORKER_FUNCTION_NAME` remains a compatibility fallback. |
 | `TABLEAU_MCP_METADATA_CACHE_TABLE_NAME` | Optional DynamoDB table for Tableau MCP metadata cache. |
 | `NOTION_REDIRECT_URI` | Notion OAuth callback URL (`/notion/callback`). |
 | `NOTION_DEFAULT_TARGET_PARENT_PAGE_ID` | Optional default Notion parent page for page creation. |
@@ -96,10 +96,10 @@ These can be repository Variables if acceptable:
 | `TABLEAU_MCP_DEBUG_LOG_RESULTS` | `false` | Temporarily set to `true` to log sanitized MCP tool result shapes and short snippets to CloudWatch. Disable after diagnosis. |
 | `TABLEAU_MCP_TOOL_PLANNING_ENABLED` | `false` | Enables Bedrock-based JSON planning for MCP tool calls. |
 | `TABLEAU_MCP_PLANNER_MAX_OUTPUT_TOKENS` | `600` | Max output tokens for the planning call. |
-| `CHAT_JOB_TTL_SECONDS` | `86400` | TTL for completed/failed chat jobs. |
-| `CHAT_JOB_LEASE_SECONDS` | `120` | Worker lease duration for job claiming. |
-| `CHAT_JOB_PROGRESS_MESSAGE_LIMIT` | `12` | Maximum number of progress messages retained per job. |
-| `CHAT_JOB_OWNER_TOKEN_HEADER_NAME` | `x-chat-owner-token` | Anonymous owner boundary header used for polling. |
+| `ACTION_RUN_TTL_SECONDS` | `86400` | TTL for completed/failed action runs. `CHAT_JOB_TTL_SECONDS` remains a compatibility fallback. |
+| `ACTION_RUN_LEASE_SECONDS` | `120` | Worker lease duration for action-run claiming. `CHAT_JOB_LEASE_SECONDS` remains a compatibility fallback. |
+| `ACTION_RUN_PROGRESS_MESSAGE_LIMIT` | `12` | Maximum number of progress messages retained per action-run record. `CHAT_JOB_PROGRESS_MESSAGE_LIMIT` remains a compatibility fallback. |
+| `ACTION_RUN_OWNER_TOKEN_HEADER_NAME` | `x-action-run-owner-token` | Anonymous owner boundary header used for polling. `CHAT_JOB_OWNER_TOKEN_HEADER_NAME` remains a compatibility fallback. |
 | `MODEL_PROVIDER` | `mock` | `mock` or `bedrock`. |
 | `BEDROCK_REGION` | `us-east-1` | Bedrock model region. |
 | `BEDROCK_MODEL_ID` | `us.amazon.nova-2-lite-v1:0` | Bedrock model ID or inference profile ID. |

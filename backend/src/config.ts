@@ -12,6 +12,13 @@ export type AppConfig = {
     workerFunctionName: string;
     ownerTokenHeaderName: string;
   };
+  actionRun: {
+    ttlSeconds: number;
+    leaseSeconds: number;
+    progressMessageLimit: number;
+    workerFunctionName: string;
+    ownerTokenHeaderName: string;
+  };
   slack: {
     incomingWebhookUrl: string;
   };
@@ -126,6 +133,39 @@ export function getConfig(): AppConfig {
       workerFunctionName: process.env.CHAT_JOB_WORKER_FUNCTION_NAME ?? "",
       ownerTokenHeaderName:
         process.env.CHAT_JOB_OWNER_TOKEN_HEADER_NAME ?? "x-chat-owner-token",
+    },
+    actionRun: {
+      ttlSeconds: parsePositiveInt(
+        resolveOptionalEnv(
+          process.env.ACTION_RUN_TTL_SECONDS,
+          process.env.CHAT_JOB_TTL_SECONDS,
+        ),
+        60 * 60 * 24,
+      ),
+      leaseSeconds: parsePositiveInt(
+        resolveOptionalEnv(
+          process.env.ACTION_RUN_LEASE_SECONDS,
+          process.env.CHAT_JOB_LEASE_SECONDS,
+        ),
+        120,
+      ),
+      progressMessageLimit: parsePositiveInt(
+        resolveOptionalEnv(
+          process.env.ACTION_RUN_PROGRESS_MESSAGE_LIMIT,
+          process.env.CHAT_JOB_PROGRESS_MESSAGE_LIMIT,
+        ),
+        12,
+      ),
+      workerFunctionName:
+        resolveOptionalEnv(
+          process.env.ACTION_RUN_WORKER_FUNCTION_NAME,
+          process.env.CHAT_JOB_WORKER_FUNCTION_NAME,
+        ) ?? "",
+      ownerTokenHeaderName:
+        resolveOptionalEnv(
+          process.env.ACTION_RUN_OWNER_TOKEN_HEADER_NAME,
+          process.env.CHAT_JOB_OWNER_TOKEN_HEADER_NAME,
+        ) ?? "x-action-run-owner-token",
     },
     slack: {
       incomingWebhookUrl: process.env.SLACK_INCOMING_WEBHOOK_URL ?? "",
@@ -307,6 +347,19 @@ function parseCsv(value: string | undefined): string[] {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function resolveOptionalEnv(
+  primary: string | undefined,
+  fallback: string | undefined,
+): string | undefined {
+  const primaryValue = primary?.trim();
+  if (primaryValue) {
+    return primaryValue;
+  }
+
+  const fallbackValue = fallback?.trim();
+  return fallbackValue || undefined;
 }
 
 function parseContextProvider(

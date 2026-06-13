@@ -43,7 +43,12 @@ vi.mock("../src/services/actionRunImageService", () => ({
 
 describe("ActionRunService", () => {
   const originalTableName = process.env.CHAT_JOBS_TABLE_NAME;
-  const originalOwnerHeader = process.env.CHAT_JOB_OWNER_TOKEN_HEADER_NAME;
+  const originalOwnerHeader = process.env.ACTION_RUN_OWNER_TOKEN_HEADER_NAME;
+  const originalTtlSeconds = process.env.ACTION_RUN_TTL_SECONDS;
+  const originalLeaseSeconds = process.env.ACTION_RUN_LEASE_SECONDS;
+  const originalProgressLimit = process.env.ACTION_RUN_PROGRESS_MESSAGE_LIMIT;
+  const originalWorkerFunctionName =
+    process.env.ACTION_RUN_WORKER_FUNCTION_NAME;
   const originalImageBaseUrl = process.env.PR_ACTION_IMAGE_PUBLIC_BASE_URL;
   const originalImagePrefix = process.env.PR_ACTION_IMAGE_OBJECT_KEY_PREFIX;
 
@@ -51,7 +56,11 @@ describe("ActionRunService", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-08T00:00:00.000Z"));
     process.env.CHAT_JOBS_TABLE_NAME = "chat-jobs";
-    process.env.CHAT_JOB_OWNER_TOKEN_HEADER_NAME = "x-chat-owner-token";
+    process.env.ACTION_RUN_OWNER_TOKEN_HEADER_NAME = "x-action-run-owner-token";
+    process.env.ACTION_RUN_TTL_SECONDS = "86400";
+    process.env.ACTION_RUN_LEASE_SECONDS = "120";
+    process.env.ACTION_RUN_PROGRESS_MESSAGE_LIMIT = "12";
+    process.env.ACTION_RUN_WORKER_FUNCTION_NAME = "";
     process.env.PR_ACTION_IMAGE_PUBLIC_BASE_URL = "https://images.example.com";
     process.env.PR_ACTION_IMAGE_OBJECT_KEY_PREFIX = "pr-action-images";
 
@@ -77,9 +86,33 @@ describe("ActionRunService", () => {
     }
 
     if (originalOwnerHeader === undefined) {
-      delete process.env.CHAT_JOB_OWNER_TOKEN_HEADER_NAME;
+      delete process.env.ACTION_RUN_OWNER_TOKEN_HEADER_NAME;
     } else {
-      process.env.CHAT_JOB_OWNER_TOKEN_HEADER_NAME = originalOwnerHeader;
+      process.env.ACTION_RUN_OWNER_TOKEN_HEADER_NAME = originalOwnerHeader;
+    }
+
+    if (originalTtlSeconds === undefined) {
+      delete process.env.ACTION_RUN_TTL_SECONDS;
+    } else {
+      process.env.ACTION_RUN_TTL_SECONDS = originalTtlSeconds;
+    }
+
+    if (originalLeaseSeconds === undefined) {
+      delete process.env.ACTION_RUN_LEASE_SECONDS;
+    } else {
+      process.env.ACTION_RUN_LEASE_SECONDS = originalLeaseSeconds;
+    }
+
+    if (originalProgressLimit === undefined) {
+      delete process.env.ACTION_RUN_PROGRESS_MESSAGE_LIMIT;
+    } else {
+      process.env.ACTION_RUN_PROGRESS_MESSAGE_LIMIT = originalProgressLimit;
+    }
+
+    if (originalWorkerFunctionName === undefined) {
+      delete process.env.ACTION_RUN_WORKER_FUNCTION_NAME;
+    } else {
+      process.env.ACTION_RUN_WORKER_FUNCTION_NAME = originalWorkerFunctionName;
     }
 
     if (originalImageBaseUrl === undefined) {
@@ -102,7 +135,7 @@ describe("ActionRunService", () => {
     const response = await service.createActionRun({
       request: buildRequest(),
       headers: {
-        "X-Chat-Owner-Token": "owner-token-123",
+        "X-Action-Run-Owner-Token": "owner-token-123",
       },
     });
 
@@ -230,7 +263,7 @@ describe("ActionRunService", () => {
         reviewerNote: "Looks good.",
       },
       headers: {
-        "X-Chat-Owner-Token": "owner-token-123",
+        "X-Action-Run-Owner-Token": "owner-token-123",
       },
     });
 
@@ -263,7 +296,7 @@ describe("ActionRunService", () => {
     const response = await service.getActionRun({
       actionRunId: record.jobId,
       headers: {
-        "X-Chat-Owner-Token": "owner-token-123",
+        "X-Action-Run-Owner-Token": "owner-token-123",
       },
     });
 
@@ -281,7 +314,7 @@ describe("ActionRunService", () => {
       service.getActionRun({
         actionRunId: "action-run-1",
         headers: {
-          "X-Chat-Owner-Token": "different-owner",
+          "X-Action-Run-Owner-Token": "different-owner",
         },
       }),
     ).rejects.toThrow("You do not have access to this action run.");
