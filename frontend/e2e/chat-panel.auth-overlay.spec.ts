@@ -14,14 +14,14 @@ test.describe("auth gate visual", () => {
     await expect(page.locator(".auth-state")).toBeVisible();
     await expect(page.locator(".auth-card")).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "AI PR Action" }),
+      page.getByRole("heading", { name: "Tableau PR Assistant" }),
     ).toBeVisible();
     await expect(page.getByText("Sign in to continue.")).toBeVisible();
     await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
     await expect(page.locator(".pr-agent-shell")).toHaveCount(0);
 
     await expect(page.locator(".auth-state")).toHaveScreenshot(
-      "ai-pr-action-auth-state.png",
+      "tableau-pr-assistant-auth-state.png",
       {
         animations: "disabled",
         caret: "hide",

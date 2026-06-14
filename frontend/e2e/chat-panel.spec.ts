@@ -1,23 +1,55 @@
 import { expect, test, type Page } from "@playwright/test";
 
+const dashboardName = "Mock Executive Sales Dashboard";
+const calendarTechPlayUrl = "https://techplay.jp/event/983048";
+const calendarEvent = {
+  eventId: "mock-current-tableau-user-group",
+  summary: "Tableau User Group Tokyo 2026",
+  description: "Live session",
+  location: "Tokyo",
+  start: "2026-06-14T02:30:00.000Z",
+  end: "2026-06-14T04:30:00.000Z",
+  htmlLink: "https://calendar.google.com/calendar/u/0/r/eventedit/mock-current",
+  techplayUrls: [calendarTechPlayUrl],
+  score: 100,
+  scoreReasons: ["TechPlay URL detected."],
+};
+
 async function mockApis(page: Page) {
-  await page.route("**/api/techplay/preview", async (route) => {
+  await page.route("**/api/calendar/resolve", async (route) => {
     const requestBody = route.request().postDataJSON() as {
-      techplayUrl?: string;
+      postType?: string;
+      dashboardContext?: { dashboardName?: string };
+      venuePhoto?: { fileName?: string; sizeLabel?: string } | null;
     };
 
-    expect(requestBody.techplayUrl).toContain("techplay.jp");
+    expect(requestBody.postType).toBeTruthy();
+    expect(requestBody.dashboardContext?.dashboardName).toBe(dashboardName);
+    expect(requestBody.venuePhoto?.fileName).toBe("venue.jpg");
 
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
-        techplayUrl: "https://techplay.jp/event/983048",
-        eventName: "Sample Event",
-        eventDateText: "2025/08/08 18:30",
-        summary: "Sample summary.",
-        sourceTitle: "Sample Event - TECH PLAY",
-        sourceDescription: "Sample summary.",
-        extractedFrom: "jsonld",
+        provider: "mock",
+        calendarLookupStatus: "found",
+        techPlayFetchStatus: "fetched",
+        manualTechPlayMode: false,
+        searchWindowLabel: "today and around now",
+        selectedEvent: calendarEvent,
+        candidates: [calendarEvent],
+        detectedTechPlayUrl: calendarTechPlayUrl,
+        techplayPreview: {
+          techplayUrl: calendarTechPlayUrl,
+          eventName: "Tableau User Group Tokyo 2026",
+          eventDateText: "2026/06/14 11:30",
+          summary: "Live summary.",
+          sourceTitle: "Tableau User Group Tokyo 2026 - TECH PLAY",
+          sourceDescription: "Live summary.",
+          extractedFrom: "jsonld",
+        },
+        resolvedEventName: "Tableau User Group Tokyo 2026",
+        warnings: [],
+        notes: [],
       }),
     });
   });
@@ -32,9 +64,9 @@ async function mockApis(page: Page) {
     };
 
     expect(requestBody.postType).toBeTruthy();
-    expect(requestBody.eventName).toBeTruthy();
-    expect(requestBody.techplayUrl).toBeTruthy();
-    expect(requestBody.currentSituation).toBeTruthy();
+    expect(requestBody.eventName).toBe("Tableau User Group Tokyo 2026");
+    expect(requestBody.techplayUrl).toBe(calendarTechPlayUrl);
+    expect(requestBody.currentSituation).toContain("venue.jpg");
     expect(requestBody.dashboardContext).toBeTruthy();
 
     await route.fulfill({
@@ -52,8 +84,16 @@ async function mockApis(page: Page) {
   });
 }
 
-test.describe("AI PR Action panel", () => {
-  test("shows the input and preview panels without the legacy chat shell", async ({
+async function uploadVenuePhoto(page: Page) {
+  await page.locator('input[type="file"][accept="image/*"]').setInputFiles({
+    name: "venue.jpg",
+    mimeType: "image/jpeg",
+    buffer: Buffer.from("photo-bytes"),
+  });
+}
+
+test.describe("Tableau PR Assistant panel", () => {
+  test("shows the assistant-style shell without the legacy chat panel", async ({
     page,
   }) => {
     await mockApis(page);
@@ -61,104 +101,109 @@ test.describe("AI PR Action panel", () => {
 
     await expect(page.locator(".pr-agent-shell")).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "AI PR Action" }),
+      page.getByRole("heading", { name: "Tableau PR Assistant" }),
     ).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Input" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Preview" })).toBeVisible();
-    await expect(page.getByText("Draft only")).toBeVisible();
+    await expect(page.getByText(`参照中：${dashboardName}`)).toBeVisible();
+    await expect(page.getByRole("heading", { name: "投稿設定" })).toBeVisible();
     await expect(
-      page.getByText("Mock Sales Workbook", { exact: true }),
+      page.getByRole("region", { name: "投稿プレビュー" }),
     ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "投稿案を作成" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "投稿案を作成" }),
+    ).toBeDisabled();
     await expect(page.locator(".chat-panel")).toHaveCount(0);
+    await expect(page.getByText("TechPlay URL")).toHaveCount(0);
   });
 
-  test("loads TechPlay metadata and autofills the event name", async ({
+  test("auto-resolves calendar context after a venue photo is added", async ({
     page,
   }) => {
     await mockApis(page);
     await page.goto("/");
 
-    await page.getByRole("button", { name: "Load TechPlay" }).click();
+    await uploadVenuePhoto(page);
 
-    await expect(page.getByText("TechPlay preview")).toBeVisible();
-    await expect(page.getByText("Sample summary.")).toBeVisible();
-    await expect(page.getByRole("textbox", { name: "Event name" })).toHaveValue(
-      "Sample Event",
+    await expect(page.locator(".pr-agent-mini-confirm")).toBeVisible();
+    await expect(page.locator(".pr-agent-mini-confirm")).toContainText(
+      "イベント情報を取得しました",
     );
-    await expect(page.getByText("jsonld")).toBeVisible();
-  });
-
-  test("uploads a venue photo and shows the selected preview", async ({
-    page,
-  }) => {
-    await mockApis(page);
-    await page.goto("/");
-
-    await page.locator('input[type="file"][accept="image/*"]').setInputFiles({
-      name: "venue.jpg",
-      mimeType: "image/jpeg",
-      buffer: Buffer.from("photo-bytes"),
-    });
-    await page.getByLabel("Photo usage").selectOption("background");
-
-    await expect(
-      page.getByAltText("Selected venue photo: venue.jpg"),
-    ).toBeVisible();
-    await expect(page.locator(".venue-photo-preview strong")).toHaveText(
-      "venue.jpg",
+    await expect(page.locator(".pr-agent-mini-confirm")).toContainText(
+      "Tableau User Group Tokyo 2026",
     );
-    await expect(page.locator(".venue-photo-preview-copy")).toContainText(
-      "Use as background",
+    await expect(page.locator(".pr-agent-mini-confirm")).toContainText(
+      "Googleカレンダーから検出",
+    );
+    await expect(page.locator(".pr-agent-mini-confirm")).toContainText(
+      "TechPlay情報 取得済み",
     );
     await expect(
-      page.getByText("Venue photo is set to Use as background."),
-    ).toBeVisible();
+      page.getByRole("button", { name: "投稿案を作成" }),
+    ).toBeEnabled();
   });
 
-  test("submits a typed draft request and renders the queued response", async ({
-    page,
-  }) => {
+  test("creates a preview and submits a draft request", async ({ page }) => {
     await mockApis(page);
     await page.goto("/");
 
-    await page
-      .getByRole("textbox", { name: "Event name" })
-      .fill("Tableau User Group Tokyo 2026");
-    await page
-      .getByRole("textbox", { name: "TechPlay URL" })
-      .fill("https://techplay.jp/event/983048");
-    await page
-      .getByRole("textbox", { name: "Current situation" })
-      .fill("The venue is filling up.");
+    await uploadVenuePhoto(page);
+    await expect(page.locator(".pr-agent-mini-confirm")).toBeVisible();
 
-    await page.getByRole("button", { name: "Run action" }).click();
+    await page.getByRole("button", { name: "投稿案を作成" }).click();
 
-    await expect(page.getByText("Action run queued")).toBeVisible();
-    await expect(page.locator(".pr-agent-status-card")).toContainText(
+    await expect(page.locator(".pr-agent-preview-card")).toBeVisible();
+    await expect(page.locator(".pr-agent-preview-card")).toContainText(
+      "Tableau User Group Tokyo 2026",
+    );
+    await expect(
+      page.getByRole("button", { name: "下書きを作成する" }),
+    ).toBeVisible();
+    await expect(page.getByText("Slackにはまだ投稿されません。")).toBeVisible();
+
+    await page.getByRole("button", { name: "下書きを作成する" }).click();
+
+    await expect(page.getByRole("status")).toHaveText(
+      "下書き作成リクエストを送信しました",
+    );
+    await expect(page.getByText("根拠・チェック結果を見る")).toBeVisible();
+
+    await page.locator(".pr-agent-details > summary").click();
+    await expect(page.getByText("Action Run ID")).toBeVisible();
+    await expect(page.locator(".pr-agent-status-grid")).toContainText(
       "action-run-1",
     );
-    await expect(page.locator(".pr-agent-status-card")).toContainText("queued");
-    await expect(
-      page.getByText(
-        "Configure VITE_PR_ACTION_IMAGE_PUBLIC_BASE_URL to display a URL.",
-      ),
-    ).toBeVisible();
+    await expect(page.locator(".pr-agent-status-grid")).toContainText("queued");
   });
 
-  test("shows an error banner when the action run API returns an error", async ({
+  test("shows an error banner when the draft request fails", async ({
     page,
   }) => {
-    await page.route("**/api/techplay/preview", async (route) => {
+    await page.route("**/api/calendar/resolve", async (route) => {
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
-          techplayUrl: "https://techplay.jp/event/983048",
-          eventName: "Sample Event",
-          eventDateText: "2025/08/08 18:30",
-          summary: "Sample summary.",
-          sourceTitle: "Sample Event - TECH PLAY",
-          sourceDescription: "Sample summary.",
-          extractedFrom: "jsonld",
+          provider: "mock",
+          calendarLookupStatus: "found",
+          techPlayFetchStatus: "fetched",
+          manualTechPlayMode: false,
+          searchWindowLabel: "today and around now",
+          selectedEvent: calendarEvent,
+          candidates: [calendarEvent],
+          detectedTechPlayUrl: calendarTechPlayUrl,
+          techplayPreview: {
+            techplayUrl: calendarTechPlayUrl,
+            eventName: "Tableau User Group Tokyo 2026",
+            eventDateText: "2026/06/14 11:30",
+            summary: "Live summary.",
+            sourceTitle: "Tableau User Group Tokyo 2026 - TECH PLAY",
+            sourceDescription: "Live summary.",
+            extractedFrom: "jsonld",
+          },
+          resolvedEventName: "Tableau User Group Tokyo 2026",
+          warnings: [],
+          notes: [],
         }),
       });
     });
@@ -173,11 +218,9 @@ test.describe("AI PR Action panel", () => {
     });
 
     await page.goto("/");
-
-    await page
-      .getByRole("textbox", { name: "Event name" })
-      .fill("Error demo event");
-    await page.getByRole("button", { name: "Run action" }).click();
+    await uploadVenuePhoto(page);
+    await page.getByRole("button", { name: "投稿案を作成" }).click();
+    await page.getByRole("button", { name: "下書きを作成する" }).click();
 
     await expect(
       page.getByText("Action run request failed for demo."),
