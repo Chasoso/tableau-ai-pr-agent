@@ -13,6 +13,7 @@ import { ActionRunAnalysisService } from "./actionRunAnalysisService";
 import { ActionRunImageService } from "./actionRunImageService";
 import { buildActionRunImageUrl } from "./actionRunImageUrlService";
 import { ActionRunRepository } from "../repositories/actionRunRepository";
+import { SlackWebhookService } from "./slackWebhookService";
 import type { AuthenticatedUser } from "../types/auth";
 import type {
   ActionRunApprovalRequest,
@@ -31,6 +32,7 @@ export type ActionRunApprovalResponse = ActionRunGetResponse & {
 const repository = new ActionRunRepository();
 const analysisService = new ActionRunAnalysisService();
 const imageService = new ActionRunImageService();
+const slackWebhookService = new SlackWebhookService();
 
 export class ActionRunService {
   async createActionRun(input: {
@@ -210,10 +212,6 @@ export class ActionRunService {
       result: approvedResult,
     });
 
-    const slackWebhook: SlackWebhookPostResult = {
-      sent: false,
-      skipped: true,
-    };
     const finalSafetyReview: NonNullable<
       ActionRunRecord["result"]
     >["safetyReview"] = {
@@ -229,19 +227,25 @@ export class ActionRunService {
       result: finalResult,
     });
 
+    const slackWebhookResult = await slackWebhookService.postActionRun({
+      request: record.request,
+      result: finalResult,
+      runId: input.actionRunId,
+    });
+
     logInfo("action_run.approved", {
       runId: input.actionRunId,
       actionRunId: input.actionRunId,
       requestId: input.requestId,
-      slackSent: false,
-      slackSkipped: true,
+      slackSent: slackWebhookResult.sent,
+      slackSkipped: slackWebhookResult.skipped,
     });
 
     return {
       ...(updatedRecord
         ? await repository.toPublicView(updatedRecord)
         : await repository.toPublicView({ ...record, result: finalResult })),
-      slackWebhook,
+      slackWebhook: slackWebhookResult,
     };
   }
 

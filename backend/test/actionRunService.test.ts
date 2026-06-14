@@ -26,19 +26,27 @@ const imageMock = vi.hoisted(() => ({
 }));
 
 vi.mock("../src/repositories/actionRunRepository", () => ({
-  ActionRunRepository: vi.fn().mockImplementation(() => repositoryMock),
+  ActionRunRepository: vi.fn(function () {
+    return repositoryMock;
+  }),
 }));
 
 vi.mock("../src/services/actionRunAnalysisService", () => ({
-  ActionRunAnalysisService: vi.fn().mockImplementation(() => analysisMock),
+  ActionRunAnalysisService: vi.fn(function () {
+    return analysisMock;
+  }),
 }));
 
 vi.mock("../src/services/slackWebhookService", () => ({
-  SlackWebhookService: vi.fn().mockImplementation(() => slackMock),
+  SlackWebhookService: vi.fn(function () {
+    return slackMock;
+  }),
 }));
 
 vi.mock("../src/services/actionRunImageService", () => ({
-  ActionRunImageService: vi.fn().mockImplementation(() => imageMock),
+  ActionRunImageService: vi.fn(function () {
+    return imageMock;
+  }),
 }));
 
 describe("ActionRunService", () => {
@@ -248,7 +256,7 @@ describe("ActionRunService", () => {
     );
   });
 
-  it("keeps approval draft-only and does not send Slack", async () => {
+  it("sends Slack when approval is granted", async () => {
     repositoryMock.get.mockResolvedValue(
       buildActionRunRecord({
         result: buildActionRunResult(),
@@ -276,6 +284,11 @@ describe("ActionRunService", () => {
       expiresAt: 1_999_999_999,
       ownerType: "anonymous",
     });
+    slackMock.postActionRun.mockResolvedValue({
+      sent: true,
+      skipped: false,
+      statusCode: 200,
+    });
     const service = new ActionRunService();
     const response = await service.approveActionRun({
       actionRunId: "action-run-1",
@@ -288,11 +301,18 @@ describe("ActionRunService", () => {
       },
     });
 
-    expect(slackMock.postActionRun).not.toHaveBeenCalled();
+    expect(slackMock.postActionRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        request: expect.any(Object),
+        result: expect.any(Object),
+        runId: "action-run-1",
+      }),
+    );
     expect(repositoryMock.updateResult).toHaveBeenCalled();
     expect(response.slackWebhook).toEqual({
-      sent: false,
-      skipped: true,
+      sent: true,
+      skipped: false,
+      statusCode: 200,
     });
     expect(response.result?.safetyReview?.status).toBe("approved");
   });

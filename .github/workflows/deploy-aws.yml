@@ -118,6 +118,7 @@ jobs:
       COGNITO_POPUP_REDIRECT_URI: ${{ vars.COGNITO_POPUP_REDIRECT_URI || secrets.COGNITO_POPUP_REDIRECT_URI }}
       COGNITO_AUTH_TRANSACTION_KEY_PARAM: ${{ vars.COGNITO_AUTH_TRANSACTION_KEY_PARAM || '/tableau-ai-pr-agent/cognito/popup-auth-key' }}
       COGNITO_AUTH_TRANSACTION_TTL_SECONDS: ${{ vars.COGNITO_AUTH_TRANSACTION_TTL_SECONDS || '600' }}
+      SLACK_INCOMING_WEBHOOK_URL: ${{ vars.SLACK_INCOMING_WEBHOOK_URL || secrets.SLACK_INCOMING_WEBHOOK_URL }}
       GOOGLE_CALENDAR_PROVIDER: ${{ vars.GOOGLE_CALENDAR_PROVIDER || 'mock' }}
       GOOGLE_CALENDAR_CALENDAR_ID: ${{ vars.GOOGLE_CALENDAR_CALENDAR_ID || secrets.GOOGLE_CALENDAR_CALENDAR_ID }}
       GOOGLE_CALENDAR_CLIENT_ID: ${{ vars.GOOGLE_CALENDAR_CLIENT_ID || secrets.GOOGLE_CALENDAR_CLIENT_ID }}
@@ -202,6 +203,7 @@ jobs:
             "$COGNITO_POPUP_REDIRECT_URI" \
             "$COGNITO_AUTH_TRANSACTION_KEY_PARAM" \
             "$COGNITO_AUTH_TRANSACTION_TTL_SECONDS" \
+            "$SLACK_INCOMING_WEBHOOK_URL" \
             "$GOOGLE_CALENDAR_PROVIDER" \
             "$GOOGLE_CALENDAR_CALENDAR_ID" \
             "$GOOGLE_CALENDAR_CLIENT_ID" \
@@ -442,6 +444,7 @@ jobs:
               CognitoPopupRedirectUri="$COGNITO_POPUP_REDIRECT_URI" \
               CognitoAuthTransactionKeyParam="$COGNITO_AUTH_TRANSACTION_KEY_PARAM" \
               CognitoAuthTransactionTtlSeconds="$COGNITO_AUTH_TRANSACTION_TTL_SECONDS" \
+              SlackIncomingWebhookUrl="$SLACK_INCOMING_WEBHOOK_URL" \
               GoogleCalendarProvider="$GOOGLE_CALENDAR_PROVIDER" \
               GoogleCalendarCalendarId="$GOOGLE_CALENDAR_CALENDAR_ID" \
               GoogleCalendarClientId="$GOOGLE_CALENDAR_CLIENT_ID" \

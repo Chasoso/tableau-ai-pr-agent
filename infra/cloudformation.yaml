@@ -80,6 +80,10 @@ Parameters:
   CognitoAuthTransactionTtlSeconds:
     Type: Number
     Default: 600
+  SlackIncomingWebhookUrl:
+    Type: String
+    NoEcho: true
+    Default: ""
   GoogleCalendarProvider:
     Type: String
     Default: "mock"
@@ -543,6 +547,7 @@ Resources:
           COGNITO_AUTH_TRANSACTIONS_TABLE: !Ref CognitoAuthTransactionsTable
           COGNITO_AUTH_TRANSACTION_KEY_PARAM: !Ref CognitoAuthTransactionKeyParam
           COGNITO_AUTH_TRANSACTION_TTL_SECONDS: !Sub "${CognitoAuthTransactionTtlSeconds}"
+          SLACK_INCOMING_WEBHOOK_URL: !Ref SlackIncomingWebhookUrl
           GOOGLE_CALENDAR_PROVIDER: !Ref GoogleCalendarProvider
           GOOGLE_CALENDAR_CALENDAR_ID: !Ref GoogleCalendarCalendarId
           GOOGLE_CALENDAR_CLIENT_ID: !Ref GoogleCalendarClientId
@@ -629,6 +634,7 @@ Resources:
           COGNITO_AUTH_TRANSACTIONS_TABLE: !Ref CognitoAuthTransactionsTable
           COGNITO_AUTH_TRANSACTION_KEY_PARAM: !Ref CognitoAuthTransactionKeyParam
           COGNITO_AUTH_TRANSACTION_TTL_SECONDS: !Sub "${CognitoAuthTransactionTtlSeconds}"
+          SLACK_INCOMING_WEBHOOK_URL: !Ref SlackIncomingWebhookUrl
           GOOGLE_CALENDAR_PROVIDER: !Ref GoogleCalendarProvider
           GOOGLE_CALENDAR_CALENDAR_ID: !Ref GoogleCalendarCalendarId
           GOOGLE_CALENDAR_CLIENT_ID: !Ref GoogleCalendarClientId
