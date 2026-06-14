@@ -41,7 +41,7 @@ export default function AuthCallback() {
   return (
     <div className="app-shell auth-state">
       <section className="auth-card">
-        <h1>Tableau Assistant</h1>
+        <h1>PR投稿エージェント</h1>
         <p>{message}</p>
       </section>
     </div>

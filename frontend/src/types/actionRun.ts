@@ -42,6 +42,20 @@ export type ActionRunResult = {
   };
 };
 
+export type ActionRunApprovalRequest = {
+  approved: boolean;
+  reviewerNote?: string;
+};
+
+export type ActionRunApprovalResponse = ActionRunGetResponse & {
+  slackWebhook: {
+    sent: boolean;
+    skipped: boolean;
+    statusCode?: number;
+    error?: string;
+  };
+};
+
 export type ActionRunCreateResponse = {
   actionRunId: string;
   jobType: "action_run";

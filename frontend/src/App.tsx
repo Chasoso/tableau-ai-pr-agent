@@ -4,7 +4,7 @@ import { isAuthPopupStart, isAuthRedirect } from "./auth/cognitoAuth";
 import AuthCallback from "./components/AuthCallback";
 import AuthGate from "./components/AuthGate";
 import AuthPopupStart from "./components/AuthPopupStart";
-import PrActionPanel from "./components/PrActionPanel";
+import PrPostAgentPanel from "./components/PrPostAgentPanel";
 import { initializeTableauExtension } from "./tableau/tableauExtension";
 import type { DashboardContext } from "./types/tableau";
 
@@ -69,7 +69,7 @@ function DashboardExtensionApp() {
     userDisplayName?: string;
   }) => (
     <div className="app-shell">
-      <PrActionPanel
+      <PrPostAgentPanel
         dashboardContext={dashboardContext}
         authToken={authToken}
         userDisplayName={userDisplayName}
@@ -95,7 +95,7 @@ function DashboardExtensionApp() {
           ) : (
             <div className="app-shell auth-state">
               <div className="auth-card">
-                <h1>Tableau PR Assistant</h1>
+                <h1>PR投稿エージェント</h1>
                 <p>Sign in to continue.</p>
                 {authError ? (
                   <div className="error-banner">{authError}</div>

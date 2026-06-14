@@ -1,0 +1,311 @@
+import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { getConfig } from "../config";
+import { logInfo, logWarn, safeErrorDetails, safeHash } from "../logging";
+import { GoogleCalendarRepository } from "../repositories/googleCalendarRepository";
+import type { AuthenticatedUser } from "../types/auth";
+import type {
+  GoogleCalendarConnectionRecord,
+  GoogleCalendarPopupStartRequest,
+  GoogleCalendarPopupStartResponse,
+  GoogleCalendarPopupStatusResponse,
+  GoogleCalendarStatusResponse,
+} from "../types/googleCalendarAuth";
+import { encryptGoogleToken } from "../security/googleCalendarTokenCrypto";
+
+type GoogleTokenResponse = {
+  access_token: string;
+  expires_in?: number;
+  refresh_token?: string;
+  scope?: string;
+  token_type?: string;
+};
+
+export class GoogleCalendarOAuthService {
+  constructor(private readonly repository = new GoogleCalendarRepository()) {}
+
+  async getStatus(
+    user: AuthenticatedUser | undefined,
+  ): Promise<GoogleCalendarStatusResponse> {
+    let connection: GoogleCalendarConnectionRecord | null = null;
+    try {
+      connection = await this.repository.getConnection(resolveUserId(user));
+    } catch {
+      return {
+        connected: false,
+        status: "disconnected",
+      };
+    }
+    return {
+      connected: Boolean(connection?.status === "connected"),
+      status: connection?.status ?? "disconnected",
+      connectedAt: connection?.createdAt,
+      email: connection?.email,
+      scopes: connection?.scopes,
+    };
+  }
+
+  async startPopupAuth(
+    user: AuthenticatedUser | undefined,
+    input: GoogleCalendarPopupStartRequest,
+  ): Promise<GoogleCalendarPopupStartResponse> {
+    validateGoogleCalendarOAuthConfiguration();
+    const transactionId = randomUUID();
+    const state = `${transactionId}.${randomBase64Url(18)}`;
+    const pollToken = randomBase64Url(32);
+    const codeVerifier = randomBase64Url(64);
+    const codeChallenge = await sha256Base64Url(codeVerifier);
+    const now = new Date();
+    const expiresAtEpoch = Math.floor(
+      (now.getTime() + getConfig().auth.popup.transactionTtlSeconds * 1000) /
+        1000,
+    );
+
+    await this.repository.putOAuthState({
+      transactionId,
+      state,
+      userId: resolveUserId(user),
+      pollTokenHash: hashString(pollToken),
+      codeVerifier,
+      redirectAfter: input.redirectAfter,
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+      expiresAt: expiresAtEpoch,
+      status: "pending",
+    });
+
+    logInfo("google.oauth.start.created", {
+      transactionIdHash: safeHash(transactionId),
+      stateHash: safeHash(state),
+      hasRedirectAfter: Boolean(input.redirectAfter),
+      ttlSeconds: getConfig().auth.popup.transactionTtlSeconds,
+    });
+
+    const authUrl = new URL(getGoogleAuthUrl());
+    authUrl.searchParams.set("client_id", getConfig().calendar.google.clientId);
+    authUrl.searchParams.set(
+      "redirect_uri",
+      getConfig().calendar.google.redirectUri,
+    );
+    authUrl.searchParams.set("response_type", "code");
+    authUrl.searchParams.set(
+      "scope",
+      getConfig().calendar.google.scopes.join(" "),
+    );
+    authUrl.searchParams.set("access_type", "offline");
+    authUrl.searchParams.set("prompt", "consent");
+    authUrl.searchParams.set("include_granted_scopes", "true");
+    authUrl.searchParams.set("state", state);
+    authUrl.searchParams.set("code_challenge_method", "S256");
+    authUrl.searchParams.set("code_challenge", codeChallenge);
+
+    return {
+      transactionId,
+      pollToken,
+      authorizationUrl: authUrl.toString(),
+      expiresAt: new Date(expiresAtEpoch * 1000).toISOString(),
+    };
+  }
+
+  async handlePopupCallback(input: {
+    code?: string;
+    state?: string;
+  }): Promise<{ redirectAfter?: string }> {
+    validateGoogleCalendarOAuthConfiguration();
+    if (!input.code || !input.state) {
+      throw new Error("Missing Google OAuth callback parameters.");
+    }
+
+    const transaction = await this.repository.getOAuthStateByState(input.state);
+    if (!transaction) {
+      throw new Error("Google OAuth state not found or already used.");
+    }
+
+    try {
+      if (transaction.expiresAt <= Math.floor(Date.now() / 1000)) {
+        throw new Error("Google OAuth state expired.");
+      }
+
+      const tokenData = await exchangeAuthorizationCode({
+        code: input.code,
+        codeVerifier: transaction.codeVerifier,
+      });
+
+      if (!tokenData.refresh_token) {
+        throw new Error(
+          "Google OAuth token response did not include a refresh token.",
+        );
+      }
+
+      const encryptedRefresh = await encryptGoogleToken(
+        tokenData.refresh_token,
+      );
+      const nowIso = new Date().toISOString();
+      const connection: GoogleCalendarConnectionRecord = {
+        userId: transaction.userId,
+        connectionId: getDefaultConnectionId(),
+        refreshTokenCiphertext: encryptedRefresh.ciphertext,
+        refreshTokenIv: encryptedRefresh.iv,
+        refreshTokenAuthTag: encryptedRefresh.authTag,
+        createdAt: transaction.createdAt,
+        updatedAt: nowIso,
+        lastUsedAt: nowIso,
+        status: "connected",
+        scopes: tokenData.scope?.split(/\s+/u).filter(Boolean),
+      };
+      await this.repository.putConnection(connection);
+      await this.repository.updateOAuthState(transaction.transactionId, {
+        status: "completed",
+        updatedAt: nowIso,
+        errorMessageSafe: undefined,
+      });
+
+      logInfo("google.oauth.callback.completed", {
+        transactionIdHash: safeHash(transaction.transactionId),
+        userHash: safeHash(transaction.userId),
+        hasRefreshToken: true,
+      });
+
+      return { redirectAfter: transaction.redirectAfter };
+    } catch (error) {
+      await this.repository.updateOAuthState(transaction.transactionId, {
+        status: "failed",
+        updatedAt: new Date().toISOString(),
+        errorMessageSafe:
+          error instanceof Error
+            ? error.message
+            : "Google OAuth callback failed.",
+      });
+      logWarn("google.oauth.callback.failed", {
+        transactionIdHash: safeHash(transaction.transactionId),
+        stateHash: safeHash(input.state),
+        ...safeErrorDetails(error),
+      });
+      throw error;
+    }
+  }
+
+  async getPopupAuthStatus(input: {
+    transactionId: string;
+    pollToken?: string;
+  }): Promise<GoogleCalendarPopupStatusResponse> {
+    validateGoogleCalendarOAuthConfiguration();
+    if (!input.transactionId) {
+      throw new Error("transactionId is required.");
+    }
+
+    const transaction = await this.repository.getOAuthStateByTransactionId(
+      input.transactionId,
+    );
+    if (!transaction) {
+      return {
+        status: "failed",
+        message: "Authentication transaction was not found.",
+      };
+    }
+
+    if (
+      !input.pollToken ||
+      hashString(input.pollToken) !== transaction.pollTokenHash
+    ) {
+      return {
+        status: "failed",
+        message: "Authentication transaction token is invalid.",
+      };
+    }
+
+    if (transaction.status === "completed") {
+      return { status: "completed", connected: true };
+    }
+
+    if (transaction.status === "failed" || transaction.status === "consumed") {
+      return {
+        status: transaction.status,
+        message: transaction.errorMessageSafe || "Authentication failed.",
+      };
+    }
+
+    return { status: "pending" };
+  }
+
+  async disconnect(user: AuthenticatedUser | undefined): Promise<void> {
+    await this.repository.deleteConnection(resolveUserId(user));
+  }
+}
+
+export function validateGoogleCalendarOAuthConfiguration(): void {
+  const config = getConfig().calendar.google;
+  if (
+    !config.clientId ||
+    !config.clientSecret ||
+    !config.redirectUri ||
+    !config.connectionsTableName ||
+    !config.oauthStatesTableName ||
+    !config.tokenEncryptionKeyParam
+  ) {
+    throw new Error("Google Calendar OAuth is not configured.");
+  }
+}
+
+function getDefaultConnectionId(): string {
+  return "GOOGLE_CALENDAR#DEFAULT";
+}
+
+async function exchangeAuthorizationCode(input: {
+  code: string;
+  codeVerifier: string;
+}): Promise<GoogleTokenResponse> {
+  const config = getConfig().calendar.google;
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      client_id: config.clientId,
+      client_secret: config.clientSecret,
+      code: input.code,
+      redirect_uri: config.redirectUri,
+      code_verifier: input.codeVerifier,
+    }),
+  });
+
+  if (!response.ok) {
+    const raw = await response.text().catch(() => "");
+    logWarn("google.oauth.callback.token_exchange.failed", {
+      statusCode: response.status,
+      responseBodyHash: safeHash(raw),
+      responseBodyLength: raw.length,
+    });
+    throw new Error(
+      `Google OAuth token exchange failed with status ${response.status}.`,
+    );
+  }
+
+  return (await response.json()) as GoogleTokenResponse;
+}
+
+function resolveUserId(user: AuthenticatedUser | undefined): string {
+  return user?.userId ?? "global";
+}
+
+function hashString(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function randomBase64Url(byteLength: number): string {
+  return randomBytes(byteLength)
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+async function sha256Base64Url(value: string): Promise<string> {
+  const digest = createHash("sha256").update(value).digest("base64");
+  return digest.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function getGoogleAuthUrl(): string {
+  return "https://accounts.google.com/o/oauth2/v2/auth";
+}

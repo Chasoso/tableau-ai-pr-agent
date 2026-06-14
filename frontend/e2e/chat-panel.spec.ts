@@ -15,7 +15,31 @@ const calendarEvent = {
   scoreReasons: ["TechPlay URL detected."],
 };
 
+const analysisResult = {
+  summary: "開催中投稿では短文 + 写真つきが多いです。",
+  suggestedSlackPostText:
+    "#北陸Tableauユーザー会 #HokuTUG\nMCPについて、みんなで勉強中！",
+  hashtags: ["#Tableau", "#TechPlay", "#HokuTUG"],
+  evidence: ["短文投稿が多い", "写真つき投稿の反応が良い"],
+  checks: ["開催中実況向けの文量です"],
+  imageCaption: "会場の写真",
+};
+
 async function mockApis(page: Page) {
+  await page.route("**/api/auth/google/status", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        connected: true,
+        connectionId: "google-connection-1",
+        provider: "google",
+        accountEmail: "demo@example.com",
+        accountName: "Demo User",
+        updatedAt: "2026-06-14T00:00:00.000Z",
+      }),
+    });
+  });
+
   await page.route("**/api/calendar/resolve", async (route) => {
     const requestBody = route.request().postDataJSON() as {
       postType?: string;
@@ -25,7 +49,6 @@ async function mockApis(page: Page) {
 
     expect(requestBody.postType).toBeTruthy();
     expect(requestBody.dashboardContext?.dashboardName).toBe(dashboardName);
-    expect(requestBody.venuePhoto?.fileName).toBe("venue.jpg");
 
     await route.fulfill({
       contentType: "application/json",
@@ -38,18 +61,31 @@ async function mockApis(page: Page) {
         selectedEvent: calendarEvent,
         candidates: [calendarEvent],
         detectedTechPlayUrl: calendarTechPlayUrl,
-        techplayPreview: {
-          techplayUrl: calendarTechPlayUrl,
-          eventName: "Tableau User Group Tokyo 2026",
-          eventDateText: "2026/06/14 11:30",
-          summary: "Live summary.",
-          sourceTitle: "Tableau User Group Tokyo 2026 - TECH PLAY",
-          sourceDescription: "Live summary.",
-          extractedFrom: "jsonld",
-        },
+        techplayPreview: null,
         resolvedEventName: "Tableau User Group Tokyo 2026",
         warnings: [],
         notes: [],
+      }),
+    });
+  });
+
+  await page.route("**/api/techplay/preview", async (route) => {
+    const requestBody = route.request().postDataJSON() as {
+      techplayUrl?: string;
+    };
+
+    expect(requestBody.techplayUrl).toBe(calendarTechPlayUrl);
+
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        techplayUrl: calendarTechPlayUrl,
+        eventName: "Tableau User Group Tokyo 2026",
+        eventDateText: "2026/06/14 11:30",
+        summary: "Live summary.",
+        sourceTitle: "Tableau User Group Tokyo 2026 - TECH PLAY",
+        sourceDescription: "Live summary.",
+        extractedFrom: "jsonld",
       }),
     });
   });
@@ -66,7 +102,6 @@ async function mockApis(page: Page) {
     expect(requestBody.postType).toBeTruthy();
     expect(requestBody.eventName).toBe("Tableau User Group Tokyo 2026");
     expect(requestBody.techplayUrl).toBe(calendarTechPlayUrl);
-    expect(requestBody.currentSituation).toContain("venue.jpg");
     expect(requestBody.dashboardContext).toBeTruthy();
 
     await route.fulfill({
@@ -82,6 +117,58 @@ async function mockApis(page: Page) {
       }),
     });
   });
+
+  await page.route("**/api/action-runs/*/approval", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        actionRunId: "action-run-1",
+        jobType: "action_run",
+        status: "completed",
+        stage: "completed",
+        progressMessages: [],
+        result: analysisResult,
+        slackWebhook: {
+          sent: true,
+          skipped: false,
+          statusCode: 200,
+        },
+        createdAt: "2026-06-14T00:00:00.000Z",
+        updatedAt: "2026-06-14T00:00:02.000Z",
+        completedAt: "2026-06-14T00:00:02.000Z",
+        expiresAt: Date.now() + 60_000,
+        ownerType: "authenticated",
+      }),
+    });
+  });
+
+  await page.route("**/api/action-runs/*", async (route) => {
+    const url = new URL(route.request().url());
+    if (
+      route.request().method() === "GET" &&
+      !url.pathname.endsWith("/approval")
+    ) {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          actionRunId: "action-run-1",
+          jobType: "action_run",
+          status: "completed",
+          stage: "completed",
+          progressMessages: [],
+          result: analysisResult,
+          createdAt: "2026-06-14T00:00:00.000Z",
+          updatedAt: "2026-06-14T00:00:00.000Z",
+          completedAt: "2026-06-14T00:00:02.000Z",
+          expiresAt: Date.now() + 60_000,
+          ownerType: "authenticated",
+        }),
+      });
+      return;
+    }
+
+    await route.fallback();
+  });
 }
 
 async function uploadVenuePhoto(page: Page) {
@@ -92,139 +179,85 @@ async function uploadVenuePhoto(page: Page) {
   });
 }
 
-test.describe("Tableau PR Assistant panel", () => {
-  test("shows the assistant-style shell without the legacy chat panel", async ({
+test.describe("PR投稿エージェント", () => {
+  test("shows the chat shell on first load", async ({ page }) => {
+    await mockApis(page);
+    await page.goto("/");
+
+    await expect(page.locator(".pr-post-agent-shell")).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "PR投稿エージェント" }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("過去の投稿を分析し、最適な投稿を提案します。"),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "事前告知" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "開催中の実況" }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "+" })).toBeVisible();
+    await expect(page.getByText("投稿設定")).toHaveCount(0);
+  });
+
+  test("generates a live-post draft after selecting a scene and uploading a photo", async ({
     page,
   }) => {
     await mockApis(page);
     await page.goto("/");
 
-    await expect(page.locator(".pr-agent-shell")).toBeVisible();
+    await page.getByRole("button", { name: "開催中の実況" }).click();
     await expect(
-      page.getByRole("heading", { name: "Tableau PR Assistant" }),
-    ).toBeVisible();
-    await expect(page.getByText(`参照中：${dashboardName}`)).toBeVisible();
-    await expect(page.getByRole("heading", { name: "投稿設定" })).toBeVisible();
-    await expect(
-      page.getByRole("region", { name: "投稿プレビュー" }),
+      page.getByText("投稿する画像をアップロードしてください。"),
     ).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "投稿案を作成" }),
+      page.getByRole("button", { name: "カメラを起動" }),
     ).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "投稿案を作成" }),
-    ).toBeDisabled();
-    await expect(page.locator(".chat-panel")).toHaveCount(0);
-    await expect(page.getByText("TechPlay URL")).toHaveCount(0);
-  });
+      page.getByRole("button", { name: "ライブラリから選択" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "画像を投稿しない" }),
+    ).toBeVisible();
 
-  test("auto-resolves calendar context after a venue photo is added", async ({
-    page,
-  }) => {
-    await mockApis(page);
-    await page.goto("/");
-
+    await page.getByRole("button", { name: "ライブラリから選択" }).click();
     await uploadVenuePhoto(page);
 
-    await expect(page.locator(".pr-agent-mini-confirm")).toBeVisible();
-    await expect(page.locator(".pr-agent-mini-confirm")).toContainText(
-      "イベント情報を取得しました",
-    );
-    await expect(page.locator(".pr-agent-mini-confirm")).toContainText(
-      "Tableau User Group Tokyo 2026",
-    );
-    await expect(page.locator(".pr-agent-mini-confirm")).toContainText(
-      "Googleカレンダーから検出",
-    );
-    await expect(page.locator(".pr-agent-mini-confirm")).toContainText(
-      "TechPlay情報 取得済み",
-    );
     await expect(
-      page.getByRole("button", { name: "投稿案を作成" }),
-    ).toBeEnabled();
-  });
-
-  test("creates a preview and submits a draft request", async ({ page }) => {
-    await mockApis(page);
-    await page.goto("/");
-
-    await uploadVenuePhoto(page);
-    await expect(page.locator(".pr-agent-mini-confirm")).toBeVisible();
-
-    await page.getByRole("button", { name: "投稿案を作成" }).click();
-
-    await expect(page.locator(".pr-agent-preview-card")).toBeVisible();
-    await expect(page.locator(".pr-agent-preview-card")).toContainText(
-      "Tableau User Group Tokyo 2026",
-    );
-    await expect(
-      page.getByRole("button", { name: "下書きを作成する" }),
+      page
+        .locator(".pr-post-agent-bubble.user")
+        .getByText("画像をアップロードしました。")
+        .first(),
     ).toBeVisible();
-    await expect(page.getByText("Slackにはまだ投稿されません。")).toBeVisible();
-
-    await page.getByRole("button", { name: "下書きを作成する" }).click();
-
-    await expect(page.getByRole("status")).toHaveText(
-      "下書き作成リクエストを送信しました",
-    );
-    await expect(page.getByText("根拠・チェック結果を見る")).toBeVisible();
-
-    await page.locator(".pr-agent-details > summary").click();
-    await expect(page.getByText("Action Run ID")).toBeVisible();
-    await expect(page.locator(".pr-agent-status-grid")).toContainText(
-      "action-run-1",
-    );
-    await expect(page.locator(".pr-agent-status-grid")).toContainText("queued");
-  });
-
-  test("shows an error banner when the draft request fails", async ({
-    page,
-  }) => {
-    await page.route("**/api/calendar/resolve", async (route) => {
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({
-          provider: "mock",
-          calendarLookupStatus: "found",
-          techPlayFetchStatus: "fetched",
-          manualTechPlayMode: false,
-          searchWindowLabel: "today and around now",
-          selectedEvent: calendarEvent,
-          candidates: [calendarEvent],
-          detectedTechPlayUrl: calendarTechPlayUrl,
-          techplayPreview: {
-            techplayUrl: calendarTechPlayUrl,
-            eventName: "Tableau User Group Tokyo 2026",
-            eventDateText: "2026/06/14 11:30",
-            summary: "Live summary.",
-            sourceTitle: "Tableau User Group Tokyo 2026 - TECH PLAY",
-            sourceDescription: "Live summary.",
-            extractedFrom: "jsonld",
-          },
-          resolvedEventName: "Tableau User Group Tokyo 2026",
-          warnings: [],
-          notes: [],
-        }),
-      });
-    });
-    await page.route("**/api/action-runs", async (route) => {
-      await route.fulfill({
-        status: 500,
-        contentType: "application/json",
-        body: JSON.stringify({
-          message: "Action run request failed for demo.",
-        }),
-      });
-    });
-
-    await page.goto("/");
-    await uploadVenuePhoto(page);
-    await page.getByRole("button", { name: "投稿案を作成" }).click();
-    await page.getByRole("button", { name: "下書きを作成する" }).click();
+    await expect(
+      page.getByRole("button", { name: "プレビューを表示" }),
+    ).toBeVisible();
 
     await expect(
-      page.getByText("Action run request failed for demo."),
+      page.getByText("過去投稿の傾向をもとに作成しました"),
     ).toBeVisible();
-    await expect(page.locator(".pr-agent-shell")).toBeVisible();
+    await expect(page.locator(".pr-post-agent-draft-summary")).toContainText(
+      "開催中投稿では短文 + 写真つきが多い",
+    );
+    await expect(page.locator(".pr-post-agent-draft-summary")).toContainText(
+      "#HokuTUG と #Tableau を優先",
+    );
+    await expect(
+      page.getByRole("button", { name: "Slackに投稿" }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Xに投稿" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Slackに投稿" }).click();
+    await expect(page.getByRole("dialog", { name: "投稿確認" })).toBeVisible();
+    await page
+      .getByRole("dialog", { name: "投稿確認" })
+      .getByRole("button", { name: "Slackに投稿" })
+      .click();
+
+    await expect(page.locator(".pr-post-agent-posted").first()).toContainText(
+      "Slackに投稿しました。",
+    );
+    await expect(
+      page.locator(".pr-post-agent-posted").first().getByRole("link"),
+    ).toBeVisible();
   });
 });

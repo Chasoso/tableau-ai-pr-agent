@@ -12,6 +12,7 @@ import { ActionRunService } from "../services/actionRunService";
 import { CalendarService } from "../services/calendarService";
 import { TechPlayService } from "../services/techplayService";
 import { createChatService } from "../services/chatService";
+import { handleGoogleCalendarAuthRoute } from "./googleCalendarAuthHandler";
 import type {
   ApiGatewayProxyEvent,
   ApiGatewayProxyResult,
@@ -46,6 +47,7 @@ export async function handler(
   const isTechPlayRoute = routePath.startsWith("/techplay");
   const isNotionCallbackRoute = routePath.startsWith("/notion/callback");
   const isCognitoPopupAuthRoute = routePath.startsWith("/auth/cognito/");
+  const isGooglePopupAuthRoute = routePath.startsWith("/auth/google/");
 
   if (method === "OPTIONS") {
     return jsonResponse(204, {});
@@ -54,7 +56,7 @@ export async function handler(
   try {
     logInfo("chat.request.received", { requestId, method, routePath });
     const authResult =
-      isNotionCallbackRoute || isCognitoPopupAuthRoute
+      isNotionCallbackRoute || isCognitoPopupAuthRoute || isGooglePopupAuthRoute
         ? { ok: true as const, user: undefined }
         : await authenticateRequest(event.headers);
     if (!authResult.ok) {
@@ -79,6 +81,9 @@ export async function handler(
     }
     if (routePath.startsWith("/auth/cognito")) {
       return handleCognitoPopupAuthRoute(event);
+    }
+    if (routePath.startsWith("/auth/google")) {
+      return handleGoogleCalendarAuthRoute(event, authResult.user);
     }
 
     if (routePath === "/chat-jobs" && method === "POST") {
@@ -162,8 +167,10 @@ export async function handler(
         return jsonResponse(400, { message: validationError });
       }
 
-      const response =
-        await calendarService.resolveEventContextFromCalendar(request);
+      const response = await calendarService.resolveEventContextFromCalendar(
+        request,
+        authResult.user,
+      );
       logInfo("calendar.resolve.request.completed", {
         requestId,
         postType: request.postType,

@@ -120,7 +120,7 @@ export function openLoginPopupWindow(): Window {
       <html lang="ja">
         <head>
           <meta charset="utf-8" />
-          <title>Tableau PR Assistant</title>
+          <title>PR投稿エージェント</title>
           <style>
             body { font-family: sans-serif; background:#f6f7f9; color:#1f2937; display:flex; min-height:100vh; align-items:center; justify-content:center; margin:0; }
             .card { background:#fff; border:1px solid #d5d9e0; border-radius:16px; padding:24px; width:min(420px, 92vw); text-align:center; box-shadow:0 16px 36px rgba(15,23,42,.12); }
@@ -128,7 +128,7 @@ export function openLoginPopupWindow(): Window {
         </head>
         <body>
           <div class="card">
-            <h1>Tableau Assistant</h1>
+            <h1>PR投稿エージェント</h1>
             <p>サインイン画面を準備しています…</p>
           </div>
         </body>

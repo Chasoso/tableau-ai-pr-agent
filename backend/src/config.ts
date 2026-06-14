@@ -118,6 +118,10 @@ export type AppConfig = {
       calendarId: string;
       clientId: string;
       clientSecret: string;
+      redirectUri: string;
+      connectionsTableName?: string;
+      oauthStatesTableName?: string;
+      tokenEncryptionKeyParam?: string;
       refreshToken: string;
       scopes: string[];
     };
@@ -336,6 +340,11 @@ export function getConfig(): AppConfig {
         calendarId: process.env.GOOGLE_CALENDAR_CALENDAR_ID ?? "",
         clientId: process.env.GOOGLE_CALENDAR_CLIENT_ID ?? "",
         clientSecret: process.env.GOOGLE_CALENDAR_CLIENT_SECRET ?? "",
+        redirectUri: process.env.GOOGLE_CALENDAR_REDIRECT_URI ?? "",
+        connectionsTableName: process.env.GOOGLE_CALENDAR_CONNECTIONS_TABLE,
+        oauthStatesTableName: process.env.GOOGLE_CALENDAR_OAUTH_STATES_TABLE,
+        tokenEncryptionKeyParam:
+          process.env.GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY_PARAM,
         refreshToken: process.env.GOOGLE_CALENDAR_REFRESH_TOKEN ?? "",
         scopes: parseCsv(process.env.GOOGLE_CALENDAR_SCOPES),
       },

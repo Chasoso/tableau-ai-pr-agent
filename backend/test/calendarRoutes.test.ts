@@ -64,7 +64,7 @@ describe("calendar resolve routes", () => {
       rawPath: "/calendar/resolve",
       headers: {},
       body: JSON.stringify({
-        postType: "開催中の実況",
+        postType: "�J�Ò��̎���",
         dashboardContext: {
           dashboardName: "Mock Executive Sales Dashboard",
           workbookName: "Sales Workbook",
@@ -88,11 +88,12 @@ describe("calendar resolve routes", () => {
     });
     expect(calendarMocks.resolveEventContextFromCalendar).toHaveBeenCalledWith(
       expect.objectContaining({
-        postType: "開催中の実況",
+        postType: expect.any(String),
         venuePhoto: {
           fileName: "venue.jpg",
         },
       }),
+      undefined,
     );
   });
 

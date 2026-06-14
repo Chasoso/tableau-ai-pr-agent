@@ -14,6 +14,7 @@ import type {
   TechPlayFetchStatus,
 } from "../types/calendar";
 import type { ActionRunPostType as ActionRunPostTypeFromActionRun } from "../types/actionRun";
+import type { AuthenticatedUser } from "../types/auth";
 import type { CalendarTechPlaySource } from "./calendarTechPlayExtractor";
 
 type MockCalendarEvent = CalendarTechPlaySource & {
@@ -28,6 +29,7 @@ const googleCalendarService = new GoogleCalendarService();
 export class CalendarService {
   async resolveEventContextFromCalendar(
     input: CalendarResolveRequest,
+    authenticatedUser?: AuthenticatedUser,
   ): Promise<CalendarResolveResponse> {
     const config = getConfig();
     const now = input.now ? new Date(input.now) : new Date();
@@ -58,6 +60,7 @@ export class CalendarService {
           ? await googleCalendarService.searchCalendarEvents({
               postType: input.postType,
               now,
+              authenticatedUser,
             })
           : createMockCalendarEvents(now);
     } catch (error) {

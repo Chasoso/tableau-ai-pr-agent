@@ -1,6 +1,9 @@
 import { getConfig } from "../config";
 import { logDebug, logInfo } from "../logging";
+import { GoogleCalendarRepository } from "../repositories/googleCalendarRepository";
+import { decryptGoogleToken } from "../security/googleCalendarTokenCrypto";
 import type { ActionRunPostType } from "../types/actionRun";
+import type { AuthenticatedUser } from "../types/auth";
 import type {
   GoogleCalendarAccessTokenResponse,
   GoogleCalendarDateTimeValue,
@@ -17,9 +20,12 @@ type CalendarSearchWindow = {
 };
 
 export class GoogleCalendarService {
+  constructor(private readonly repository = new GoogleCalendarRepository()) {}
+
   async searchCalendarEvents(input: {
     postType: ActionRunPostType;
     now: Date;
+    authenticatedUser?: AuthenticatedUser;
   }): Promise<CalendarEventCandidate[]> {
     const config = getConfig();
     const googleConfig = config.calendar.google;
@@ -35,7 +41,11 @@ export class GoogleCalendarService {
       calendarId: safeCalendarId(googleConfig.calendarId),
     });
 
-    const accessToken = await getGoogleAccessToken(googleConfig);
+    const accessToken = await getGoogleAccessToken({
+      googleConfig,
+      repository: this.repository,
+      authenticatedUser: input.authenticatedUser,
+    });
     const events = await listGoogleCalendarEvents({
       accessToken,
       calendarId: googleConfig.calendarId,
@@ -53,14 +63,35 @@ export class GoogleCalendarService {
   }
 }
 
-async function getGoogleAccessToken(config: {
-  clientId: string;
-  clientSecret: string;
-  refreshToken: string;
+async function getGoogleAccessToken(input: {
+  googleConfig: ReturnType<typeof getConfig>["calendar"]["google"];
+  repository: GoogleCalendarRepository;
+  authenticatedUser?: AuthenticatedUser;
 }): Promise<string> {
-  if (!config.clientId || !config.clientSecret || !config.refreshToken) {
+  const userId = input.authenticatedUser?.userId ?? "global";
+  let connection = null;
+  try {
+    connection = await input.repository.getConnection(userId);
+  } catch {
+    connection = null;
+  }
+  const refreshToken = connection
+    ? await decryptGoogleToken({
+        ciphertext: connection.refreshTokenCiphertext,
+        iv: connection.refreshTokenIv,
+        authTag: connection.refreshTokenAuthTag,
+      })
+    : input.googleConfig.refreshToken;
+
+  if (!input.googleConfig.clientId || !input.googleConfig.clientSecret) {
     throw new Error(
-      "GOOGLE_CALENDAR_CLIENT_ID, GOOGLE_CALENDAR_CLIENT_SECRET, and GOOGLE_CALENDAR_REFRESH_TOKEN are required.",
+      "GOOGLE_CALENDAR_CLIENT_ID and GOOGLE_CALENDAR_CLIENT_SECRET are required.",
+    );
+  }
+
+  if (!refreshToken) {
+    throw new Error(
+      "Google Calendar refresh token is not configured. Connect Google first.",
     );
   }
 
@@ -70,10 +101,10 @@ async function getGoogleAccessToken(config: {
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body: new URLSearchParams({
-      client_id: config.clientId,
-      client_secret: config.clientSecret,
+      client_id: input.googleConfig.clientId,
+      client_secret: input.googleConfig.clientSecret,
       grant_type: "refresh_token",
-      refresh_token: config.refreshToken,
+      refresh_token: refreshToken,
     }).toString(),
   });
 
@@ -88,6 +119,15 @@ async function getGoogleAccessToken(config: {
     throw new Error(
       "Google access token response did not contain access_token.",
     );
+  }
+
+  if (connection) {
+    await input.repository.putConnection({
+      ...connection,
+      updatedAt: new Date().toISOString(),
+      lastUsedAt: new Date().toISOString(),
+      status: "connected",
+    });
   }
 
   return body.access_token;

@@ -1,5 +1,7 @@
 import { env } from "../env";
 import type {
+  ActionRunApprovalRequest,
+  ActionRunApprovalResponse,
   ActionRunCreateResponse,
   ActionRunGetResponse,
   ActionRunRequest,
@@ -43,6 +45,28 @@ export async function getActionRun(
   }
 
   return response.json() as Promise<ActionRunGetResponse>;
+}
+
+export async function approveActionRun(
+  actionRunId: string,
+  request: ActionRunApprovalRequest,
+  accessToken?: string,
+  ownerToken?: string,
+): Promise<ActionRunApprovalResponse> {
+  const response = await fetch(
+    `${apiBaseUrl()}/action-runs/${encodeURIComponent(actionRunId)}/approval`,
+    {
+      method: "POST",
+      headers: buildJsonHeaders(accessToken, ownerToken),
+      body: JSON.stringify(request),
+    },
+  );
+
+  if (!response.ok) {
+    throw await toApiError(response);
+  }
+
+  return response.json() as Promise<ActionRunApprovalResponse>;
 }
 
 function buildJsonHeaders(accessToken?: string, ownerToken?: string) {
