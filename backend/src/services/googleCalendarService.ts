@@ -1,5 +1,5 @@
 import { getConfig } from "../config";
-import { logDebug, logInfo, logWarn } from "../logging";
+import { logDebug, logInfo } from "../logging";
 import type { ActionRunPostType } from "../types/actionRun";
 import type {
   GoogleCalendarAccessTokenResponse,
@@ -85,7 +85,9 @@ async function getGoogleAccessToken(config: {
 
   const body = (await response.json()) as GoogleCalendarAccessTokenResponse;
   if (!body.access_token) {
-    throw new Error("Google access token response did not contain access_token.");
+    throw new Error(
+      "Google access token response did not contain access_token.",
+    );
   }
 
   return body.access_token;
@@ -164,14 +166,18 @@ function buildCalendarSearchWindow(
     case "事前告知":
       return {
         timeMin: base.toISOString(),
-        timeMax: new Date(base.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        timeMax: new Date(
+          base.getTime() + 30 * 24 * 60 * 60 * 1000,
+        ).toISOString(),
         maxResults: 20,
         orderBy: "startTime",
       };
     case "開催直前リマインド":
       return {
         timeMin: new Date(base.getTime() - 6 * 60 * 60 * 1000).toISOString(),
-        timeMax: new Date(base.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+        timeMax: new Date(
+          base.getTime() + 2 * 24 * 60 * 60 * 1000,
+        ).toISOString(),
         maxResults: 20,
         orderBy: "startTime",
       };
@@ -184,7 +190,9 @@ function buildCalendarSearchWindow(
       };
     case "開催後のお礼・レポート":
       return {
-        timeMin: new Date(base.getTime() - 14 * 24 * 60 * 60 * 1000).toISOString(),
+        timeMin: new Date(
+          base.getTime() - 14 * 24 * 60 * 60 * 1000,
+        ).toISOString(),
         timeMax: base.toISOString(),
         maxResults: 20,
         orderBy: "updated",
@@ -192,14 +200,18 @@ function buildCalendarSearchWindow(
     case "次回参加の呼びかけ":
       return {
         timeMin: base.toISOString(),
-        timeMax: new Date(base.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+        timeMax: new Date(
+          base.getTime() + 90 * 24 * 60 * 60 * 1000,
+        ).toISOString(),
         maxResults: 20,
         orderBy: "startTime",
       };
     default:
       return {
         timeMin: base.toISOString(),
-        timeMax: new Date(base.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        timeMax: new Date(
+          base.getTime() + 30 * 24 * 60 * 60 * 1000,
+        ).toISOString(),
         maxResults: 20,
         orderBy: "startTime",
       };

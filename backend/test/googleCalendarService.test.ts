@@ -60,9 +60,7 @@ describe("GoogleCalendarService", () => {
                 end: { dateTime: "2026-06-14T04:30:00.000Z" },
                 htmlLink:
                   "https://calendar.google.com/calendar/u/0/r/eventedit/event-1",
-                attachments: [
-                  { fileUrl: "https://techplay.jp/event/example" },
-                ],
+                attachments: [{ fileUrl: "https://techplay.jp/event/example" }],
               },
             ],
           }),

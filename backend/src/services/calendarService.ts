@@ -8,7 +8,6 @@ import {
   selectBestCalendarEvent,
 } from "./calendarScoring";
 import type {
-  CalendarEventCandidate,
   CalendarLookupStatus,
   CalendarResolveRequest,
   CalendarResolveResponse,
