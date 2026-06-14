@@ -755,7 +755,7 @@ export default function PrPostAgentPanel({
             text: generatedDraft.slackPostText,
             openLabel: "Slackを開く",
             postedAt: new Date().toISOString(),
-            url: response.url ?? "https://slack.com",
+            url: response.slackWebhook.sent ? "https://slack.com" : undefined,
           },
         ]);
         setDraftExpanded(false);
