@@ -1172,19 +1172,21 @@ export default function PrPostAgentPanel({
             <div id="service-menu" className="pr-post-agent-service-menu">
               <button
                 type="button"
-                disabled={isGoogleConnecting}
+                disabled={isGoogleConnecting || serviceConnections.google}
                 onClick={() => void handleConnectService("google")}
               >
                 {serviceConnections.google ? "Google 接続済" : "Googleに接続"}
               </button>
               <button
                 type="button"
+                disabled={serviceConnections.slack}
                 onClick={() => void handleConnectService("slack")}
               >
                 {serviceConnections.slack ? "Slack 接続済" : "Slackに接続"}
               </button>
               <button
                 type="button"
+                disabled={serviceConnections.x}
                 onClick={() => void handleConnectService("x")}
               >
                 {serviceConnections.x ? "X 接続済" : "Xに接続"}
