@@ -115,7 +115,7 @@ jobs:
       COGNITO_REGION: ${{ vars.COGNITO_REGION || vars.VITE_COGNITO_REGION || secrets.COGNITO_REGION }}
       COGNITO_DOMAIN: ${{ vars.COGNITO_DOMAIN || vars.VITE_COGNITO_DOMAIN || secrets.VITE_COGNITO_DOMAIN || secrets.COGNITO_DOMAIN }}
       COGNITO_POPUP_REDIRECT_URI: ${{ vars.COGNITO_POPUP_REDIRECT_URI || secrets.COGNITO_POPUP_REDIRECT_URI }}
-      COGNITO_AUTH_TRANSACTION_KEY_PARAM: ${{ vars.COGNITO_AUTH_TRANSACTION_KEY_PARAM || '/tableau-chat-extension/cognito/popup-auth-key' }}
+      COGNITO_AUTH_TRANSACTION_KEY_PARAM: ${{ vars.COGNITO_AUTH_TRANSACTION_KEY_PARAM || '/tableau-ai-pr-agent/cognito/popup-auth-key' }}
       COGNITO_AUTH_TRANSACTION_TTL_SECONDS: ${{ vars.COGNITO_AUTH_TRANSACTION_TTL_SECONDS || '600' }}
       VITE_COGNITO_USER_POOL_ID: ${{ vars.VITE_COGNITO_USER_POOL_ID || vars.COGNITO_USER_POOL_ID || secrets.COGNITO_USER_POOL_ID }}
       VITE_COGNITO_CLIENT_ID: ${{ vars.VITE_COGNITO_CLIENT_ID || vars.COGNITO_CLIENT_ID || secrets.COGNITO_CLIENT_ID }}
@@ -148,7 +148,7 @@ jobs:
       NOTION_REDIRECT_URI: ${{ vars.NOTION_REDIRECT_URI || secrets.NOTION_REDIRECT_URI }}
       NOTION_CONNECTIONS_TABLE: ${{ vars.NOTION_CONNECTIONS_TABLE || '' }}
       NOTION_OAUTH_STATES_TABLE: ${{ vars.NOTION_OAUTH_STATES_TABLE || '' }}
-      NOTION_TOKEN_ENCRYPTION_KEY_PARAM: ${{ vars.NOTION_TOKEN_ENCRYPTION_KEY_PARAM || '/tableau-chat-extension/notion/token-encryption-key' }}
+      NOTION_TOKEN_ENCRYPTION_KEY_PARAM: ${{ vars.NOTION_TOKEN_ENCRYPTION_KEY_PARAM || '/tableau-ai-pr-agent/notion/token-encryption-key' }}
       NOTION_MCP_ALLOWED_TOOLS: ${{ vars.NOTION_MCP_ALLOWED_TOOLS || 'notion-create-pages,notion-fetch' }}
       NOTION_DEFAULT_TARGET_PARENT_PAGE_ID: ${{ vars.NOTION_DEFAULT_TARGET_PARENT_PAGE_ID || secrets.NOTION_DEFAULT_TARGET_PARENT_PAGE_ID }}
       NOTION_DEFAULT_TARGET_DATABASE_ID: ${{ vars.NOTION_DEFAULT_TARGET_DATABASE_ID || secrets.NOTION_DEFAULT_TARGET_DATABASE_ID }}
@@ -334,7 +334,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          LAMBDA_CODE_KEY="tableau-chat-extension/${GITHUB_SHA}/backend.zip"
+          LAMBDA_CODE_KEY="tableau-ai-pr-agent/${GITHUB_SHA}/backend.zip"
           echo "::add-mask::$LAMBDA_CODE_KEY"
           echo "LAMBDA_CODE_KEY=$LAMBDA_CODE_KEY" >> "$GITHUB_ENV"
           aws s3 cp backend/lambda-artifact.zip "s3://${AWS_ARTIFACT_BUCKET}/${LAMBDA_CODE_KEY}" \
