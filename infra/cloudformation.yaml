@@ -761,6 +761,41 @@ Resources:
       RouteKey: "GET /chat-jobs/{jobId}"
       Target: !Sub "integrations/${ChatIntegration}"
 
+  CalendarResolveRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "POST /calendar/resolve"
+      Target: !Sub "integrations/${ChatIntegration}"
+
+  ActionRunCreateRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "POST /action-runs"
+      Target: !Sub "integrations/${ChatIntegration}"
+
+  ActionRunGetRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "GET /action-runs/{actionRunId}"
+      Target: !Sub "integrations/${ChatIntegration}"
+
+  ActionRunApprovalRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "POST /action-runs/{actionRunId}/approval"
+      Target: !Sub "integrations/${ChatIntegration}"
+
+  TechPlayPreviewRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "POST /techplay/preview"
+      Target: !Sub "integrations/${ChatIntegration}"
+
   HealthRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
@@ -883,6 +918,46 @@ Resources:
       FunctionName: !Ref ChatFunction
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/chat-jobs/*"
+
+  CalendarResolveInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ChatFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/calendar/resolve"
+
+  ActionRunCreateInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ChatFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/action-runs"
+
+  ActionRunGetInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ChatFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/action-runs/*"
+
+  ActionRunApprovalInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ChatFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/action-runs/*/approval"
+
+  TechPlayPreviewInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ChatFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/techplay/preview"
 
   NotionStatusInvokePermission:
     Type: AWS::Lambda::Permission
