@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import PrActionPanel from "./PrActionPanel";
@@ -37,7 +37,7 @@ vi.mock("../api/techplayApi", () => ({
 }));
 
 const dashboardContext: DashboardContext = {
-  dashboardName: "Overview",
+  dashboardName: "Mock Executive Sales Dashboard",
   workbookName: "Sales Workbook",
   worksheets: [{ name: "Summary" }],
   filters: [],
@@ -64,45 +64,113 @@ beforeEach(() => {
 afterEach(() => {
   createObjectURLMock.mockClear();
   revokeObjectURLMock.mockClear();
+  mocks.createActionRun.mockReset();
+  mocks.previewTechPlayEvent.mockReset();
 });
 
 describe("PrActionPanel", () => {
-  it("renders the input and preview panels", () => {
-    render(
-      <PrActionPanel
-        dashboardContext={dashboardContext}
-        userDisplayName="Aki"
-      />,
-    );
+  it("renders the assistant-style action flow", () => {
+    render(<PrActionPanel dashboardContext={dashboardContext} />);
 
-    expect(screen.getByRole("heading", { name: "AI PR Action" })).toBeVisible();
-    expect(screen.getByLabelText("Event name")).toHaveValue(
-      "Tableau User Group Tokyo 2026",
-    );
-    expect(screen.getByLabelText("TechPlay URL")).toHaveValue(
-      "https://techplay.jp/event/example",
-    );
-    expect(screen.getByText("Slack draft")).toBeVisible();
-    expect(screen.getByText("Evidence")).toBeVisible();
-    expect(screen.getByText("Checks")).toBeVisible();
     expect(
-      screen.getByText(
-        "Upload a venue photo from your phone to capture the atmosphere.",
-      ),
+      screen.getByRole("heading", { name: "Tableau PR Assistant" }),
     ).toBeVisible();
-    expect(screen.getByText("Drive reference")).toBeVisible();
-    expect(screen.getByLabelText("Reference mode")).toHaveValue(
-      "sample_markdown",
-    );
-    expect(screen.getByLabelText("Reference title")).toHaveValue(
-      "Drive brief: event messaging",
-    );
-    expect(screen.getByText("Sales Workbook")).toBeVisible();
-    expect(screen.getByText("Aki")).toBeVisible();
+    expect(screen.getByText("参照中：")).toBeVisible();
+    expect(screen.getByText("Mock Executive Sales Dashboard")).toBeVisible();
+    expect(screen.getByText("投稿設定")).toBeVisible();
+    expect(screen.getByRole("heading", { name: "会場写真" })).toBeVisible();
+    expect(screen.getAllByText("イベント情報").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("補足メモ").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "投稿案を作成" })).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "＋ 会場写真を追加" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "イベント情報を取得" }),
+    ).toBeVisible();
+    expect(screen.getByText("投稿プレビュー")).toBeVisible();
+    expect(screen.queryByText("今の状況")).toBeNull();
+    expect(screen.queryByText("下書きを作成する")).toBeNull();
+    expect(screen.getByRole("button", { name: "投稿案を作成" })).toBeDisabled();
   });
 
-  it("sends an action run request and shows the queued response", async () => {
+  it("loads TechPlay metadata and reveals manual event name editing only when asked", async () => {
     const user = userEvent.setup();
+    mocks.previewTechPlayEvent.mockResolvedValue({
+      techplayUrl: "https://techplay.jp/event/983048",
+      eventName: "Sample Event",
+      eventDateText: "2025/08/08 18:30",
+      summary: "Sample summary.",
+      sourceTitle: "Sample Event - TECH PLAY",
+      sourceDescription: "Sample summary.",
+      extractedFrom: "jsonld",
+    });
+
+    render(<PrActionPanel dashboardContext={dashboardContext} />);
+
+    await user.click(
+      screen.getByRole("button", { name: "イベント情報を取得" }),
+    );
+
+    expect(mocks.previewTechPlayEvent).toHaveBeenCalledWith({
+      techplayUrl: "https://techplay.jp/event/example",
+    });
+    expect(screen.getByText("取得済み：")).toBeVisible();
+    expect(screen.getByText("Sample Event")).toBeVisible();
+    expect(screen.queryByLabelText("手入力イベント名")).toBeNull();
+
+    await user.click(
+      screen.getByRole("button", { name: "イベント名を入力する" }),
+    );
+    expect(screen.getByLabelText("手入力イベント名")).toHaveValue(
+      "Sample Event",
+    );
+  });
+
+  it("uploads a venue photo and shows the selected preview", async () => {
+    const user = userEvent.setup();
+
+    render(<PrActionPanel dashboardContext={dashboardContext} />);
+
+    const fileInput = screen.getByLabelText("写真を選ぶ");
+    const photo = new File(["photo-bytes"], "venue.jpg", {
+      type: "image/jpeg",
+    });
+
+    await user.upload(fileInput, photo);
+    await user.selectOptions(screen.getByLabelText("写真の用途"), "background");
+
+    expect(createObjectURLMock).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByAltText("Selected venue photo: venue.jpg"),
+    ).toBeVisible();
+    expect(screen.getByText("venue.jpg (背景)")).toBeVisible();
+  });
+
+  it("switches drive references to the no reference mode", async () => {
+    const user = userEvent.setup();
+
+    render(<PrActionPanel dashboardContext={dashboardContext} />);
+
+    await user.click(screen.getByRole("button", { name: "＋ 参考メモを追加" }));
+    await user.selectOptions(screen.getByLabelText("参照モード"), "none");
+
+    expect(screen.getByLabelText("参考メモタイトル")).toBeDisabled();
+    expect(screen.getByLabelText("参考メモ本文")).toBeDisabled();
+    expect(screen.getByText("参考メモを閉じる")).toBeVisible();
+  });
+
+  it("creates a draft from the generated preview and keeps Slack unposted", async () => {
+    const user = userEvent.setup();
+    mocks.previewTechPlayEvent.mockResolvedValue({
+      techplayUrl: "https://techplay.jp/event/983048",
+      eventName: "Sample Event",
+      eventDateText: "2025/08/08 18:30",
+      summary: "Sample summary.",
+      sourceTitle: "Sample Event - TECH PLAY",
+      sourceDescription: "Sample summary.",
+      extractedFrom: "jsonld",
+    });
     mocks.createActionRun.mockResolvedValue({
       actionRunId: "action-run-1",
       jobType: "action_run",
@@ -120,86 +188,51 @@ describe("PrActionPanel", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Run action" }));
+    const fileInput = screen.getByLabelText("写真を選ぶ");
+    const photo = new File(["photo-bytes"], "venue.jpg", {
+      type: "image/jpeg",
+    });
+    await user.upload(fileInput, photo);
+    await user.click(
+      screen.getByRole("button", { name: "イベント情報を取得" }),
+    );
+
+    await user.click(screen.getByRole("button", { name: "投稿案を作成" }));
+
+    expect(screen.getByText("チェック済み")).toBeVisible();
+    expect(screen.getByText(/Slackにはまだ投稿されません/)).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "下書きを作成する" }),
+    ).toBeVisible();
+    expect(screen.getByText("もう少し短く")).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "下書きを作成する" }));
 
     expect(mocks.createActionRun).toHaveBeenCalledWith(
       expect.objectContaining({
-        postType: "\u4e8b\u524d\u544a\u77e5",
-        eventName: "Tableau User Group Tokyo 2026",
+        postType: "事前告知",
         techplayUrl: "https://techplay.jp/event/example",
+        currentSituation: expect.stringContaining("会場写真:venue.jpg"),
       }),
       "auth-token",
     );
-    expect(screen.getByText("Action run queued")).toBeVisible();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "下書き作成リクエストを送信しました",
+    );
+
+    await user.click(screen.getByText("根拠・チェック結果を見る"));
+
     expect(screen.getByText("action-run-1")).toBeVisible();
     expect(
       screen.getByText(
         "https://images.example.com/pr-action-images/action-run-1/poster.svg",
       ),
     ).toBeVisible();
-  });
 
-  it("loads TechPlay metadata and autofills the event name", async () => {
-    const user = userEvent.setup();
-    mocks.previewTechPlayEvent.mockResolvedValue({
-      techplayUrl: "https://techplay.jp/event/983048",
-      eventName: "Sample Event",
-      eventDateText: "2025/08/08 18:30",
-      summary: "Sample summary.",
-      sourceTitle: "Sample Event - TECH PLAY",
-      sourceDescription: "Sample summary.",
-      extractedFrom: "jsonld",
-    });
-
-    render(<PrActionPanel dashboardContext={dashboardContext} />);
-
-    await user.click(screen.getByRole("button", { name: "Load TechPlay" }));
-
-    expect(mocks.previewTechPlayEvent).toHaveBeenCalledWith({
-      techplayUrl: "https://techplay.jp/event/example",
-    });
-    expect(screen.getByLabelText("Event name")).toHaveValue("Sample Event");
-    expect(screen.getByText("TechPlay preview")).toBeVisible();
-    expect(screen.getByText("Sample summary.")).toBeVisible();
-  });
-
-  it("uploads a venue photo and shows the selected preview", async () => {
-    const user = userEvent.setup();
-
-    render(<PrActionPanel dashboardContext={dashboardContext} />);
-
-    const fileInput = screen.getByLabelText("Photo file");
-    const photo = new File(["photo-bytes"], "venue.jpg", {
-      type: "image/jpeg",
-    });
-
-    await user.upload(fileInput, photo);
-    await user.selectOptions(
-      screen.getByLabelText("Photo usage"),
-      "background",
-    );
-
-    expect(createObjectURLMock).toHaveBeenCalledTimes(1);
+    const details = screen.getByText("action-run-1").closest("section");
+    expect(details).not.toBeNull();
     expect(
-      screen.getByAltText("Selected venue photo: venue.jpg"),
+      within(details as HTMLElement).getByText("Action Run ID"),
     ).toBeVisible();
-    expect(screen.getByText("venue.jpg (Use as background)")).toBeVisible();
-    expect(screen.getByLabelText("Photo usage")).toHaveValue("background");
-    expect(
-      screen.getByText("Venue photo is set to Use as background."),
-    ).toBeVisible();
-  });
-
-  it("switches drive references to the no reference mode", async () => {
-    const user = userEvent.setup();
-
-    render(<PrActionPanel dashboardContext={dashboardContext} />);
-
-    await user.selectOptions(screen.getByLabelText("Reference mode"), "none");
-
-    expect(screen.getByText("No Drive reference selected.")).toBeVisible();
-    expect(screen.getByLabelText("Reference title")).toBeDisabled();
-    expect(screen.getByLabelText("Reference Markdown")).toBeDisabled();
-    expect(screen.getByText("No Drive reference selected yet.")).toBeVisible();
   });
 });

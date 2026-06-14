@@ -95,7 +95,7 @@ function DashboardExtensionApp() {
           ) : (
             <div className="app-shell auth-state">
               <div className="auth-card">
-                <h1>AI PR Action</h1>
+                <h1>Tableau PR Assistant</h1>
                 <p>Sign in to continue.</p>
                 {authError ? (
                   <div className="error-banner">{authError}</div>
