@@ -345,11 +345,20 @@ Resources:
       TableName: !Sub "${AWS::StackName}-google-calendar-oauth-states"
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
+        - AttributeName: transactionId
+          AttributeType: S
         - AttributeName: state
           AttributeType: S
       KeySchema:
-        - AttributeName: state
+        - AttributeName: transactionId
           KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: StateIndex
+          KeySchema:
+            - AttributeName: state
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
       TimeToLiveSpecification:
         AttributeName: expiresAt
         Enabled: true
@@ -441,6 +450,8 @@ Resources:
                 Resource:
                   - !GetAtt CognitoAuthTransactionsTable.Arn
                   - !Sub "${CognitoAuthTransactionsTable.Arn}/index/*"
+                  - !GetAtt GoogleCalendarOAuthStatesTable.Arn
+                  - !Sub "${GoogleCalendarOAuthStatesTable.Arn}/index/*"
               - Effect: Allow
                 Action:
                   - dynamodb:GetItem
