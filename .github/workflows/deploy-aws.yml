@@ -123,8 +123,6 @@ jobs:
       GOOGLE_CALENDAR_CLIENT_ID: ${{ vars.GOOGLE_CALENDAR_CLIENT_ID || secrets.GOOGLE_CALENDAR_CLIENT_ID }}
       GOOGLE_CALENDAR_CLIENT_SECRET: ${{ vars.GOOGLE_CALENDAR_CLIENT_SECRET || secrets.GOOGLE_CALENDAR_CLIENT_SECRET }}
       GOOGLE_CALENDAR_REDIRECT_URI: ${{ vars.GOOGLE_CALENDAR_REDIRECT_URI || secrets.GOOGLE_CALENDAR_REDIRECT_URI }}
-      GOOGLE_CALENDAR_CONNECTIONS_TABLE: ${{ vars.GOOGLE_CALENDAR_CONNECTIONS_TABLE || '' }}
-      GOOGLE_CALENDAR_OAUTH_STATES_TABLE: ${{ vars.GOOGLE_CALENDAR_OAUTH_STATES_TABLE || '' }}
       GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY_PARAM: ${{ vars.GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY_PARAM || '/tableau-ai-pr-agent/google-calendar/token-encryption-key' }}
       GOOGLE_CALENDAR_REFRESH_TOKEN: ${{ vars.GOOGLE_CALENDAR_REFRESH_TOKEN || secrets.GOOGLE_CALENDAR_REFRESH_TOKEN }}
       GOOGLE_CALENDAR_SCOPES: ${{ vars.GOOGLE_CALENDAR_SCOPES || 'https://www.googleapis.com/auth/calendar.readonly' }}
@@ -209,8 +207,6 @@ jobs:
             "$GOOGLE_CALENDAR_CLIENT_ID" \
             "$GOOGLE_CALENDAR_CLIENT_SECRET" \
             "$GOOGLE_CALENDAR_REDIRECT_URI" \
-            "$GOOGLE_CALENDAR_CONNECTIONS_TABLE" \
-            "$GOOGLE_CALENDAR_OAUTH_STATES_TABLE" \
             "$GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY_PARAM" \
             "$GOOGLE_CALENDAR_REFRESH_TOKEN" \
             "$GOOGLE_CALENDAR_SCOPES" \
@@ -305,14 +301,19 @@ jobs:
               GOOGLE_CALENDAR_CLIENT_ID
               GOOGLE_CALENDAR_CLIENT_SECRET
               GOOGLE_CALENDAR_REDIRECT_URI
-              GOOGLE_CALENDAR_CONNECTIONS_TABLE
-              GOOGLE_CALENDAR_OAUTH_STATES_TABLE
               GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY_PARAM
               GOOGLE_CALENDAR_REFRESH_TOKEN
             )
+            missing_google_settings=()
             for name in "${google_required_settings[@]}"; do
-              require_setting "$name"
+              if [ -z "${!name:-}" ]; then
+                missing_google_settings+=("$name")
+              fi
             done
+            if [ "${#missing_google_settings[@]}" -gt 0 ]; then
+              echo "Google Calendar live mode is incomplete (${missing_google_settings[*]}). Falling back to GOOGLE_CALENDAR_PROVIDER=mock for this deployment."
+              echo "GOOGLE_CALENDAR_PROVIDER=mock" >> "$GITHUB_ENV"
+            fi
           fi
 
       - name: Checkout
@@ -446,8 +447,6 @@ jobs:
               GoogleCalendarClientId="$GOOGLE_CALENDAR_CLIENT_ID" \
               GoogleCalendarClientSecret="$GOOGLE_CALENDAR_CLIENT_SECRET" \
               GoogleCalendarRedirectUri="$GOOGLE_CALENDAR_REDIRECT_URI" \
-              GoogleCalendarConnectionsTable="$GOOGLE_CALENDAR_CONNECTIONS_TABLE" \
-              GoogleCalendarOAuthStatesTable="$GOOGLE_CALENDAR_OAUTH_STATES_TABLE" \
               GoogleCalendarTokenEncryptionKeyParam="$GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY_PARAM" \
               GoogleCalendarRefreshToken="$GOOGLE_CALENDAR_REFRESH_TOKEN" \
               GoogleCalendarScopes="$GOOGLE_CALENDAR_SCOPES" \

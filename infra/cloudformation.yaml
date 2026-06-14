@@ -102,14 +102,6 @@ Parameters:
     Type: String
     NoEcho: true
     Default: ""
-  GoogleCalendarConnectionsTable:
-    Type: String
-    NoEcho: true
-    Default: ""
-  GoogleCalendarOAuthStatesTable:
-    Type: String
-    NoEcho: true
-    Default: ""
   GoogleCalendarTokenEncryptionKeyParam:
     Type: String
     NoEcho: true
@@ -329,6 +321,41 @@ Resources:
       SSESpecification:
         SSEEnabled: true
 
+  GoogleCalendarConnectionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${AWS::StackName}-google-calendar-connections"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: connectionId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: connectionId
+          KeyType: RANGE
+      SSESpecification:
+        SSEEnabled: true
+
+  GoogleCalendarOAuthStatesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${AWS::StackName}-google-calendar-oauth-states"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: state
+          AttributeType: S
+      KeySchema:
+        - AttributeName: state
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+      SSESpecification:
+        SSEEnabled: true
+
   CognitoAuthTransactionsTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -423,6 +450,8 @@ Resources:
                 Resource:
                   - !GetAtt NotionConnectionsTable.Arn
                   - !GetAtt NotionOAuthStatesTable.Arn
+                  - !GetAtt GoogleCalendarConnectionsTable.Arn
+                  - !GetAtt GoogleCalendarOAuthStatesTable.Arn
                   - !GetAtt CognitoAuthTransactionsTable.Arn
                   - !Sub "${CognitoAuthTransactionsTable.Arn}/index/*"
               - Effect: Allow

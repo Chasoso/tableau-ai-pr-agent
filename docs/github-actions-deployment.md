@@ -160,6 +160,8 @@ Google Calendar live-mode credentials follow the same pattern:
 - Keep `GOOGLE_CALENDAR_CLIENT_ID`, `GOOGLE_CALENDAR_CLIENT_SECRET`, and `GOOGLE_CALENDAR_REFRESH_TOKEN` in GitHub Secrets.
 - Pass `GOOGLE_CALENDAR_PROVIDER=mock` for demo deployments that should not call Google.
 - Switch to `GOOGLE_CALENDAR_PROVIDER=google` only for the environment that is meant to query the live calendar.
+- The Google Calendar connection and OAuth state tables are created automatically from the stack name, so no table-name setting is needed in GitHub Variables or Secrets.
+- If `google` is selected but one of the required Google settings is missing, the deploy workflow falls back to `mock` instead of failing.
 - Do not expose the Google refresh token in frontend code, logs, or artifact output.
 
 One-time migration note: if the stack was previously deployed with the managed `TableauConnectedAppSecret` resource, the CloudFormation execution role may need temporary `secretsmanager:DeleteSecret` and `secretsmanager:DescribeSecret` permissions for `arn:aws:secretsmanager:<region>:<account-id>:secret:<stack-name>/tableau-connected-app-*` so CloudFormation can remove the old secret. Remove those permissions after the update succeeds.

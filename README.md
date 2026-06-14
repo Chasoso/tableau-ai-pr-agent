@@ -76,6 +76,8 @@ Required backend environment variables for live Google Calendar mode:
 - `GOOGLE_CALENDAR_REFRESH_TOKEN`
 - `GOOGLE_CALENDAR_SCOPES` if you need to override the default scope list
 
+The Google Calendar connection and OAuth state tables are created automatically by CloudFormation using the stack name, so you do not need to set table-name environment variables manually.
+
 The frontend does not talk to Google Calendar directly. If lookup fails or no TechPlay URL is found, the UI should surface a manual fallback path instead of guessing.
 
 ### Architecture
