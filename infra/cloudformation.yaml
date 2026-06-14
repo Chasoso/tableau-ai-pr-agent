@@ -324,7 +324,7 @@ Resources:
   GoogleCalendarConnectionsTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "${AWS::StackName}-google-calendar-connections"
+      TableName: !Sub "${AWS::StackName}-calendar-connections"
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: userId
@@ -342,7 +342,7 @@ Resources:
   GoogleCalendarOAuthStatesTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "${AWS::StackName}-google-calendar-oauth-states"
+      TableName: !Sub "${AWS::StackName}-calendar-oauth-states"
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: transactionId
