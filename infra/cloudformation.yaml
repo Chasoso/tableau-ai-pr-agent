@@ -82,7 +82,7 @@ Parameters:
     Default: 600
   GoogleCalendarProvider:
     Type: String
-    Default: "google"
+    Default: "mock"
     AllowedValues:
       - google
       - mock

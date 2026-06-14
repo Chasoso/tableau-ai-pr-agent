@@ -21,6 +21,7 @@ jobs:
     env:
       CI: true
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      GOOGLE_CALENDAR_PROVIDER: mock
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -117,7 +118,7 @@ jobs:
       COGNITO_POPUP_REDIRECT_URI: ${{ vars.COGNITO_POPUP_REDIRECT_URI || secrets.COGNITO_POPUP_REDIRECT_URI }}
       COGNITO_AUTH_TRANSACTION_KEY_PARAM: ${{ vars.COGNITO_AUTH_TRANSACTION_KEY_PARAM || '/tableau-ai-pr-agent/cognito/popup-auth-key' }}
       COGNITO_AUTH_TRANSACTION_TTL_SECONDS: ${{ vars.COGNITO_AUTH_TRANSACTION_TTL_SECONDS || '600' }}
-      GOOGLE_CALENDAR_PROVIDER: ${{ vars.GOOGLE_CALENDAR_PROVIDER || 'google' }}
+      GOOGLE_CALENDAR_PROVIDER: ${{ vars.GOOGLE_CALENDAR_PROVIDER || 'mock' }}
       GOOGLE_CALENDAR_CALENDAR_ID: ${{ vars.GOOGLE_CALENDAR_CALENDAR_ID || secrets.GOOGLE_CALENDAR_CALENDAR_ID }}
       GOOGLE_CALENDAR_CLIENT_ID: ${{ vars.GOOGLE_CALENDAR_CLIENT_ID || secrets.GOOGLE_CALENDAR_CLIENT_ID }}
       GOOGLE_CALENDAR_CLIENT_SECRET: ${{ vars.GOOGLE_CALENDAR_CLIENT_SECRET || secrets.GOOGLE_CALENDAR_CLIENT_SECRET }}
@@ -296,6 +297,22 @@ jobs:
 
           if [ "$TABLEAU_CONTEXT_PROVIDER" = "mcp" ] && [ "$TABLEAU_MCP_TRANSPORT" = "http" ]; then
             require_setting TABLEAU_MCP_SERVER_URL
+          fi
+
+          if [ "$GOOGLE_CALENDAR_PROVIDER" = "google" ]; then
+            google_required_settings=(
+              GOOGLE_CALENDAR_CALENDAR_ID
+              GOOGLE_CALENDAR_CLIENT_ID
+              GOOGLE_CALENDAR_CLIENT_SECRET
+              GOOGLE_CALENDAR_REDIRECT_URI
+              GOOGLE_CALENDAR_CONNECTIONS_TABLE
+              GOOGLE_CALENDAR_OAUTH_STATES_TABLE
+              GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY_PARAM
+              GOOGLE_CALENDAR_REFRESH_TOKEN
+            )
+            for name in "${google_required_settings[@]}"; do
+              require_setting "$name"
+            done
           fi
 
       - name: Checkout

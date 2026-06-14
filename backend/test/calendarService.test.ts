@@ -14,6 +14,16 @@ afterEach(() => {
 });
 
 describe("CalendarService", () => {
+  const originalProvider = process.env.GOOGLE_CALENDAR_PROVIDER;
+
+  beforeEach(() => {
+    process.env.GOOGLE_CALENDAR_PROVIDER = "mock";
+  });
+
+  afterEach(() => {
+    process.env.GOOGLE_CALENDAR_PROVIDER = originalProvider;
+  });
+
   it("selects the best mock calendar event and fetches TechPlay details", async () => {
     fetchMock.mockResolvedValue(
       new Response(
