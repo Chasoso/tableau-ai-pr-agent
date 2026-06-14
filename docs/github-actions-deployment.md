@@ -22,7 +22,7 @@ The workflow intentionally avoids printing AWS account IDs, ARNs, bucket names, 
 12. `frontend/dist` is synced to the private frontend S3 bucket.
 13. CloudFront is invalidated.
 
-The current PR Assistant demo flow is calendar-first and draft-only. It uses a mock Google Calendar provider by default, so deployment does not need a live Google Calendar integration yet. When a real provider is wired in later, set `GOOGLE_CALENDAR_PROVIDER=google` in the backend environment.
+The current PR Assistant demo flow is calendar-first and draft-only. Google Calendar resolution is implemented in the backend and can run in mock mode by default or live mode when the Google credentials are configured. Set `GOOGLE_CALENDAR_PROVIDER=google` in the backend environment only when you want the deployment to use the live Google Calendar API.
 
 The frontend upload keeps hashed files under `assets/` as append-only objects with long-lived cache headers, while `index.html` and `.trex` are uploaded with `no-cache`. This avoids a CloudFront/S3 race where an older cached `index.html` points at a hashed JS file that has already been deleted.
 
@@ -68,6 +68,9 @@ Store these as GitHub Secrets:
 | `TABLEAU_MCP_SERVER_URL` | Optional only for HTTP MCP mode. |
 | `TABLEAU_MCP_COMMAND` | Optional override for MCP command. Usually empty. |
 | `TABLEAU_MCP_ARGS` | Optional override for MCP args. Usually empty. |
+| `GOOGLE_CALENDAR_CLIENT_ID` | Google Calendar OAuth client ID for live mode. |
+| `GOOGLE_CALENDAR_CLIENT_SECRET` | Google Calendar OAuth client secret for live mode. |
+| `GOOGLE_CALENDAR_REFRESH_TOKEN` | Google Calendar refresh token for live mode. |
 | `CHAT_JOBS_TABLE_NAME` | DynamoDB table for shared job state and progress. |
 | `ACTION_RUN_WORKER_FUNCTION_NAME` | Async worker Lambda name invoked by the action-run starter. `CHAT_JOB_WORKER_FUNCTION_NAME` remains a compatibility fallback. |
 | `TABLEAU_MCP_METADATA_CACHE_TABLE_NAME` | Optional DynamoDB table for Tableau MCP metadata cache. |
@@ -88,6 +91,8 @@ These can be repository Variables if acceptable:
 | `TABLEAU_SCOPES` | `tableau:content:read` | Connected App scopes. |
 | `TABLEAU_CONTEXT_PROVIDER` | `mock` | `mock`, `direct-api`, or `mcp`. |
 | `GOOGLE_CALENDAR_PROVIDER` | `mock` | Calendar context provider used by the PR Assistant demo flow. |
+| `GOOGLE_CALENDAR_CALENDAR_ID` | none | Calendar ID to query in live Google mode. |
+| `GOOGLE_CALENDAR_SCOPES` | `https://www.googleapis.com/auth/calendar.readonly` | Optional override for the Google Calendar scope list. |
 | `AUTH_REQUIRED` | `false` | Enables Cognito JWT verification. |
 | `COGNITO_REGION` | none | Cognito region. |
 | `COGNITO_AUTH_TRANSACTION_KEY_PARAM` | `/tableau-ai-pr-agent/cognito/popup-auth-key` | SSM SecureString parameter name for popup auth AES key. |
@@ -149,6 +154,13 @@ When `BEDROCK_MODEL_ID=us.amazon.nova-2-lite-v1:0`, Bedrock can route requests t
 This permission is attached by the CloudFormation template to the Lambda backend role. The CloudFormation execution role must also be allowed to create/update that inline IAM policy.
 
 Connected App values are still stored as GitHub Secrets and passed as `NoEcho` CloudFormation parameters. They are then set as Lambda environment variables. This avoids Secrets Manager monthly fixed cost, but users with permission to read Lambda function configuration may be able to view the values. For production, consider SSM Parameter Store SecureString or Secrets Manager.
+
+Google Calendar live-mode credentials follow the same pattern:
+
+- Keep `GOOGLE_CALENDAR_CLIENT_ID`, `GOOGLE_CALENDAR_CLIENT_SECRET`, and `GOOGLE_CALENDAR_REFRESH_TOKEN` in GitHub Secrets.
+- Pass `GOOGLE_CALENDAR_PROVIDER=mock` for demo deployments that should not call Google.
+- Switch to `GOOGLE_CALENDAR_PROVIDER=google` only for the environment that is meant to query the live calendar.
+- Do not expose the Google refresh token in frontend code, logs, or artifact output.
 
 One-time migration note: if the stack was previously deployed with the managed `TableauConnectedAppSecret` resource, the CloudFormation execution role may need temporary `secretsmanager:DeleteSecret` and `secretsmanager:DescribeSecret` permissions for `arn:aws:secretsmanager:<region>:<account-id>:secret:<stack-name>/tableau-connected-app-*` so CloudFormation can remove the old secret. Remove those permissions after the update succeeds.
 

@@ -5,6 +5,7 @@
 - [Phase 15 Operations Runbook](docs/phase15-operations-runbook.md)
 - [Phase 15 Operations Quick Reference](docs/phase15-operations-quick-reference.md)
 - [GitHub Actions Deployment Guide](docs/github-actions-deployment.md)
+- [Google Calendar Implementation Task Breakdown](docs/google-calendar-implementation-task-breakdown.md)
 - [Security Notes](docs/security-notes.md)
 - [Local Development](docs/local-development.md)
 
@@ -53,7 +54,29 @@ Safety rules for this path:
 - Slack approval is draft-only and does not call the Slack webhook.
 - Notion save flows return a draft preview instead of creating a real page.
 - Missing information is returned as missing fields rather than guessed.
-- Google Calendar resolution is mocked by default and can be switched with `GOOGLE_CALENDAR_PROVIDER=google` once a real implementation is wired up.
+- Google Calendar resolution is implemented in the backend and can run in mock mode or live Google mode.
+- `GOOGLE_CALENDAR_PROVIDER=mock` is the safe default.
+- `GOOGLE_CALENDAR_PROVIDER=google` uses the configured Google Calendar API credentials and refresh token.
+
+### Google Calendar Integration
+
+Google Calendar context resolution now lives in the backend and is split into small testable helpers:
+
+- `backend/src/services/calendarService.ts` orchestrates the provider flow.
+- `backend/src/services/googleCalendarService.ts` calls the Google Calendar API.
+- `backend/src/services/calendarScoring.ts` ranks calendar candidates.
+- `backend/src/services/calendarTechPlayExtractor.ts` finds TechPlay URLs in event fields.
+
+Required backend environment variables for live Google Calendar mode:
+
+- `GOOGLE_CALENDAR_PROVIDER`
+- `GOOGLE_CALENDAR_CALENDAR_ID`
+- `GOOGLE_CALENDAR_CLIENT_ID`
+- `GOOGLE_CALENDAR_CLIENT_SECRET`
+- `GOOGLE_CALENDAR_REFRESH_TOKEN`
+- `GOOGLE_CALENDAR_SCOPES` if you need to override the default scope list
+
+The frontend does not talk to Google Calendar directly. If lookup fails or no TechPlay URL is found, the UI should surface a manual fallback path instead of guessing.
 
 ### Architecture
 
@@ -102,7 +125,7 @@ Useful local defaults:
 - Health API: `GET http://localhost:3001/health`
 - `LOG_LEVEL=info`: backend log threshold (`debug`, `info`, `warn`, `error`)
 - `CHAT_DEBUG_MAX_CHARS=12000`: max characters for debug-level chat input/output message logs.
-- `GOOGLE_CALENDAR_PROVIDER=mock`: calendar context provider used by the PR demo flow. Set to `google` once a real Google Calendar integration is available.
+- `GOOGLE_CALENDAR_PROVIDER=mock`: calendar context provider used by the PR demo flow.
 
 The recommended path for long-running analysis is the async chat job flow:
 

@@ -68,7 +68,7 @@ export type CalendarResolveRequest = {
 };
 
 export type CalendarResolveResponse = {
-  provider: "mock";
+  provider: "mock" | "google";
   calendarLookupStatus: CalendarLookupStatus;
   techPlayFetchStatus: TechPlayFetchStatus;
   manualTechPlayMode: boolean;

@@ -114,6 +114,13 @@ export type AppConfig = {
   };
   calendar: {
     provider: "mock" | "google";
+    google: {
+      calendarId: string;
+      clientId: string;
+      clientSecret: string;
+      refreshToken: string;
+      scopes: string[];
+    };
   };
 };
 
@@ -325,6 +332,13 @@ export function getConfig(): AppConfig {
     },
     calendar: {
       provider: parseCalendarProvider(process.env.GOOGLE_CALENDAR_PROVIDER),
+      google: {
+        calendarId: process.env.GOOGLE_CALENDAR_CALENDAR_ID ?? "",
+        clientId: process.env.GOOGLE_CALENDAR_CLIENT_ID ?? "",
+        clientSecret: process.env.GOOGLE_CALENDAR_CLIENT_SECRET ?? "",
+        refreshToken: process.env.GOOGLE_CALENDAR_REFRESH_TOKEN ?? "",
+        scopes: parseCsv(process.env.GOOGLE_CALENDAR_SCOPES),
+      },
     },
   };
 }

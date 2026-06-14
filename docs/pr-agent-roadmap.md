@@ -96,6 +96,10 @@
 - ただし OAuth と Drive API 設定が重いので後回しにする
 - 初期版では S3 や固定 Markdown で代替してよい
 
+### 参考ドキュメント
+
+- Google Calendar 実装の具体的なファイル分解と変更順序は [docs/google-calendar-implementation-task-breakdown.md](/d:/Git/tableau-ai-pr-agent/docs/google-calendar-implementation-task-breakdown.md) を正とする
+
 ## 後回しにするもの
 
 当面は次を後回しにします。
