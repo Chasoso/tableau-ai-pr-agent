@@ -179,7 +179,7 @@ async function createLoginUrl(): Promise<string> {
   const authUrl = new URL(`${getCognitoDomain()}/oauth2/authorize`);
   authUrl.searchParams.set("client_id", env.cognito.clientId);
   authUrl.searchParams.set("response_type", "code");
-  authUrl.searchParams.set("scope", "openid email profile");
+  authUrl.searchParams.set("scope", "openid email");
   authUrl.searchParams.set("redirect_uri", getRedirectUri());
   authUrl.searchParams.set("state", state);
   authUrl.searchParams.set("code_challenge_method", "S256");

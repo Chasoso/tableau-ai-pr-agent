@@ -24,6 +24,26 @@ export async function handleCognitoPopupAuthRoute(
     }
 
     if (path === "/auth/cognito/callback" && method === "GET") {
+      const callbackError = getCallbackErrorMessage(
+        event.queryStringParameters?.error,
+        event.queryStringParameters?.error_description,
+      );
+      if (callbackError) {
+        logWarn("auth.popup.callback.cognito_error", {
+          error: safeHash(event.queryStringParameters?.error),
+          errorDescriptionHash: safeHash(
+            event.queryStringParameters?.error_description,
+          ),
+        });
+        return htmlResponse(
+          400,
+          renderPopupCallbackHtml({
+            success: false,
+            message: callbackError,
+          }),
+        );
+      }
+
       const code = event.queryStringParameters?.code;
       const state = event.queryStringParameters?.state;
       await service.handlePopupCallback({
@@ -182,4 +202,23 @@ function escapeHtml(value: string): string {
     .replace(/>/g, "&gt;")
     .replace(/\"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function getCallbackErrorMessage(
+  error?: string,
+  errorDescription?: string,
+): string | null {
+  if (!error && !errorDescription) {
+    return null;
+  }
+
+  const parts: string[] = [];
+  if (error) {
+    parts.push(`Cognito error: ${error}`);
+  }
+  if (errorDescription) {
+    parts.push(errorDescription);
+  }
+
+  return parts.join(" - ").slice(0, 300);
 }

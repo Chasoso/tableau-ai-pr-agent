@@ -113,4 +113,27 @@ describe("chatHandler", () => {
 
     expect(response.statusCode).not.toBe(401);
   });
+
+  it("shows the Cognito error description on callback failures", async () => {
+    process.env.AUTH_REQUIRED = "true";
+    process.env.COGNITO_CLIENT_ID = "client-123";
+    process.env.COGNITO_DOMAIN =
+      "https://demo.auth.ap-northeast-1.amazoncognito.com";
+    process.env.COGNITO_POPUP_REDIRECT_URI =
+      "https://example.com/api/auth/cognito/callback";
+
+    const response = await handler({
+      httpMethod: "GET",
+      rawPath: "/auth/cognito/callback",
+      queryStringParameters: {
+        error: "invalid_request",
+        error_description: "redirect_uri mismatch",
+      },
+      headers: {},
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.body).toContain("invalid_request");
+    expect(response.body).toContain("redirect_uri mismatch");
+  });
 });

@@ -67,7 +67,7 @@ export class CognitoPopupAuthService {
     const authUrl = new URL(`${getCognitoDomain()}/oauth2/authorize`);
     authUrl.searchParams.set("client_id", getConfig().auth.cognitoClientId);
     authUrl.searchParams.set("response_type", "code");
-    authUrl.searchParams.set("scope", "openid email profile");
+    authUrl.searchParams.set("scope", "openid email");
     authUrl.searchParams.set(
       "redirect_uri",
       getConfig().auth.popup.redirectUri,

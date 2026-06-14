@@ -88,6 +88,7 @@ describe("CognitoPopupAuthService", () => {
     expect(result.authorizationUrl).toContain(
       "https://demo.auth.ap-northeast-1.amazoncognito.com/oauth2/authorize",
     );
+    expect(result.authorizationUrl).toContain("scope=openid+email");
     expect(result.authorizationUrl).toContain(
       "redirect_uri=https%3A%2F%2Fexample.com%2Fapi%2Fauth%2Fcognito%2Fcallback",
     );
