@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
 import type { ActionRunPostType } from "../types/actionRun";
-import type { CalendarResolveResponse } from "../types/calendar";
-import type { CalendarEventCandidate } from "../types/calendar";
+import type {
+  CalendarEventCandidate,
+  CalendarResolveResponse,
+} from "../types/calendar";
 import type { DashboardContext } from "../types/tableau";
 import type {
   GeneratedPrPostDraft,
@@ -108,8 +110,6 @@ export default function PrPostAgentPanel({
   const [selectedCalendarEventId, setSelectedCalendarEventId] = useState<
     string | null
   >(null);
-  const [hasUserChosenCalendarCandidate, setHasUserChosenCalendarCandidate] =
-    useState(false);
   const [calendarResult, setCalendarResult] =
     useState<CalendarResolveResponse | null>(null);
   const [analysisResult, setAnalysisResult] =
@@ -145,6 +145,7 @@ export default function PrPostAgentPanel({
     calendarResult?.selectedEvent ??
     calendarResult?.candidates[0] ??
     null;
+
   const detectedTechPlayUrl =
     calendarResult?.detectedTechPlayUrl?.trim() ||
     selectedCalendarEvent?.techplayUrls?.[0]?.trim() ||
@@ -152,7 +153,6 @@ export default function PrPostAgentPanel({
   const hasCalendarCandidates =
     calendarResult?.calendarLookupStatus === "multiple_candidates" &&
     calendarResult.candidates.length > 1;
-
   const needsManualTechPlayUrl =
     Boolean(calendarResult) &&
     !detectedTechPlayUrl &&
@@ -172,7 +172,7 @@ export default function PrPostAgentPanel({
       return false;
     }
 
-    if (hasCalendarCandidates && !hasUserChosenCalendarCandidate) {
+    if (hasCalendarCandidates) {
       return false;
     }
 
@@ -211,6 +211,7 @@ export default function PrPostAgentPanel({
     analysisResult,
     calendarResult,
     generationStatus,
+    hasCalendarCandidates,
     imageMode,
     manualTechPlayUrl,
     needsManualTechPlayUrl,
@@ -219,7 +220,6 @@ export default function PrPostAgentPanel({
     serviceConnections.google,
     serviceConnections.slack,
     uploadedImage,
-    hasUserChosenCalendarCandidate,
     workflow.calendarLookupStatus,
     workflow.techPlayFetchStatus,
     workflow.tableauAnalysisStatus,
@@ -275,48 +275,50 @@ export default function PrPostAgentPanel({
     setGenerationStatus("generating");
 
     void (async () => {
-      const draft = await generatePrPostDraft({
-        postType: selectedPostType,
-        dashboardContext,
-        calendarResult,
-        analysis: analysisResult,
-        image: uploadedImage,
-        noImageSituationMemo:
-          imageMode === "none" ? noImageSituationMemo.trim() : undefined,
-        manualTechPlayUrl: manualTechPlayUrl.trim() || undefined,
-        authToken,
-      });
+      try {
+        const draft = await generatePrPostDraft({
+          postType: selectedPostType,
+          dashboardContext,
+          calendarResult,
+          analysis: analysisResult,
+          image: uploadedImage,
+          noImageSituationMemo:
+            imageMode === "none" ? noImageSituationMemo.trim() : undefined,
+          manualTechPlayUrl: manualTechPlayUrl.trim() || undefined,
+          authToken,
+        });
 
-      if (cancelled) {
-        return;
+        if (cancelled) {
+          return;
+        }
+
+        setGeneratedDraft(draft);
+        setDraftExpanded(true);
+        setGenerationStatus("generated");
+        setMessages((current) => [
+          ...current,
+          {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            lines: [
+              "投稿案を生成しました。",
+              "必要なら Slack や X に投稿できます。",
+            ],
+          },
+        ]);
+      } catch (draftError) {
+        if (cancelled) {
+          return;
+        }
+
+        setGenerationStatus("error");
+        setError(
+          draftError instanceof Error
+            ? draftError.message
+            : "投稿案の生成に失敗しました。",
+        );
       }
-
-      setGeneratedDraft(draft);
-      setDraftExpanded(true);
-      setGenerationStatus("generated");
-      setMessages((current) => [
-        ...current,
-        {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          lines: [
-            "投稿案を作成しました。",
-            "内容を確認したら、Slack または X に投稿できます。",
-          ],
-        },
-      ]);
-    })().catch((draftError) => {
-      if (cancelled) {
-        return;
-      }
-
-      setGenerationStatus("error");
-      setError(
-        draftError instanceof Error
-          ? draftError.message
-          : "投稿案の生成に失敗しました。",
-      );
-    });
+    })();
 
     return () => {
       cancelled = true;
@@ -353,7 +355,7 @@ export default function PrPostAgentPanel({
         lines:
           postType === "開催中の実況"
             ? ["投稿する画像をアップロードしてください。"]
-            : ["投稿シーンに合う過去投稿とイベント情報を確認しています。"],
+            : ["投稿シーンとイベント情報をもとに進めます。"],
       },
     ]);
 
@@ -378,9 +380,7 @@ export default function PrPostAgentPanel({
       }));
 
       const selectedCandidate =
-        calendar.selectedEvent ?? calendar.candidates[0];
-      const hasMultipleCandidates =
-        calendar.calendarLookupStatus === "multiple_candidates";
+        calendar.selectedEvent ?? calendar.candidates[0] ?? null;
       setSelectedCalendarEventId(selectedCandidate?.eventId ?? null);
 
       setMessages((current) => {
@@ -394,6 +394,7 @@ export default function PrPostAgentPanel({
             ],
           });
         }
+
         if (
           !calendar.detectedTechPlayUrl &&
           !selectedCandidate?.techplayUrls?.[0]
@@ -407,10 +408,11 @@ export default function PrPostAgentPanel({
             ],
           });
         }
+
         return next;
       });
 
-      if (hasMultipleCandidates) {
+      if (calendar.calendarLookupStatus === "multiple_candidates") {
         return;
       }
 
@@ -429,7 +431,7 @@ export default function PrPostAgentPanel({
       const message =
         workflowError instanceof Error
           ? workflowError.message
-          : "投稿用の情報取得に失敗しました。";
+          : "投稿情報の取得に失敗しました。";
       setError(message);
       setGenerationStatus("error");
       setWorkflow((current) => ({
@@ -508,7 +510,6 @@ export default function PrPostAgentPanel({
     }
 
     setSelectedCalendarEventId(null);
-    setHasUserChosenCalendarCandidate(false);
     setCalendarResult(null);
     setAnalysisResult(null);
     setPostTrendSummary([]);
@@ -524,6 +525,18 @@ export default function PrPostAgentPanel({
     setPostingStatus({ slack: "idle", x: "idle" });
     setCompletedPosts([]);
     setError(null);
+  }
+
+  function resetConversation() {
+    clearWorkflowState();
+    setWorkflow({
+      postType: null,
+      calendarLookupStatus: "idle",
+      techPlayFetchStatus: "idle",
+      tableauAnalysisStatus: "idle",
+    });
+    setMessages(INITIAL_MESSAGES);
+    workflowIdRef.current += 1;
   }
 
   function handleSceneSelect(postType: ActionRunPostType) {
@@ -591,9 +604,7 @@ export default function PrPostAgentPanel({
       {
         id: crypto.randomUUID(),
         role: "assistant",
-        lines: [
-          "画像を受け取りました。裏側でイベント情報と過去投稿を確認しています。",
-        ],
+        lines: ["画像を確認しました。会場情報と投稿案をまとめます。"],
       },
     ]);
   }
@@ -658,7 +669,7 @@ export default function PrPostAgentPanel({
       setError(
         manualError instanceof Error
           ? manualError.message
-          : "TechPlay URL の取得に失敗しました。",
+          : "TechPlay URLの取得に失敗しました。",
       );
       return;
     }
@@ -666,60 +677,47 @@ export default function PrPostAgentPanel({
 
   function handleNoImageMemoSubmit(event: FormEvent) {
     event.preventDefault();
-    const memo = noImageSituationMemo.trim();
-    if (!memo) {
+    if (!noImageSituationMemo.trim()) {
       return;
     }
-
-    setMessages((current) => [
-      ...current,
-      { id: crypto.randomUUID(), role: "user", lines: [memo] },
-    ]);
-  }
-
-  function handleChooseCalendarCandidate(candidateId: string) {
-    const candidate = calendarResult?.candidates.find(
-      (item) => item.eventId === candidateId,
-    );
-    const postType = workflow.postType;
-    setSelectedCalendarEventId(candidateId);
-    setHasUserChosenCalendarCandidate(true);
-    setWorkflow((current) => ({ ...current, calendarLookupStatus: "found" }));
     setMessages((current) => [
       ...current,
       {
         id: crypto.randomUUID(),
         role: "user",
-        lines: [candidate?.summary ?? "イベント候補を選択"],
+        lines: [noImageSituationMemo.trim()],
+      },
+      {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        lines: [
+          "画像なしで投稿文を作成します。",
+          "会場の状況を一言で教えてください。",
+        ],
       },
     ]);
+  }
 
-    if (postType && calendarResult) {
-      void (async () => {
-        try {
-          setWorkflow((current) => ({
-            ...current,
-            techPlayFetchStatus: "idle",
-          }));
-          await continueWorkflowWithCalendar({
-            workflowId: workflowIdRef.current,
-            postType,
-            calendar: {
-              ...calendarResult,
-              selectedEvent: candidate ?? calendarResult.selectedEvent,
-            },
-            selectedCandidate: candidate ?? calendarResult.selectedEvent,
-            authToken,
-          });
-        } catch (candidateError) {
-          setError(
-            candidateError instanceof Error
-              ? candidateError.message
-              : "TechPlay 情報の取得に失敗しました。",
-          );
-        }
-      })();
+  function handleChooseCalendarCandidate(candidateId: string) {
+    const candidate =
+      calendarResult?.candidates.find(
+        ({ eventId }) => eventId === candidateId,
+      ) ?? null;
+    if (!candidate || !calendarResult || !selectedPostType) {
+      return;
     }
+
+    setSelectedCalendarEventId(candidateId);
+    void continueWorkflowWithCalendar({
+      workflowId: workflowIdRef.current,
+      postType: selectedPostType,
+      calendar: {
+        ...calendarResult,
+        selectedEvent: candidate,
+      },
+      selectedCandidate: candidate,
+      authToken,
+    });
   }
 
   function openPostConfirmation(channel: "slack" | "x") {
@@ -747,6 +745,7 @@ export default function PrPostAgentPanel({
         const response = await postToSlack({
           draft: generatedDraft,
           accessToken: authToken,
+          ownerToken: generatedDraft.analysis.ownerToken,
         });
         setPostingStatus((current) => ({ ...current, slack: "done" }));
         setCompletedPosts((current) => [
@@ -756,7 +755,7 @@ export default function PrPostAgentPanel({
             text: generatedDraft.slackPostText,
             openLabel: "Slackを開く",
             postedAt: new Date().toISOString(),
-            url: response.slackWebhook.sent ? "https://slack.com" : undefined,
+            url: response.url ?? "https://slack.com",
           },
         ]);
         setDraftExpanded(false);
@@ -783,6 +782,7 @@ export default function PrPostAgentPanel({
           },
         ]);
       }
+      setPendingPost(null);
     } catch (postError) {
       if (pendingPost.channel === "slack") {
         setPostingStatus((current) => ({ ...current, slack: "error" }));
@@ -792,41 +792,7 @@ export default function PrPostAgentPanel({
       setError(
         postError instanceof Error ? postError.message : "投稿に失敗しました。",
       );
-    } finally {
-      setPendingPost(null);
     }
-  }
-
-  function resetConversation() {
-    if (uploadedImage?.objectUrl) {
-      URL.revokeObjectURL(uploadedImage.objectUrl);
-    }
-
-    setMessages(INITIAL_MESSAGES);
-    setWorkflow({
-      postType: null,
-      calendarLookupStatus: "idle",
-      techPlayFetchStatus: "idle",
-      tableauAnalysisStatus: "idle",
-    });
-    setSelectedCalendarEventId(null);
-    setHasUserChosenCalendarCandidate(false);
-    setCalendarResult(null);
-    setAnalysisResult(null);
-    setPostTrendSummary([]);
-    setImageMode(null);
-    setUploadedImage(null);
-    setImagePreviewExpanded(false);
-    setNoImageSituationMemo("");
-    setManualTechPlayUrl("");
-    setGenerationStatus("idle");
-    setGeneratedDraft(null);
-    setDraftExpanded(true);
-    setPendingPost(null);
-    setPostingStatus({ slack: "idle", x: "idle" });
-    setCompletedPosts([]);
-    setError(null);
-    workflowIdRef.current += 1;
   }
 
   async function handleConnectService(service: keyof ServiceConnections) {
@@ -843,7 +809,7 @@ export default function PrPostAgentPanel({
         setError(
           googleError instanceof Error
             ? googleError.message
-            : "Google 接続に失敗しました。",
+            : "Google接続に失敗しました。",
         );
       } finally {
         setIsGoogleConnecting(false);
@@ -878,11 +844,17 @@ export default function PrPostAgentPanel({
       <div className="pr-post-agent-divider" />
 
       <p className="pr-post-agent-context">
-        参照中ダッシュボード: <strong>{dashboardContext.dashboardName}</strong>
+        参照中：<strong>{dashboardContext.dashboardName}</strong>
         {dashboardContext.workbookName ? (
           <span> / {dashboardContext.workbookName}</span>
         ) : null}
       </p>
+
+      {!serviceConnections.google ? (
+        <p className="pr-post-agent-connection-note">
+          Googleは + メニューから接続できます。
+        </p>
+      ) : null}
 
       <section className="pr-post-agent-chat" aria-label="会話ログ">
         {messages.map((message) => (
@@ -892,20 +864,6 @@ export default function PrPostAgentPanel({
             ))}
           </ChatBubble>
         ))}
-
-        {!serviceConnections.google ? (
-          <ChatBubble role="assistant">
-            <p>
-              Googleに接続すると、カレンダーからイベント情報を自動取得できます。
-            </p>
-          </ChatBubble>
-        ) : null}
-
-        {!serviceConnections.slack ? (
-          <ChatBubble role="assistant">
-            <p>Slackに接続すると、この内容を投稿できます。</p>
-          </ChatBubble>
-        ) : null}
 
         {hasCalendarCandidates ? (
           <ChatBubble role="assistant">
@@ -947,7 +905,7 @@ export default function PrPostAgentPanel({
                     setManualTechPlayUrl(event.currentTarget.value)
                   }
                 />
-                <button type="submit">入力する</button>
+                <button type="submit">送信</button>
               </div>
             </form>
           </ChatBubble>
@@ -989,7 +947,7 @@ export default function PrPostAgentPanel({
                 <span>画像をアップロードしました。</span>
                 <button type="button" className="pr-post-agent-link-button">
                   {imagePreviewExpanded
-                    ? "プレビューを隠す"
+                    ? "プレビューを非表示"
                     : "プレビューを表示"}
                 </button>
               </summary>
@@ -1018,7 +976,7 @@ export default function PrPostAgentPanel({
                   <li>画像アップロード完了</li>
                 ) : null}
                 {selectedPostType === "開催中の実況" && imageMode === "none" ? (
-                  <li>画像を投稿しない</li>
+                  <li>画像を投稿しないを選択済み</li>
                 ) : null}
                 <li>Google/Slack接続状態確認済み</li>
                 <li>
@@ -1029,7 +987,7 @@ export default function PrPostAgentPanel({
                 <li>
                   {workflow.tableauAnalysisStatus === "fetching"
                     ? "過去投稿データを分析中…"
-                    : "過去投稿データを分析完了"}
+                    : "過去投稿データの分析完了"}
                 </li>
                 <li>投稿シーンに合う傾向を確認中…</li>
                 <li>投稿文を作成中…</li>
@@ -1050,7 +1008,7 @@ export default function PrPostAgentPanel({
                   className="pr-post-agent-link-button"
                   onClick={() => setDraftExpanded((current) => !current)}
                 >
-                  {draftExpanded ? "省略表示" : "展開表示"}
+                  {draftExpanded ? "プレビューを非表示" : "プレビューを表示"}
                 </button>
               </div>
 
@@ -1097,7 +1055,7 @@ export default function PrPostAgentPanel({
                 </>
               ) : (
                 <p className="pr-post-agent-draft-collapsed">
-                  投稿案を省略表示しています。
+                  生成済みの投稿案を省略表示しています。
                 </p>
               )}
 
@@ -1153,7 +1111,7 @@ export default function PrPostAgentPanel({
                 </a>
               </span>
               <details>
-                <summary>投稿内容を展開</summary>
+                <summary>投稿内容を開く</summary>
                 <pre>{post.text}</pre>
               </details>
             </div>
@@ -1169,37 +1127,33 @@ export default function PrPostAgentPanel({
         ) : null}
 
         {selectedPostType === null ? (
-          <ChatBubble role="user">
-            <div className="pr-post-agent-choice-row pr-post-agent-choice-row--scene">
-              {SCENE_OPTIONS.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  className="pr-post-agent-choice"
-                  onClick={() => void handleSceneSelect(option.value)}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </ChatBubble>
+          <div className="pr-post-agent-choice-stack pr-post-agent-choice-stack--user">
+            {SCENE_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                className="pr-post-agent-choice"
+                onClick={() => void handleSceneSelect(option.value)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
         ) : null}
 
         {selectedPostType === "開催中の実況" && imageMode === null ? (
-          <ChatBubble role="user">
-            <div className="pr-post-agent-choice-row">
-              {IMAGE_OPTIONS.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  className="pr-post-agent-choice"
-                  onClick={() => handleImageModeSelect(option.value)}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </ChatBubble>
+          <div className="pr-post-agent-choice-stack pr-post-agent-choice-stack--user">
+            {IMAGE_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                className="pr-post-agent-choice"
+                onClick={() => handleImageModeSelect(option.value)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
         ) : null}
       </section>
 
@@ -1235,17 +1189,12 @@ export default function PrPostAgentPanel({
               >
                 {serviceConnections.x ? "X 接続済" : "Xに接続"}
               </button>
+              <button type="button" onClick={() => resetConversation()}>
+                会話をやり直す
+              </button>
             </div>
           ) : null}
         </div>
-
-        <button
-          type="button"
-          className="pr-post-agent-reset-button"
-          onClick={resetConversation}
-        >
-          会話をやり直す
-        </button>
       </footer>
 
       <input

@@ -138,11 +138,13 @@ a {
 .pr-post-agent-header-copy {
   display: grid;
   gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .pr-post-agent-header h1 {
   margin: 0;
-  font-size: clamp(26px, 3vw, 36px);
+  font-size: clamp(22px, 2.4vw, 30px);
   line-height: 1.08;
   letter-spacing: -0.04em;
 }
@@ -150,7 +152,7 @@ a {
 .pr-post-agent-header p {
   margin: 0;
   color: #646c76;
-  font-size: 14px;
+  font-size: 12px;
 }
 
 .pr-post-agent-avatar {
@@ -162,6 +164,7 @@ a {
   background: #eef1f4;
   border: 1px solid #d7dce1;
   flex: 0 0 auto;
+  align-self: flex-start;
 }
 
 .pr-post-agent-avatar-icon {
@@ -177,18 +180,24 @@ a {
 .pr-post-agent-context {
   margin: 0;
   color: #5e6670;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .pr-post-agent-context strong {
   color: #22272d;
 }
 
+.pr-post-agent-connection-note {
+  margin: 0;
+  color: #7d8590;
+  font-size: 11px;
+}
+
 .pr-post-agent-chat {
   display: grid;
   gap: 14px;
   align-content: start;
-  max-width: 980px;
+  max-width: 760px;
   width: 100%;
   margin: 0 auto;
   padding-top: 8px;
@@ -197,9 +206,10 @@ a {
 .pr-post-agent-bubble {
   width: fit-content;
   max-width: min(760px, 100%);
-  padding: 14px 16px;
+  padding: 12px 14px;
   border-radius: 18px;
-  box-shadow: 0 10px 24px rgba(31, 35, 41, 0.04);
+  box-shadow: 0 4px 12px rgba(31, 35, 41, 0.03);
+  font-size: 13px;
 }
 
 .pr-post-agent-bubble.assistant {
@@ -218,7 +228,7 @@ a {
 
 .pr-post-agent-bubble p {
   margin: 0;
-  line-height: 1.7;
+  line-height: 1.55;
 }
 
 .pr-post-agent-bubble p + p {
@@ -235,6 +245,17 @@ a {
   gap: 10px;
 }
 
+.pr-post-agent-choice-stack {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+  width: 100%;
+}
+
+.pr-post-agent-choice-stack--user {
+  padding-right: 4px;
+}
+
 .pr-post-agent-choice-row {
   display: flex;
   flex-wrap: wrap;
@@ -247,12 +268,17 @@ a {
 }
 
 .pr-post-agent-choice {
-  border-radius: 999px;
-  padding: 10px 14px;
-  background: #2f343a;
+  width: fit-content;
+  max-width: min(100%, 320px);
+  border-radius: 14px;
+  padding: 8px 11px;
+  background: #343a40;
   color: #fff;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 600;
   border: 1px solid transparent;
+  box-shadow: none;
+  line-height: 1.3;
 }
 
 .pr-post-agent-choice.is-active {
@@ -276,17 +302,19 @@ a {
   min-width: 0;
   border: 1px solid #ced5dc;
   border-radius: 12px;
-  padding: 11px 12px;
+  padding: 10px 12px;
   background: #fff;
   color: #22272d;
+  font-size: 13px;
 }
 
 .pr-post-agent-inline-form-row button {
   border-radius: 12px;
-  padding: 11px 16px;
+  padding: 10px 14px;
   background: #20242a;
   color: #fff;
   font-weight: 700;
+  font-size: 13px;
 }
 
 .pr-post-agent-upload-card {
@@ -333,7 +361,7 @@ a {
 }
 
 .pr-post-agent-status strong {
-  font-size: 15px;
+  font-size: 13px;
 }
 
 .pr-post-agent-status ul,
@@ -344,8 +372,9 @@ a {
 
 .pr-post-agent-status li,
 .pr-post-agent-draft-summary li {
-  line-height: 1.6;
+  line-height: 1.45;
   color: #3a4046;
+  font-size: 13px;
 }
 
 .pr-post-agent-draft-head {
@@ -357,6 +386,7 @@ a {
 
 .pr-post-agent-draft-eyebrow {
   font-weight: 700;
+  font-size: 12px;
 }
 
 .pr-post-agent-draft-copy,
@@ -375,7 +405,8 @@ a {
   white-space: pre-wrap;
   word-break: break-word;
   font-family: inherit;
-  line-height: 1.7;
+  line-height: 1.55;
+  font-size: 13px;
 }
 
 .pr-post-agent-draft-url a {
@@ -393,8 +424,9 @@ a {
 .pr-post-agent-primary-button,
 .pr-post-agent-secondary-button {
   border-radius: 999px;
-  padding: 11px 16px;
+  padding: 10px 14px;
   font-weight: 700;
+  font-size: 13px;
 }
 
 .pr-post-agent-primary-button {
@@ -415,7 +447,7 @@ a {
 .pr-post-agent-hint {
   margin: 0;
   color: #69727b;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .pr-post-agent-posted {
@@ -424,6 +456,7 @@ a {
 
 .pr-post-agent-posted > span {
   color: #2e3339;
+  font-size: 13px;
 }
 
 .pr-post-agent-posted details {
@@ -463,37 +496,39 @@ a {
   color: #fff;
   font-size: 22px;
   line-height: 1;
-  box-shadow: 0 12px 26px rgba(22, 28, 36, 0.2);
+  box-shadow: none;
 }
 
 .pr-post-agent-service-menu {
   position: absolute;
   left: 0;
   bottom: 58px;
-  width: 200px;
+  width: 188px;
   display: grid;
   gap: 8px;
   padding: 10px;
   border: 1px solid #d8dde3;
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 18px 40px rgba(32, 37, 44, 0.12);
+  box-shadow: 0 10px 22px rgba(32, 37, 44, 0.08);
 }
 
 .pr-post-agent-service-menu button {
   border-radius: 12px;
-  padding: 11px 12px;
+  padding: 8px 10px;
   background: #eef1f4;
   text-align: left;
-  font-weight: 700;
+  font-weight: 600;
+  font-size: 12px;
 }
 
 .pr-post-agent-reset-button {
   border-radius: 999px;
-  padding: 11px 16px;
+  padding: 10px 14px;
   background: #eef1f4;
   color: #394049;
   font-weight: 700;
+  font-size: 12px;
 }
 
 .pr-post-agent-hidden-input {
@@ -514,7 +549,7 @@ a {
   width: min(560px, 100%);
   display: grid;
   gap: 14px;
-  padding: 22px;
+  padding: 18px;
   border-radius: 20px;
   background: #fff;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.18);
@@ -522,7 +557,7 @@ a {
 
 .pr-post-agent-modal h2 {
   margin: 0;
-  font-size: 18px;
+  font-size: 16px;
 }
 
 .pr-post-agent-modal-preview {
@@ -545,11 +580,24 @@ a {
   }
 
   .pr-post-agent-header {
-    flex-direction: column;
+    align-items: flex-start;
   }
 
   .pr-post-agent-bubble {
     max-width: 100%;
+  }
+
+  .pr-post-agent-header h1 {
+    font-size: 22px;
+  }
+
+  .pr-post-agent-header p,
+  .pr-post-agent-context,
+  .pr-post-agent-connection-note,
+  .pr-post-agent-service-menu button,
+  .pr-post-agent-reset-button,
+  .pr-post-agent-hint {
+    font-size: 12px;
   }
 
   .pr-post-agent-inline-form-row {
