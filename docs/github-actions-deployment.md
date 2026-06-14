@@ -22,6 +22,8 @@ The workflow intentionally avoids printing AWS account IDs, ARNs, bucket names, 
 12. `frontend/dist` is synced to the private frontend S3 bucket.
 13. CloudFront is invalidated.
 
+The current PR Assistant demo flow is calendar-first and draft-only. It uses a mock Google Calendar provider by default, so deployment does not need a live Google Calendar integration yet. When a real provider is wired in later, set `GOOGLE_CALENDAR_PROVIDER=google` in the backend environment.
+
 The frontend upload keeps hashed files under `assets/` as append-only objects with long-lived cache headers, while `index.html` and `.trex` are uploaded with `no-cache`. This avoids a CloudFront/S3 race where an older cached `index.html` points at a hashed JS file that has already been deleted.
 
 ### Cognito Popup Auth Flow
@@ -85,6 +87,7 @@ These can be repository Variables if acceptable:
 | `TABLEAU_API_VERSION` | `3.25` | Tableau REST API version. |
 | `TABLEAU_SCOPES` | `tableau:content:read` | Connected App scopes. |
 | `TABLEAU_CONTEXT_PROVIDER` | `mock` | `mock`, `direct-api`, or `mcp`. |
+| `GOOGLE_CALENDAR_PROVIDER` | `mock` | Calendar context provider used by the PR Assistant demo flow. |
 | `AUTH_REQUIRED` | `false` | Enables Cognito JWT verification. |
 | `COGNITO_REGION` | none | Cognito region. |
 | `COGNITO_AUTH_TRANSACTION_KEY_PARAM` | `/tableau-ai-pr-agent/cognito/popup-auth-key` | SSM SecureString parameter name for popup auth AES key. |
@@ -230,6 +233,7 @@ Actionsログには AWSアカウントID、ARN、バケット名、CloudFront/AP
 | `TABLEAU_API_VERSION` | `3.25` | Tableau REST API version |
 | `TABLEAU_SCOPES` | `tableau:content:read` | Connected App scopes |
 | `TABLEAU_CONTEXT_PROVIDER` | `mock` | `mock`, `direct-api`, `mcp` |
+| `GOOGLE_CALENDAR_PROVIDER` | `mock` | PR Assistant demo calendar provider |
 | `AUTH_REQUIRED` | `false` | Cognito JWT検証を有効化 |
 | `COGNITO_REGION` | なし | Cognito region |
 | `TABLEAU_MCP_TRANSPORT` | `stdio` | 低コストPoCの推奨MCP transport |

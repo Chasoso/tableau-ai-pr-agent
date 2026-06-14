@@ -2817,6 +2817,61 @@ button {
   cursor: pointer;
 }
 
+.pr-agent-event-status {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #d9dde1;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.pr-agent-event-status-line {
+  color: #4c545b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pr-agent-candidate-list {
+  display: grid;
+  gap: 8px;
+}
+
+.pr-agent-candidate {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid #d0d4d9;
+  border-radius: 12px;
+  background: #fafbfc;
+  color: #2f353b;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pr-agent-candidate.is-active {
+  border-color: #aab0b6;
+  background: #eceef0;
+}
+
+.pr-agent-candidate strong,
+.pr-agent-candidate span,
+.pr-agent-candidate small {
+  display: block;
+}
+
+.pr-agent-candidate span,
+.pr-agent-candidate small {
+  color: #6f767d;
+  font-size: 11px;
+}
+
+.pr-agent-fallback,
+.pr-agent-manual-panel {
+  display: grid;
+  gap: 8px;
+}
+
 .pr-agent-photo-panel {
   display: grid;
   gap: 10px;

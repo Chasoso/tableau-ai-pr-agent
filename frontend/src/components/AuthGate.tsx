@@ -14,7 +14,7 @@ import type { AuthSession } from "../types/auth";
 
 const popupWaitTimeoutMs = 90_000;
 const popupPollIntervalMs = 750;
-const authDebugStorageKey = "tableau-chat.auth.debug";
+const authDebugStorageKey = "tableau-ai-pr-agent.auth.debug";
 
 export type AuthGateRenderState = {
   session: AuthSession | null;

@@ -10,7 +10,7 @@
 
 ## English
 
-This repository is the working base for `tableau-ai-pr-agent`, a Tableau Dashboard Extension for AI-assisted PR and social publishing workflows. The implementation now includes a Strands Agents-based PR draft path behind a feature flag, while keeping the existing chat/job API surface stable.
+This repository is the working base for `tableau-ai-pr-agent`, a Tableau Dashboard Extension for AI-assisted PR and social publishing workflows. The current demo emphasizes an assistant-style action UI that starts from Tableau context, a venue photo, and calendar-derived event context to prepare a draft only. The implementation also includes a Strands Agents-based PR draft path behind a feature flag, while keeping the existing chat/job API surface stable.
 
 The backend keeps Tableau access and secrets server-side. It can switch context providers with `TABLEAU_CONTEXT_PROVIDER`:
 
@@ -34,12 +34,26 @@ The PR drafting path now has a Strands Agents-based implementation behind a feat
 - Existing Bedrock settings are reused for the agent: `MODEL_PROVIDER`, `BEDROCK_REGION`, `BEDROCK_MODEL_ID`, `BEDROCK_MAX_OUTPUT_TOKENS`, and `BEDROCK_TEMPERATURE`.
 - If Strands initialization or execution fails, the backend falls back to the deterministic local draft builder so the existing API keeps working.
 
+### PR Demo Flow
+
+The current PR demo is calendar-first and draft-only:
+
+1. Select a post type.
+2. Add a venue photo.
+3. The backend resolves a calendar event context and looks for a TechPlay URL in the event data.
+4. The backend fetches TechPlay details when a URL is found.
+5. The UI prepares a post preview from Tableau context, calendar context, TechPlay context, photo, and optional notes.
+6. The user sends a draft request only. No automatic Slack post, send, or publish occurs.
+
+If calendar resolution is unavailable, the UI falls back to manual TechPlay URL entry.
+
 Safety rules for this path:
 
 - No automatic posting, sending, publishing, or scheduling.
 - Slack approval is draft-only and does not call the Slack webhook.
 - Notion save flows return a draft preview instead of creating a real page.
 - Missing information is returned as missing fields rather than guessed.
+- Google Calendar resolution is mocked by default and can be switched with `GOOGLE_CALENDAR_PROVIDER=google` once a real implementation is wired up.
 
 ### Architecture
 
@@ -88,6 +102,7 @@ Useful local defaults:
 - Health API: `GET http://localhost:3001/health`
 - `LOG_LEVEL=info`: backend log threshold (`debug`, `info`, `warn`, `error`)
 - `CHAT_DEBUG_MAX_CHARS=12000`: max characters for debug-level chat input/output message logs.
+- `GOOGLE_CALENDAR_PROVIDER=mock`: calendar context provider used by the PR demo flow. Set to `google` once a real Google Calendar integration is available.
 
 The recommended path for long-running analysis is the async chat job flow:
 

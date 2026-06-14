@@ -9,6 +9,7 @@ import {
 } from "../logging";
 import { ChatJobService } from "../services/chatJobService";
 import { ActionRunService } from "../services/actionRunService";
+import { CalendarService } from "../services/calendarService";
 import { TechPlayService } from "../services/techplayService";
 import { createChatService } from "../services/chatService";
 import type {
@@ -20,6 +21,7 @@ import type {
   ActionRunApprovalRequest,
   ActionRunRequest,
 } from "../types/actionRun";
+import type { CalendarResolveRequest } from "../types/calendar";
 import type { TechPlayPreviewRequest } from "../types/techplay";
 import type { ChatRequest, ContextRequest } from "../types/chat";
 import { handleNotionRoute } from "./notionHandler";
@@ -27,6 +29,7 @@ import { handleCognitoPopupAuthRoute } from "./cognitoPopupAuthHandler";
 
 const chatJobService = new ChatJobService();
 const actionRunService = new ActionRunService();
+const calendarService = new CalendarService();
 const techPlayService = new TechPlayService();
 
 export async function handler(
@@ -148,6 +151,29 @@ export async function handler(
       return jsonResponse(202, response);
     }
 
+    if (routePath === "/calendar/resolve" && method === "POST") {
+      const request = parseRequest(event.body) as CalendarResolveRequest;
+      const validationError = validateCalendarResolveRequest(request);
+      if (validationError) {
+        logWarn("calendar.resolve_request.invalid", {
+          requestId,
+          validationError,
+        });
+        return jsonResponse(400, { message: validationError });
+      }
+
+      const response =
+        await calendarService.resolveEventContextFromCalendar(request);
+      logInfo("calendar.resolve.request.completed", {
+        requestId,
+        postType: request.postType,
+        calendarLookupStatus: response.calendarLookupStatus,
+        techPlayFetchStatus: response.techPlayFetchStatus,
+        candidateCount: response.candidates.length,
+      });
+      return jsonResponse(200, response);
+    }
+
     if (routePath === "/techplay/preview" && method === "POST") {
       const request = parseRequest(event.body) as TechPlayPreviewRequest;
       const validationError = validateTechPlayPreviewRequest(request);
@@ -235,6 +261,12 @@ export async function handler(
     }
 
     if (routePath === "/action-runs" && method !== "POST") {
+      return jsonResponse(405, {
+        message: "Method not allowed.",
+      });
+    }
+
+    if (routePath === "/calendar/resolve" && method !== "POST") {
       return jsonResponse(405, {
         message: "Method not allowed.",
       });
@@ -442,6 +474,20 @@ function validateActionRunApprovalRequest(
 
   if (!request.approved) {
     return "approved must be true to send Slack.";
+  }
+
+  return null;
+}
+
+function validateCalendarResolveRequest(
+  request: CalendarResolveRequest,
+): string | null {
+  if (!request?.postType?.trim()) {
+    return "postType is required.";
+  }
+
+  if (!request?.dashboardContext?.dashboardName?.trim()) {
+    return "dashboardContext is required.";
   }
 
   return null;

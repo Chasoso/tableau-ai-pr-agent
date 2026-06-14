@@ -1,13 +1,16 @@
 import { env } from "../env";
 import type { AuthSession } from "../types/auth";
 
-const sessionKey = "tableau-chat.auth.session";
-const verifierKeyPrefix = "tableau-chat.auth.pkce.verifier.";
+const sessionKey = "tableau-ai-pr-agent.auth.session";
+const legacySessionKey = "tableau-chat.auth.session";
+const verifierKeyPrefix = "tableau-ai-pr-agent.auth.pkce.verifier.";
+const legacyVerifierKeyPrefix = "tableau-chat.auth.pkce.verifier.";
 
 export { sessionKey };
 
 export function getStoredSession(): AuthSession | null {
-  const raw = localStorage.getItem(sessionKey);
+  const raw =
+    localStorage.getItem(sessionKey) || localStorage.getItem(legacySessionKey);
   if (!raw) {
     return null;
   }
@@ -47,7 +50,9 @@ export async function completeLoginFromUrl(
     );
   }
 
-  const verifier = localStorage.getItem(getVerifierKey(state));
+  const verifier =
+    localStorage.getItem(getVerifierKey(state)) ||
+    localStorage.getItem(getLegacyVerifierKey(state));
   if (!verifier) {
     throw new Error(
       "サインインセッションの情報が見つかりませんでした。もう一度サインインしてください。",
@@ -87,6 +92,7 @@ export async function completeLoginFromUrl(
 
   storeSession(session);
   localStorage.removeItem(getVerifierKey(state));
+  localStorage.removeItem(getLegacyVerifierKey(state));
   return session;
 }
 
@@ -98,7 +104,7 @@ export async function startLogin(): Promise<void> {
 export function openLoginPopupWindow(): Window {
   const popup = window.open(
     "",
-    "tableau-chat-cognito-login",
+    "tableau-ai-pr-agent-cognito-login",
     "popup,width=520,height=720",
   );
   if (!popup) {
@@ -114,7 +120,7 @@ export function openLoginPopupWindow(): Window {
       <html lang="ja">
         <head>
           <meta charset="utf-8" />
-          <title>Tableau Assistant</title>
+          <title>Tableau PR Assistant</title>
           <style>
             body { font-family: sans-serif; background:#f6f7f9; color:#1f2937; display:flex; min-height:100vh; align-items:center; justify-content:center; margin:0; }
             .card { background:#fff; border:1px solid #d5d9e0; border-radius:16px; padding:24px; width:min(420px, 92vw); text-align:center; box-shadow:0 16px 36px rgba(15,23,42,.12); }
@@ -148,6 +154,7 @@ export function isAuthPopupStart(): boolean {
 
 export function storeSession(session: AuthSession): void {
   localStorage.setItem(sessionKey, JSON.stringify(session));
+  localStorage.setItem(legacySessionKey, JSON.stringify(session));
 }
 
 export function signOut(): void {
@@ -189,8 +196,12 @@ async function createLoginUrl(): Promise<string> {
 
 function clearSession(): void {
   localStorage.removeItem(sessionKey);
+  localStorage.removeItem(legacySessionKey);
   for (const key of Object.keys(localStorage)) {
-    if (key.startsWith(verifierKeyPrefix)) {
+    if (
+      key.startsWith(verifierKeyPrefix) ||
+      key.startsWith(legacyVerifierKeyPrefix)
+    ) {
       localStorage.removeItem(key);
     }
   }
@@ -214,6 +225,10 @@ function getLogoutUri(): string {
 
 function getVerifierKey(state: string): string {
   return `${verifierKeyPrefix}${state}`;
+}
+
+function getLegacyVerifierKey(state: string): string {
+  return `${legacyVerifierKeyPrefix}${state}`;
 }
 
 function randomBase64Url(byteLength: number): string {

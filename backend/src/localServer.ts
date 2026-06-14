@@ -36,6 +36,7 @@ const server = createServer(async (request, response) => {
       : requestUrl.pathname.startsWith("/chat") ||
           requestUrl.pathname.startsWith("/context") ||
           requestUrl.pathname.startsWith("/chat-jobs") ||
+          requestUrl.pathname.startsWith("/calendar") ||
           requestUrl.pathname.startsWith("/techplay") ||
           requestUrl.pathname.startsWith("/action-runs") ||
           requestUrl.pathname.startsWith("/notion") ||

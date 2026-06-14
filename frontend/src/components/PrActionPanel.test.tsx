@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import PrActionPanel from "./PrActionPanel";
@@ -6,7 +6,7 @@ import type { DashboardContext } from "../types/tableau";
 
 const mocks = vi.hoisted(() => ({
   createActionRun: vi.fn(),
-  previewTechPlayEvent: vi.fn(),
+  resolveCalendarEventContext: vi.fn(),
 }));
 
 vi.mock("../env", () => ({
@@ -32,8 +32,8 @@ vi.mock("../api/actionRunApi", () => ({
   createActionRun: mocks.createActionRun,
 }));
 
-vi.mock("../api/techplayApi", () => ({
-  previewTechPlayEvent: mocks.previewTechPlayEvent,
+vi.mock("../api/calendarApi", () => ({
+  resolveCalendarEventContext: mocks.resolveCalendarEventContext,
 }));
 
 const dashboardContext: DashboardContext = {
@@ -42,7 +42,7 @@ const dashboardContext: DashboardContext = {
   worksheets: [{ name: "Summary" }],
   filters: [],
   parameters: [],
-  capturedAt: "2026-06-07T00:00:00.000Z",
+  capturedAt: "2026-06-14T00:00:00.000Z",
 };
 
 const createObjectURLMock = vi.fn(() => "blob:venue-photo");
@@ -65,11 +65,11 @@ afterEach(() => {
   createObjectURLMock.mockClear();
   revokeObjectURLMock.mockClear();
   mocks.createActionRun.mockReset();
-  mocks.previewTechPlayEvent.mockReset();
+  mocks.resolveCalendarEventContext.mockReset();
 });
 
 describe("PrActionPanel", () => {
-  it("renders the assistant-style action flow", () => {
+  it("renders the assistant-style action flow without TechPlay input upfront", () => {
     render(<PrActionPanel dashboardContext={dashboardContext} />);
 
     expect(
@@ -77,58 +77,65 @@ describe("PrActionPanel", () => {
     ).toBeVisible();
     expect(screen.getByText("参照中：")).toBeVisible();
     expect(screen.getByText("Mock Executive Sales Dashboard")).toBeVisible();
-    expect(screen.getByText("投稿設定")).toBeVisible();
-    expect(screen.getByRole("heading", { name: "会場写真" })).toBeVisible();
-    expect(screen.getAllByText("イベント情報").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("補足メモ").length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: "投稿案を作成" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "開催中の実況" })).toBeVisible();
     expect(
       screen.getByRole("button", { name: "＋ 会場写真を追加" }),
     ).toBeVisible();
-    expect(
-      screen.getByRole("button", { name: "イベント情報を取得" }),
-    ).toBeVisible();
-    expect(screen.getByText("投稿プレビュー")).toBeVisible();
-    expect(screen.queryByText("今の状況")).toBeNull();
-    expect(screen.queryByText("下書きを作成する")).toBeNull();
+    expect(screen.getByRole("button", { name: "投稿案を作成" })).toBeVisible();
+    expect(screen.queryByLabelText("TechPlay URL")).toBeNull();
     expect(screen.getByRole("button", { name: "投稿案を作成" })).toBeDisabled();
   });
 
-  it("loads TechPlay metadata and reveals manual event name editing only when asked", async () => {
+  it("auto-resolves the calendar event after a photo is added", async () => {
     const user = userEvent.setup();
-    mocks.previewTechPlayEvent.mockResolvedValue({
-      techplayUrl: "https://techplay.jp/event/983048",
-      eventName: "Sample Event",
-      eventDateText: "2025/08/08 18:30",
-      summary: "Sample summary.",
-      sourceTitle: "Sample Event - TECH PLAY",
-      sourceDescription: "Sample summary.",
-      extractedFrom: "jsonld",
+    mocks.resolveCalendarEventContext.mockResolvedValue({
+      provider: "mock",
+      calendarLookupStatus: "found",
+      techPlayFetchStatus: "fetched",
+      manualTechPlayMode: false,
+      searchWindowLabel: "today and around now",
+      selectedEvent: {
+        eventId: "mock-current-tableau-user-group",
+        summary: "Tableau User Group Tokyo 2026",
+        description: "Live session",
+        location: "Tokyo",
+        start: "2026-06-14T02:30:00.000Z",
+        end: "2026-06-14T04:30:00.000Z",
+        htmlLink:
+          "https://calendar.google.com/calendar/u/0/r/eventedit/mock-current",
+        techplayUrls: ["https://techplay.jp/event/example"],
+        score: 100,
+        scoreReasons: ["TechPlay URL detected."],
+      },
+      candidates: [
+        {
+          eventId: "mock-current-tableau-user-group",
+          summary: "Tableau User Group Tokyo 2026",
+          description: "Live session",
+          location: "Tokyo",
+          start: "2026-06-14T02:30:00.000Z",
+          end: "2026-06-14T04:30:00.000Z",
+          htmlLink:
+            "https://calendar.google.com/calendar/u/0/r/eventedit/mock-current",
+          techplayUrls: ["https://techplay.jp/event/example"],
+          score: 100,
+          scoreReasons: ["TechPlay URL detected."],
+        },
+      ],
+      detectedTechPlayUrl: "https://techplay.jp/event/example",
+      techplayPreview: {
+        techplayUrl: "https://techplay.jp/event/example",
+        eventName: "Tableau User Group Tokyo 2026",
+        eventDateText: "2026/06/14 11:30",
+        summary: "Live summary.",
+        sourceTitle: "Tableau User Group Tokyo 2026 - TECH PLAY",
+        sourceDescription: "Live summary.",
+        extractedFrom: "jsonld",
+      },
+      resolvedEventName: "Tableau User Group Tokyo 2026",
+      warnings: [],
+      notes: [],
     });
-
-    render(<PrActionPanel dashboardContext={dashboardContext} />);
-
-    await user.click(
-      screen.getByRole("button", { name: "イベント情報を取得" }),
-    );
-
-    expect(mocks.previewTechPlayEvent).toHaveBeenCalledWith({
-      techplayUrl: "https://techplay.jp/event/example",
-    });
-    expect(screen.getByText("取得済み：")).toBeVisible();
-    expect(screen.getByText("Sample Event")).toBeVisible();
-    expect(screen.queryByLabelText("手入力イベント名")).toBeNull();
-
-    await user.click(
-      screen.getByRole("button", { name: "イベント名を入力する" }),
-    );
-    expect(screen.getByLabelText("手入力イベント名")).toHaveValue(
-      "Sample Event",
-    );
-  });
-
-  it("uploads a venue photo and shows the selected preview", async () => {
-    const user = userEvent.setup();
 
     render(<PrActionPanel dashboardContext={dashboardContext} />);
 
@@ -138,38 +145,111 @@ describe("PrActionPanel", () => {
     });
 
     await user.upload(fileInput, photo);
-    await user.selectOptions(screen.getByLabelText("写真の用途"), "background");
 
-    expect(createObjectURLMock).toHaveBeenCalledTimes(1);
+    expect(mocks.resolveCalendarEventContext).toHaveBeenCalled();
+    expect(mocks.resolveCalendarEventContext.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        postType: "開催中の実況",
+        venuePhoto: {
+          fileName: "venue.jpg",
+          sizeLabel: "11 B",
+        },
+      }),
+    );
     expect(
-      screen.getByAltText("Selected venue photo: venue.jpg"),
+      (await screen.findAllByText("イベント情報を取得しました")).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByText("Tableau User Group Tokyo 2026")).toBeVisible();
+    expect(
+      screen.getByText("Googleカレンダーから検出 / TechPlay情報 取得済み"),
     ).toBeVisible();
-    expect(screen.getByText("venue.jpg (背景)")).toBeVisible();
+    expect(screen.getByRole("button", { name: "投稿案を作成" })).toBeEnabled();
   });
 
-  it("switches drive references to the no reference mode", async () => {
+  it("shows the manual TechPlay fallback when the calendar search cannot resolve", async () => {
     const user = userEvent.setup();
+    mocks.resolveCalendarEventContext.mockResolvedValue({
+      provider: "mock",
+      calendarLookupStatus: "not_found",
+      techPlayFetchStatus: "not_found",
+      manualTechPlayMode: true,
+      searchWindowLabel: "today and around now",
+      candidates: [],
+      warnings: ["Google Calendar event could not be found automatically."],
+      notes: [],
+    });
 
     render(<PrActionPanel dashboardContext={dashboardContext} />);
 
-    await user.click(screen.getByRole("button", { name: "＋ 参考メモを追加" }));
-    await user.selectOptions(screen.getByLabelText("参照モード"), "none");
+    const fileInput = screen.getByLabelText("写真を選ぶ");
+    const photo = new File(["photo-bytes"], "venue.jpg", {
+      type: "image/jpeg",
+    });
 
-    expect(screen.getByLabelText("参考メモタイトル")).toBeDisabled();
-    expect(screen.getByLabelText("参考メモ本文")).toBeDisabled();
-    expect(screen.getByText("参考メモを閉じる")).toBeVisible();
+    await user.upload(fileInput, photo);
+    const fallbackMessages = await screen.findAllByText(
+      "イベント情報を自動取得できませんでした。",
+    );
+    expect(fallbackMessages.length).toBeGreaterThan(0);
+    expect(
+      screen.getByRole("button", { name: "手動でTechPlay URLを入力する" }),
+    ).toBeVisible();
+
+    await user.click(
+      screen.getByRole("button", { name: "手動でTechPlay URLを入力する" }),
+    );
+    expect(screen.getByLabelText("TechPlay URL")).toBeVisible();
   });
 
   it("creates a draft from the generated preview and keeps Slack unposted", async () => {
     const user = userEvent.setup();
-    mocks.previewTechPlayEvent.mockResolvedValue({
-      techplayUrl: "https://techplay.jp/event/983048",
-      eventName: "Sample Event",
-      eventDateText: "2025/08/08 18:30",
-      summary: "Sample summary.",
-      sourceTitle: "Sample Event - TECH PLAY",
-      sourceDescription: "Sample summary.",
-      extractedFrom: "jsonld",
+    mocks.resolveCalendarEventContext.mockResolvedValue({
+      provider: "mock",
+      calendarLookupStatus: "found",
+      techPlayFetchStatus: "fetched",
+      manualTechPlayMode: false,
+      searchWindowLabel: "today and around now",
+      selectedEvent: {
+        eventId: "mock-current-tableau-user-group",
+        summary: "Tableau User Group Tokyo 2026",
+        description: "Live session",
+        location: "Tokyo",
+        start: "2026-06-14T02:30:00.000Z",
+        end: "2026-06-14T04:30:00.000Z",
+        htmlLink:
+          "https://calendar.google.com/calendar/u/0/r/eventedit/mock-current",
+        techplayUrls: ["https://techplay.jp/event/example"],
+        score: 100,
+        scoreReasons: ["TechPlay URL detected."],
+      },
+      candidates: [
+        {
+          eventId: "mock-current-tableau-user-group",
+          summary: "Tableau User Group Tokyo 2026",
+          description: "Live session",
+          location: "Tokyo",
+          start: "2026-06-14T02:30:00.000Z",
+          end: "2026-06-14T04:30:00.000Z",
+          htmlLink:
+            "https://calendar.google.com/calendar/u/0/r/eventedit/mock-current",
+          techplayUrls: ["https://techplay.jp/event/example"],
+          score: 100,
+          scoreReasons: ["TechPlay URL detected."],
+        },
+      ],
+      detectedTechPlayUrl: "https://techplay.jp/event/example",
+      techplayPreview: {
+        techplayUrl: "https://techplay.jp/event/example",
+        eventName: "Tableau User Group Tokyo 2026",
+        eventDateText: "2026/06/14 11:30",
+        summary: "Live summary.",
+        sourceTitle: "Tableau User Group Tokyo 2026 - TECH PLAY",
+        sourceDescription: "Live summary.",
+        extractedFrom: "jsonld",
+      },
+      resolvedEventName: "Tableau User Group Tokyo 2026",
+      warnings: [],
+      notes: [],
     });
     mocks.createActionRun.mockResolvedValue({
       actionRunId: "action-run-1",
@@ -188,29 +268,29 @@ describe("PrActionPanel", () => {
       />,
     );
 
-    const fileInput = screen.getByLabelText("写真を選ぶ");
-    const photo = new File(["photo-bytes"], "venue.jpg", {
-      type: "image/jpeg",
-    });
-    await user.upload(fileInput, photo);
-    await user.click(
-      screen.getByRole("button", { name: "イベント情報を取得" }),
+    await user.upload(
+      screen.getByLabelText("写真を選ぶ"),
+      new File(["photo-bytes"], "venue.jpg", { type: "image/jpeg" }),
     );
-
+    await screen.findAllByText("イベント情報を取得しました");
     await user.click(screen.getByRole("button", { name: "投稿案を作成" }));
 
-    expect(screen.getByText("チェック済み")).toBeVisible();
-    expect(screen.getByText(/Slackにはまだ投稿されません/)).toBeVisible();
+    expect(screen.getByText("投稿プレビュー")).toBeVisible();
+    expect(
+      screen.getByText(
+        "Slackにはまだ投稿されません。確認用の下書きリクエストを作成します。",
+      ),
+    ).toBeVisible();
     expect(
       screen.getByRole("button", { name: "下書きを作成する" }),
     ).toBeVisible();
-    expect(screen.getByText("もう少し短く")).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "下書きを作成する" }));
 
     expect(mocks.createActionRun).toHaveBeenCalledWith(
       expect.objectContaining({
-        postType: "事前告知",
+        postType: "開催中の実況",
+        eventName: "Tableau User Group Tokyo 2026",
         techplayUrl: "https://techplay.jp/event/example",
         currentSituation: expect.stringContaining("会場写真:venue.jpg"),
       }),
@@ -222,17 +302,7 @@ describe("PrActionPanel", () => {
 
     await user.click(screen.getByText("根拠・チェック結果を見る"));
 
+    expect(screen.getByText("Action Run ID")).toBeVisible();
     expect(screen.getByText("action-run-1")).toBeVisible();
-    expect(
-      screen.getByText(
-        "https://images.example.com/pr-action-images/action-run-1/poster.svg",
-      ),
-    ).toBeVisible();
-
-    const details = screen.getByText("action-run-1").closest("section");
-    expect(details).not.toBeNull();
-    expect(
-      within(details as HTMLElement).getByText("Action Run ID"),
-    ).toBeVisible();
   });
 });

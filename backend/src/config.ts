@@ -112,6 +112,9 @@ export type AppConfig = {
     oauthTokenUrl: string;
     oauthStateTtlSeconds: number;
   };
+  calendar: {
+    provider: "mock" | "google";
+  };
 };
 
 export function getConfig(): AppConfig {
@@ -320,6 +323,9 @@ export function getConfig(): AppConfig {
         600,
       ),
     },
+    calendar: {
+      provider: parseCalendarProvider(process.env.GOOGLE_CALENDAR_PROVIDER),
+    },
   };
 }
 
@@ -377,6 +383,15 @@ function parseContextProvider(
 
   if (value === "mcp") {
     return "mcp";
+  }
+
+  return "mock";
+}
+
+function parseCalendarProvider(value: string | undefined): "mock" | "google" {
+  const normalized = value?.trim().toLowerCase();
+  if (normalized === "google") {
+    return "google";
   }
 
   return "mock";
