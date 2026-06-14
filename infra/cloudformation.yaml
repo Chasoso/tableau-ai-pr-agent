@@ -80,6 +80,48 @@ Parameters:
   CognitoAuthTransactionTtlSeconds:
     Type: Number
     Default: 600
+  GoogleCalendarProvider:
+    Type: String
+    Default: "google"
+    AllowedValues:
+      - google
+      - mock
+  GoogleCalendarCalendarId:
+    Type: String
+    NoEcho: true
+    Default: ""
+  GoogleCalendarClientId:
+    Type: String
+    NoEcho: true
+    Default: ""
+  GoogleCalendarClientSecret:
+    Type: String
+    NoEcho: true
+    Default: ""
+  GoogleCalendarRedirectUri:
+    Type: String
+    NoEcho: true
+    Default: ""
+  GoogleCalendarConnectionsTable:
+    Type: String
+    NoEcho: true
+    Default: ""
+  GoogleCalendarOAuthStatesTable:
+    Type: String
+    NoEcho: true
+    Default: ""
+  GoogleCalendarTokenEncryptionKeyParam:
+    Type: String
+    NoEcho: true
+    Default: "/tableau-ai-pr-agent/google-calendar/token-encryption-key"
+  GoogleCalendarRefreshToken:
+    Type: String
+    NoEcho: true
+    Default: ""
+  GoogleCalendarScopes:
+    Type: String
+    NoEcho: true
+    Default: "https://www.googleapis.com/auth/calendar.readonly"
   TableauMcpServerUrl:
     Type: String
     NoEcho: true
@@ -460,6 +502,16 @@ Resources:
           COGNITO_AUTH_TRANSACTIONS_TABLE: !Ref CognitoAuthTransactionsTable
           COGNITO_AUTH_TRANSACTION_KEY_PARAM: !Ref CognitoAuthTransactionKeyParam
           COGNITO_AUTH_TRANSACTION_TTL_SECONDS: !Sub "${CognitoAuthTransactionTtlSeconds}"
+          GOOGLE_CALENDAR_PROVIDER: !Ref GoogleCalendarProvider
+          GOOGLE_CALENDAR_CALENDAR_ID: !Ref GoogleCalendarCalendarId
+          GOOGLE_CALENDAR_CLIENT_ID: !Ref GoogleCalendarClientId
+          GOOGLE_CALENDAR_CLIENT_SECRET: !Ref GoogleCalendarClientSecret
+          GOOGLE_CALENDAR_REDIRECT_URI: !Ref GoogleCalendarRedirectUri
+          GOOGLE_CALENDAR_CONNECTIONS_TABLE: !Ref GoogleCalendarConnectionsTable
+          GOOGLE_CALENDAR_OAUTH_STATES_TABLE: !Ref GoogleCalendarOAuthStatesTable
+          GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY_PARAM: !Ref GoogleCalendarTokenEncryptionKeyParam
+          GOOGLE_CALENDAR_REFRESH_TOKEN: !Ref GoogleCalendarRefreshToken
+          GOOGLE_CALENDAR_SCOPES: !Ref GoogleCalendarScopes
           TABLEAU_MCP_SERVER_URL: !Ref TableauMcpServerUrl
           TABLEAU_MCP_TRANSPORT: !Ref TableauMcpTransport
           TABLEAU_MCP_AUTH_MODE: !Ref TableauMcpAuthMode
@@ -536,6 +588,16 @@ Resources:
           COGNITO_AUTH_TRANSACTIONS_TABLE: !Ref CognitoAuthTransactionsTable
           COGNITO_AUTH_TRANSACTION_KEY_PARAM: !Ref CognitoAuthTransactionKeyParam
           COGNITO_AUTH_TRANSACTION_TTL_SECONDS: !Sub "${CognitoAuthTransactionTtlSeconds}"
+          GOOGLE_CALENDAR_PROVIDER: !Ref GoogleCalendarProvider
+          GOOGLE_CALENDAR_CALENDAR_ID: !Ref GoogleCalendarCalendarId
+          GOOGLE_CALENDAR_CLIENT_ID: !Ref GoogleCalendarClientId
+          GOOGLE_CALENDAR_CLIENT_SECRET: !Ref GoogleCalendarClientSecret
+          GOOGLE_CALENDAR_REDIRECT_URI: !Ref GoogleCalendarRedirectUri
+          GOOGLE_CALENDAR_CONNECTIONS_TABLE: !Ref GoogleCalendarConnectionsTable
+          GOOGLE_CALENDAR_OAUTH_STATES_TABLE: !Ref GoogleCalendarOAuthStatesTable
+          GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY_PARAM: !Ref GoogleCalendarTokenEncryptionKeyParam
+          GOOGLE_CALENDAR_REFRESH_TOKEN: !Ref GoogleCalendarRefreshToken
+          GOOGLE_CALENDAR_SCOPES: !Ref GoogleCalendarScopes
           TABLEAU_MCP_SERVER_URL: !Ref TableauMcpServerUrl
           TABLEAU_MCP_TRANSPORT: !Ref TableauMcpTransport
           TABLEAU_MCP_AUTH_MODE: !Ref TableauMcpAuthMode
@@ -728,6 +790,27 @@ Resources:
       RouteKey: "GET /auth/cognito/popup/status"
       Target: !Sub "integrations/${ChatIntegration}"
 
+  GooglePopupStartRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "POST /auth/google/popup/start"
+      Target: !Sub "integrations/${ChatIntegration}"
+
+  GooglePopupCallbackRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "GET /auth/google/callback"
+      Target: !Sub "integrations/${ChatIntegration}"
+
+  GooglePopupStatusRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "GET /auth/google/popup/status"
+      Target: !Sub "integrations/${ChatIntegration}"
+
   ChatInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -831,6 +914,30 @@ Resources:
       FunctionName: !Ref ChatFunction
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/auth/cognito/popup/status"
+
+  GooglePopupStartInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ChatFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/auth/google/popup/start"
+
+  GooglePopupCallbackInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ChatFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/auth/google/callback"
+
+  GooglePopupStatusInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ChatFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/auth/google/popup/status"
 
   HealthInvokePermission:
     Type: AWS::Lambda::Permission

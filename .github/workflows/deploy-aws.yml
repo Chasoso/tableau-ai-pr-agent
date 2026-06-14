@@ -117,6 +117,16 @@ jobs:
       COGNITO_POPUP_REDIRECT_URI: ${{ vars.COGNITO_POPUP_REDIRECT_URI || secrets.COGNITO_POPUP_REDIRECT_URI }}
       COGNITO_AUTH_TRANSACTION_KEY_PARAM: ${{ vars.COGNITO_AUTH_TRANSACTION_KEY_PARAM || '/tableau-ai-pr-agent/cognito/popup-auth-key' }}
       COGNITO_AUTH_TRANSACTION_TTL_SECONDS: ${{ vars.COGNITO_AUTH_TRANSACTION_TTL_SECONDS || '600' }}
+      GOOGLE_CALENDAR_PROVIDER: ${{ vars.GOOGLE_CALENDAR_PROVIDER || 'google' }}
+      GOOGLE_CALENDAR_CALENDAR_ID: ${{ vars.GOOGLE_CALENDAR_CALENDAR_ID || secrets.GOOGLE_CALENDAR_CALENDAR_ID }}
+      GOOGLE_CALENDAR_CLIENT_ID: ${{ vars.GOOGLE_CALENDAR_CLIENT_ID || secrets.GOOGLE_CALENDAR_CLIENT_ID }}
+      GOOGLE_CALENDAR_CLIENT_SECRET: ${{ vars.GOOGLE_CALENDAR_CLIENT_SECRET || secrets.GOOGLE_CALENDAR_CLIENT_SECRET }}
+      GOOGLE_CALENDAR_REDIRECT_URI: ${{ vars.GOOGLE_CALENDAR_REDIRECT_URI || secrets.GOOGLE_CALENDAR_REDIRECT_URI }}
+      GOOGLE_CALENDAR_CONNECTIONS_TABLE: ${{ vars.GOOGLE_CALENDAR_CONNECTIONS_TABLE || '' }}
+      GOOGLE_CALENDAR_OAUTH_STATES_TABLE: ${{ vars.GOOGLE_CALENDAR_OAUTH_STATES_TABLE || '' }}
+      GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY_PARAM: ${{ vars.GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY_PARAM || '/tableau-ai-pr-agent/google-calendar/token-encryption-key' }}
+      GOOGLE_CALENDAR_REFRESH_TOKEN: ${{ vars.GOOGLE_CALENDAR_REFRESH_TOKEN || secrets.GOOGLE_CALENDAR_REFRESH_TOKEN }}
+      GOOGLE_CALENDAR_SCOPES: ${{ vars.GOOGLE_CALENDAR_SCOPES || 'https://www.googleapis.com/auth/calendar.readonly' }}
       VITE_COGNITO_USER_POOL_ID: ${{ vars.VITE_COGNITO_USER_POOL_ID || vars.COGNITO_USER_POOL_ID || secrets.COGNITO_USER_POOL_ID }}
       VITE_COGNITO_CLIENT_ID: ${{ vars.VITE_COGNITO_CLIENT_ID || vars.COGNITO_CLIENT_ID || secrets.COGNITO_CLIENT_ID }}
       VITE_COGNITO_REGION: ${{ vars.VITE_COGNITO_REGION || vars.COGNITO_REGION || secrets.COGNITO_REGION }}
@@ -193,6 +203,16 @@ jobs:
             "$COGNITO_POPUP_REDIRECT_URI" \
             "$COGNITO_AUTH_TRANSACTION_KEY_PARAM" \
             "$COGNITO_AUTH_TRANSACTION_TTL_SECONDS" \
+            "$GOOGLE_CALENDAR_PROVIDER" \
+            "$GOOGLE_CALENDAR_CALENDAR_ID" \
+            "$GOOGLE_CALENDAR_CLIENT_ID" \
+            "$GOOGLE_CALENDAR_CLIENT_SECRET" \
+            "$GOOGLE_CALENDAR_REDIRECT_URI" \
+            "$GOOGLE_CALENDAR_CONNECTIONS_TABLE" \
+            "$GOOGLE_CALENDAR_OAUTH_STATES_TABLE" \
+            "$GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY_PARAM" \
+            "$GOOGLE_CALENDAR_REFRESH_TOKEN" \
+            "$GOOGLE_CALENDAR_SCOPES" \
             "$VITE_COGNITO_DOMAIN" \
             "$VITE_COGNITO_REDIRECT_URI" \
             "$VITE_COGNITO_LOGOUT_URI" \
@@ -404,6 +424,16 @@ jobs:
               CognitoPopupRedirectUri="$COGNITO_POPUP_REDIRECT_URI" \
               CognitoAuthTransactionKeyParam="$COGNITO_AUTH_TRANSACTION_KEY_PARAM" \
               CognitoAuthTransactionTtlSeconds="$COGNITO_AUTH_TRANSACTION_TTL_SECONDS" \
+              GoogleCalendarProvider="$GOOGLE_CALENDAR_PROVIDER" \
+              GoogleCalendarCalendarId="$GOOGLE_CALENDAR_CALENDAR_ID" \
+              GoogleCalendarClientId="$GOOGLE_CALENDAR_CLIENT_ID" \
+              GoogleCalendarClientSecret="$GOOGLE_CALENDAR_CLIENT_SECRET" \
+              GoogleCalendarRedirectUri="$GOOGLE_CALENDAR_REDIRECT_URI" \
+              GoogleCalendarConnectionsTable="$GOOGLE_CALENDAR_CONNECTIONS_TABLE" \
+              GoogleCalendarOAuthStatesTable="$GOOGLE_CALENDAR_OAUTH_STATES_TABLE" \
+              GoogleCalendarTokenEncryptionKeyParam="$GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY_PARAM" \
+              GoogleCalendarRefreshToken="$GOOGLE_CALENDAR_REFRESH_TOKEN" \
+              GoogleCalendarScopes="$GOOGLE_CALENDAR_SCOPES" \
               TableauMcpServerUrl="$TABLEAU_MCP_SERVER_URL" \
               TableauMcpTransport="$TABLEAU_MCP_TRANSPORT" \
               TableauMcpAuthMode="$TABLEAU_MCP_AUTH_MODE" \
