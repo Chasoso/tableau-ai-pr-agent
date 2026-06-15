@@ -47,7 +47,7 @@ export async function handler(
   const isTechPlayRoute = routePath.startsWith("/techplay");
   const isNotionCallbackRoute = routePath.startsWith("/notion/callback");
   const isCognitoPopupAuthRoute = routePath.startsWith("/auth/cognito/");
-  const isGooglePopupAuthRoute = routePath.startsWith("/auth/google/");
+  const isGoogleCallbackRoute = routePath === "/auth/google/callback";
 
   if (method === "OPTIONS") {
     return jsonResponse(204, {});
@@ -56,7 +56,7 @@ export async function handler(
   try {
     logInfo("chat.request.received", { requestId, method, routePath });
     const authResult =
-      isNotionCallbackRoute || isCognitoPopupAuthRoute || isGooglePopupAuthRoute
+      isNotionCallbackRoute || isCognitoPopupAuthRoute || isGoogleCallbackRoute
         ? { ok: true as const, user: undefined }
         : await authenticateRequest(event.headers);
     if (!authResult.ok) {

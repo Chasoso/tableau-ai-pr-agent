@@ -32,6 +32,7 @@ export class GoogleCalendarService {
     if (!googleConfig.calendarId) {
       throw new Error("GOOGLE_CALENDAR_CALENDAR_ID is required.");
     }
+    const authenticatedUser = requireAuthenticatedUser(input.authenticatedUser);
 
     const searchWindow = buildCalendarSearchWindow(input.postType, input.now);
     logDebug("calendar.google.search.started", {
@@ -44,7 +45,7 @@ export class GoogleCalendarService {
     const accessToken = await getGoogleAccessToken({
       googleConfig,
       repository: this.repository,
-      authenticatedUser: input.authenticatedUser,
+      authenticatedUser,
     });
     const events = await listGoogleCalendarEvents({
       accessToken,
@@ -68,10 +69,10 @@ async function getGoogleAccessToken(input: {
   repository: GoogleCalendarRepository;
   authenticatedUser?: AuthenticatedUser;
 }): Promise<string> {
-  const userId = input.authenticatedUser?.userId ?? "global";
+  const authenticatedUser = requireAuthenticatedUser(input.authenticatedUser);
   let connection = null;
   try {
-    connection = await input.repository.getConnection(userId);
+    connection = await input.repository.getConnection(authenticatedUser.userId);
   } catch {
     connection = null;
   }
@@ -276,4 +277,16 @@ function pickDateTime(value?: GoogleCalendarDateTimeValue): string {
 
 function safeCalendarId(calendarId: string): string {
   return calendarId.includes("@") ? calendarId.slice(0, 4) + "***" : calendarId;
+}
+
+function requireAuthenticatedUser(
+  authenticatedUser: AuthenticatedUser | undefined,
+): AuthenticatedUser {
+  if (!authenticatedUser?.userId) {
+    throw new Error(
+      "Google Calendar lookup requires a signed-in user. Connect Google after signing in.",
+    );
+  }
+
+  return authenticatedUser;
 }

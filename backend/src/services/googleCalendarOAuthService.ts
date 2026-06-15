@@ -26,9 +26,10 @@ export class GoogleCalendarOAuthService {
   async getStatus(
     user: AuthenticatedUser | undefined,
   ): Promise<GoogleCalendarStatusResponse> {
+    requireUser(user);
     let connection: GoogleCalendarConnectionRecord | null = null;
     try {
-      connection = await this.repository.getConnection(resolveUserId(user));
+      connection = await this.repository.getConnection(user.userId);
     } catch {
       return {
         connected: false,
@@ -49,6 +50,7 @@ export class GoogleCalendarOAuthService {
     input: GoogleCalendarPopupStartRequest,
   ): Promise<GoogleCalendarPopupStartResponse> {
     validateGoogleCalendarOAuthConfiguration();
+    requireUser(user);
     const transactionId = randomUUID();
     const state = `${transactionId}.${randomBase64Url(18)}`;
     const pollToken = randomBase64Url(32);
@@ -63,7 +65,7 @@ export class GoogleCalendarOAuthService {
     await this.repository.putOAuthState({
       transactionId,
       state,
-      userId: resolveUserId(user),
+      userId: user.userId,
       pollTokenHash: hashString(pollToken),
       codeVerifier,
       redirectAfter: input.redirectAfter,
@@ -228,7 +230,8 @@ export class GoogleCalendarOAuthService {
   }
 
   async disconnect(user: AuthenticatedUser | undefined): Promise<void> {
-    await this.repository.deleteConnection(resolveUserId(user));
+    requireUser(user);
+    await this.repository.deleteConnection(user.userId);
   }
 }
 
@@ -285,8 +288,12 @@ async function exchangeAuthorizationCode(input: {
   return (await response.json()) as GoogleTokenResponse;
 }
 
-function resolveUserId(user: AuthenticatedUser | undefined): string {
-  return user?.userId ?? "global";
+function requireUser(
+  user: AuthenticatedUser | undefined,
+): asserts user is AuthenticatedUser {
+  if (!user?.userId) {
+    throw new Error("Google Calendar connection requires a signed-in user.");
+  }
 }
 
 function hashString(value: string): string {

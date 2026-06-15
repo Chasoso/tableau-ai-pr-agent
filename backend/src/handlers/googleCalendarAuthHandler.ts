@@ -17,6 +17,11 @@ export async function handleGoogleCalendarAuthRoute(
 
   try {
     if (path === "/auth/google/popup/start" && method === "POST") {
+      if (!user?.userId) {
+        return jsonResponse(401, {
+          message: "Google Calendar connection requires a signed-in user.",
+        });
+      }
       const payload = parseStartRequest(event.body);
       logInfo("google.oauth.start.requested", {
         hasRedirectAfter: Boolean(payload.redirectAfter),
@@ -75,10 +80,20 @@ export async function handleGoogleCalendarAuthRoute(
     }
 
     if (path === "/auth/google/status" && method === "GET") {
+      if (!user?.userId) {
+        return jsonResponse(401, {
+          message: "Google Calendar status requires a signed-in user.",
+        });
+      }
       return jsonResponse(200, await service.getStatus(user));
     }
 
     if (path === "/auth/google/disconnect" && method === "POST") {
+      if (!user?.userId) {
+        return jsonResponse(401, {
+          message: "Google Calendar disconnect requires a signed-in user.",
+        });
+      }
       await service.disconnect(user);
       return jsonResponse(200, { ok: true });
     }

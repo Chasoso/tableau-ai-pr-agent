@@ -72,6 +72,7 @@ describe("GoogleCalendarService", () => {
     const candidates = await service.searchCalendarEvents({
       postType: "開催中の実況",
       now: new Date("2026-06-14T03:00:00.000Z"),
+      authenticatedUser: { userId: "user-123" },
     });
 
     expect(candidates).toHaveLength(1);
