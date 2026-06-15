@@ -123,6 +123,7 @@ export default function PrPostAgentPanel({
   );
   const [imagePreviewExpanded, setImagePreviewExpanded] = useState(false);
   const [noImageSituationMemo, setNoImageSituationMemo] = useState("");
+  const [composerText, setComposerText] = useState("");
   const [manualTechPlayUrl, setManualTechPlayUrl] = useState("");
   const [generationStatus, setGenerationStatus] =
     useState<GenerationStatus>("idle");
@@ -161,6 +162,10 @@ export default function PrPostAgentPanel({
 
   const canGenerate = useMemo(() => {
     if (!selectedPostType || generationStatus !== "idle") {
+      return false;
+    }
+
+    if (selectedPostType === "開催中の実況" && imageMode === null) {
       return false;
     }
 
@@ -349,14 +354,6 @@ export default function PrPostAgentPanel({
     setMessages([
       INITIAL_MESSAGES[0],
       { id: crypto.randomUUID(), role: "user", lines: [postType] },
-      {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        lines:
-          postType === "開催中の実況"
-            ? ["投稿する画像をアップロードしてください。"]
-            : ["投稿シーンとイベント情報をもとに進めます。"],
-      },
     ]);
 
     try {
@@ -517,6 +514,7 @@ export default function PrPostAgentPanel({
     setUploadedImage(null);
     setImagePreviewExpanded(false);
     setNoImageSituationMemo("");
+    setComposerText("");
     setManualTechPlayUrl("");
     setGenerationStatus("idle");
     setGeneratedDraft(null);
@@ -698,6 +696,42 @@ export default function PrPostAgentPanel({
     ]);
   }
 
+  function handleComposerSubmit(event: FormEvent) {
+    event.preventDefault();
+    const text = composerText.trim();
+    if (!text) {
+      return;
+    }
+
+    setComposerText("");
+    setMessages((current) => [
+      ...current,
+      { id: crypto.randomUUID(), role: "user", lines: [text] },
+    ]);
+
+    if (selectedPostType === "開催中の実況" && imageMode === "none") {
+      setNoImageSituationMemo(text);
+      setMessages((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          lines: ["受け取りました。画像なしで投稿文を作成します。"],
+        },
+      ]);
+      return;
+    }
+
+    setMessages((current) => [
+      ...current,
+      {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        lines: ["受け取りました。必要に応じて投稿案を調整します。"],
+      },
+    ]);
+  }
+
   function handleChooseCalendarCandidate(candidateId: string) {
     const candidate =
       calendarResult?.candidates.find(
@@ -856,6 +890,12 @@ export default function PrPostAgentPanel({
         </p>
       ) : null}
 
+      {selectedPostType && selectedPostType !== "開催中の実況" && !generatedDraft ? (
+        <div className="pr-post-agent-message-note" role="status">
+          投稿シーンとイベント情報をもとに進めます。
+        </div>
+      ) : null}
+
       <section className="pr-post-agent-chat" aria-label="会話ログ">
         {messages.map((message) => (
           <ChatBubble key={message.id} role={message.role}>
@@ -884,6 +924,12 @@ export default function PrPostAgentPanel({
                 ))}
               </div>
             </div>
+          </ChatBubble>
+        ) : null}
+
+        {selectedPostType === "開催中の実況" && imageMode === null ? (
+          <ChatBubble role="assistant">
+            <p>投稿する画像をアップロードしてください。</p>
           </ChatBubble>
         ) : null}
 
@@ -1197,6 +1243,19 @@ export default function PrPostAgentPanel({
             </div>
           ) : null}
         </div>
+
+        <form className="pr-post-agent-composer" onSubmit={handleComposerSubmit}>
+          <textarea
+            aria-label="追加メッセージ"
+            rows={1}
+            placeholder="追加の要望があれば入力"
+            value={composerText}
+            onChange={(event) => setComposerText(event.currentTarget.value)}
+          />
+          <button type="submit" disabled={!composerText.trim()}>
+            送信
+          </button>
+        </form>
       </footer>
 
       <input
