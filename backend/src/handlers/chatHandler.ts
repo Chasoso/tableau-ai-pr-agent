@@ -48,6 +48,7 @@ export async function handler(
   const isNotionCallbackRoute = routePath.startsWith("/notion/callback");
   const isCognitoPopupAuthRoute = routePath.startsWith("/auth/cognito/");
   const isGoogleCallbackRoute = routePath === "/auth/google/callback";
+  const isGooglePopupStatusRoute = routePath === "/auth/google/popup/status";
   const canUseOwnerTokenFallback =
     isChatJobRoute ||
     isActionRunRoute ||
@@ -62,7 +63,10 @@ export async function handler(
   try {
     logInfo("chat.request.received", { requestId, method, routePath });
     const authResult =
-      isNotionCallbackRoute || isCognitoPopupAuthRoute || isGoogleCallbackRoute
+      isNotionCallbackRoute ||
+      isCognitoPopupAuthRoute ||
+      isGoogleCallbackRoute ||
+      isGooglePopupStatusRoute
         ? { ok: true as const, user: undefined }
         : canUseOwnerTokenFallback &&
             !getHeader(event.headers, "authorization") &&

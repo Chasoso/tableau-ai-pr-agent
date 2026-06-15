@@ -114,7 +114,7 @@ describe("chatHandler", () => {
     expect(response.statusCode).not.toBe(401);
   });
 
-  it("requires authorization header for google popup auth routes", async () => {
+  it("requires authorization header for google popup start route", async () => {
     process.env.AUTH_REQUIRED = "true";
     process.env.GOOGLE_CALENDAR_PROVIDER = "google";
     process.env.GOOGLE_CALENDAR_CLIENT_ID = "client-123";
@@ -130,6 +130,26 @@ describe("chatHandler", () => {
     });
 
     expect(response.statusCode).toBe(401);
+  });
+
+  it("does not require authorization header for google popup status route", async () => {
+    process.env.AUTH_REQUIRED = "true";
+    process.env.GOOGLE_CALENDAR_PROVIDER = "google";
+    process.env.GOOGLE_CALENDAR_CLIENT_ID = "client-123";
+    process.env.GOOGLE_CALENDAR_CLIENT_SECRET = "secret-123";
+    process.env.GOOGLE_CALENDAR_REDIRECT_URI =
+      "https://example.com/api/auth/google/callback";
+
+    const response = await handler({
+      httpMethod: "GET",
+      rawPath: "/auth/google/popup/status",
+      queryStringParameters: {
+        transactionId: "txn-123",
+      },
+      headers: {},
+    });
+
+    expect(response.statusCode).not.toBe(401);
   });
 
   it("shows the Cognito error description on callback failures", async () => {
