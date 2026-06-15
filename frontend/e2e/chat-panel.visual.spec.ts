@@ -1,8 +1,10 @@
 import { expect, test } from "@playwright/test";
+import { seedPrPostAgentState } from "./pr-post-agent-e2e";
 
 test.describe("PR投稿エージェント visual", () => {
   test("@visual matches the baseline on initial render", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
+    await seedPrPostAgentState(page);
     await page.goto("/");
     await page.waitForLoadState("networkidle");
 
