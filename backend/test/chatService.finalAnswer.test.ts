@@ -92,6 +92,46 @@ describe("ChatService final answer resolution", () => {
     expect(getFinalAnswerLog()?.answerHasActualQueryResult).toBe(false);
   });
 
+  it("asks for the comparison axis when it was not confirmed", async () => {
+    const request = buildRankingRequest();
+    const service = createService({
+      request,
+      additionalContext: {
+        provider: "tableau-mcp",
+        mcpExecutionDebug: {
+          intent: "data_analysis",
+          intentConfidence: 0.95,
+          answerableFromDashboardContext: false,
+          needsMcp: true,
+          maxToolCalls: 4,
+          plannedTools: [],
+          blockedTools: [],
+          executedTools: [],
+          skippedTools: [],
+          toolCallCount: 0,
+          replanUsed: false,
+          timingMs: { planning: 1, execution: 1 },
+        },
+        metadata: {
+          answerContext: {
+            metricSpecified: false,
+            metricIntent: "unknown",
+            requestedMetricText: null,
+            groupingIntent: "unknown",
+            groupingNeedsConfirmation: true,
+            metricExplicitlyMissing: true,
+          },
+        },
+      },
+    });
+
+    const response = await service.generateAnswer(request);
+
+    expect(response.answer).toContain("どの軸で比較するかの確認が必要");
+    expect(response.answer).toContain("指標名も明示されていません");
+    expect(getFinalAnswerLog()?.finalAnswerSource).toBe("fallback");
+  });
+
   it("wraps plain Bedrock output in markdown", async () => {
     const request = buildGenericRequest();
     const service = createService({

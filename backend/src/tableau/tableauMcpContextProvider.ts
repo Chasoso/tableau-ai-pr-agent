@@ -709,6 +709,13 @@ export class TableauMcpContextProvider implements TableauContextProvider {
         ...(fallbackReason ? { fallbackReason } : {}),
       };
 
+      const metricIsUnspecified =
+        questionInterpretation.metricIntent === "unknown" &&
+        !questionInterpretation.requestedMetricText;
+      const groupingNeedsConfirmation = shouldConfirmGroupingAxis(
+        questionInterpretation,
+      );
+
       return {
         provider: this.name,
         workbook: extractedWorkbook,
@@ -727,6 +734,15 @@ export class TableauMcpContextProvider implements TableauContextProvider {
           hasMetadata,
           datasourceFieldProfiles,
           planningQuestion: effectiveQuestion,
+          answerContext: {
+            metricSpecified: !metricIsUnspecified,
+            metricIntent: questionInterpretation.metricIntent,
+            requestedMetricText:
+              questionInterpretation.requestedMetricText ?? null,
+            groupingIntent: questionInterpretation.groupingIntent ?? "unknown",
+            groupingNeedsConfirmation,
+            metricExplicitlyMissing: metricIsUnspecified,
+          },
         },
         mcpTools: toolSummaries,
         mcpToolResults: toolResults,
@@ -5359,10 +5375,76 @@ function buildAggregateQueryDatasourceArgs(
     return undefined;
   }
 
+  const metricIsUnspecified =
+    questionInterpretation.metricIntent === "unknown" &&
+    !questionInterpretation.requestedMetricText;
+  const analysisNeedsAxisConfirmation = shouldConfirmGroupingAxis(
+    questionInterpretation,
+  );
+
   const dimensionField = chooseAggregateDimensionField(
     fieldDetails,
     questionInterpretation,
   );
+  logDebug("tableau.mcp.query.aggregate_dimension_choice", {
+    datasourceNameHash: safeHash(datasourceRef.name),
+    metricIntent: questionInterpretation.metricIntent,
+    groupingIntent: questionInterpretation.groupingIntent ?? "unknown",
+    analysisIntent: questionInterpretation.analysisIntent,
+    requestedMetricText: questionInterpretation.requestedMetricText ?? null,
+    metricField,
+    dimensionField,
+    metricIsUnspecified,
+    analysisNeedsAxisConfirmation,
+  });
+  if (
+    analysisNeedsAxisConfirmation &&
+    questionInterpretation.groupingIntent === "unknown" &&
+    !dimensionField
+  ) {
+    logDebug("tableau.mcp.query.blocked_dimension_unresolved", {
+      datasourceNameHash: safeHash(datasourceRef.name),
+      metricIntent: questionInterpretation.metricIntent,
+      groupingIntent: questionInterpretation.groupingIntent ?? "unknown",
+      analysisIntent: questionInterpretation.analysisIntent,
+      requestedMetricText: questionInterpretation.requestedMetricText ?? null,
+    });
+    return undefined;
+  }
+  if (questionInterpretation.groupingIntent === "unknown") {
+    logDebug("tableau.mcp.query.blocked_grouping_axis_unknown", {
+      datasourceNameHash: safeHash(datasourceRef.name),
+      metricIntent: questionInterpretation.metricIntent,
+      analysisIntent: questionInterpretation.analysisIntent,
+      requestedMetricText: questionInterpretation.requestedMetricText ?? null,
+      metricField,
+      dimensionField,
+    });
+    return undefined;
+  }
+  if (
+    metricField &&
+    dimensionField &&
+    normalizeNameForMatch(metricField) === normalizeNameForMatch(dimensionField)
+  ) {
+    logDebug("tableau.mcp.query.blocked_metric_dimension_collision", {
+      datasourceNameHash: safeHash(datasourceRef.name),
+      metricField,
+      dimensionField,
+      metricIntent: questionInterpretation.metricIntent,
+      groupingIntent: questionInterpretation.groupingIntent ?? "unknown",
+    });
+    return undefined;
+  }
+  if (metricIsUnspecified && isGenericCountLikeFieldName(metricField)) {
+    logDebug("tableau.mcp.query.blocked_implicit_count_metric", {
+      datasourceNameHash: safeHash(datasourceRef.name),
+      metricField,
+      metricIntent: questionInterpretation.metricIntent,
+      requestedMetricText: questionInterpretation.requestedMetricText ?? null,
+    });
+    return undefined;
+  }
   const dateField = chooseAggregateDateField(fieldDetails);
   const period = questionInterpretation.period;
   const isGroupedTrend =
@@ -5395,6 +5477,13 @@ function buildAggregateQueryDatasourceArgs(
   const queryFieldsAfterDedupe = dedupeQueryDatasourceFields(
     queryFieldsBeforeDedupe,
   );
+  logDebug("tableau.mcp.query.aggregate_query_fields", {
+    datasourceNameHash: safeHash(datasourceRef.name),
+    metricField,
+    dimensionField,
+    queryFieldsBeforeDedupe: summarizeQueryFieldSpecs(queryFieldsBeforeDedupe),
+    queryFieldsAfterDedupe: summarizeQueryFieldSpecs(queryFieldsAfterDedupe),
+  });
   if (!queryFieldsAfterDedupe.length) {
     return undefined;
   }
@@ -5479,24 +5568,34 @@ function chooseAggregateDimensionField(
   fieldDetails: DatasourceFieldDetail[],
   questionInterpretation: QuestionInterpretation,
 ): string | undefined {
-  const trimmed = fieldDetails
-    .map((fieldDetail) => fieldDetail.name.trim())
-    .filter(Boolean);
-  if (!trimmed.length) {
+  const candidates = fieldDetails
+    .map((fieldDetail) => ({
+      fieldDetail,
+      fieldName: fieldDetail.name.trim(),
+    }))
+    .filter((candidate) => candidate.fieldName.length > 0);
+  if (!candidates.length) {
     return undefined;
   }
 
   const preferredHints = questionInterpretation.groupingFieldHint ?? [];
-  const hintHit = findFieldByHints(trimmed, preferredHints);
+  const hintHit = findFieldByHints(
+    candidates.map((candidate) => candidate.fieldDetail),
+    preferredHints,
+    isGroupingCandidateFieldDetail,
+  );
   if (hintHit) {
     return hintHit;
   }
 
   if (questionInterpretation.groupingIntent === "hashtag") {
-    const hashtagCandidates = trimmed
-      .map((fieldName) => ({
-        fieldName,
-        score: scoreHashtagDimensionField(fieldName),
+    const hashtagCandidates = candidates
+      .filter((candidate) =>
+        isGroupingCandidateFieldDetail(candidate.fieldDetail),
+      )
+      .map((candidate) => ({
+        fieldName: candidate.fieldName,
+        score: scoreHashtagDimensionField(candidate.fieldName),
       }))
       .sort((left, right) => {
         if (right.score !== left.score) {
@@ -5513,11 +5612,14 @@ function chooseAggregateDimensionField(
   }
 
   if (questionInterpretation.rankingTarget === "post") {
-    const postCandidates = trimmed
-      .map((fieldName) => ({
-        fieldName,
-        score: scorePostDimensionField(fieldName),
-        postSpecific: isPostSpecificDimensionField(fieldName),
+    const postCandidates = candidates
+      .filter((candidate) =>
+        isGroupingCandidateFieldDetail(candidate.fieldDetail),
+      )
+      .map((candidate) => ({
+        fieldName: candidate.fieldName,
+        score: scorePostDimensionField(candidate.fieldName),
+        postSpecific: isPostSpecificDimensionField(candidate.fieldName),
       }))
       .sort((left, right) => {
         if (right.score !== left.score) {
@@ -5535,12 +5637,41 @@ function chooseAggregateDimensionField(
   }
 
   if (questionInterpretation.groupingIntent === "author") {
-    const authorHit = trimmed.find((fieldName) =>
-      /author|creator|user|profile/i.test(fieldName),
+    const authorHit = candidates.find(
+      (candidate) =>
+        isGroupingCandidateFieldDetail(candidate.fieldDetail) &&
+        /author|creator|user|profile/i.test(candidate.fieldName),
     );
     if (authorHit) {
-      return authorHit;
+      return authorHit.fieldName;
     }
+  }
+
+  const rankedCandidates = candidates
+    .filter((candidate) =>
+      isGroupingCandidateFieldDetail(candidate.fieldDetail),
+    )
+    .map((candidate) => ({
+      fieldName: candidate.fieldName,
+      score: scoreGroupingDimensionField(candidate.fieldDetail),
+    }))
+    .sort((left, right) => {
+      if (right.score !== left.score) {
+        return right.score - left.score;
+      }
+      return right.fieldName.length - left.fieldName.length;
+    });
+  const selectedCandidate = rankedCandidates.find(
+    (candidate) => candidate.score > 0,
+  );
+  logDebug("tableau.mcp.query.grouping_candidates_scored", {
+    groupingIntent: questionInterpretation.groupingIntent ?? "unknown",
+    rankingTarget: questionInterpretation.rankingTarget ?? "unknown",
+    candidates: rankedCandidates,
+    selectedCandidate: selectedCandidate?.fieldName ?? null,
+  });
+  if (selectedCandidate) {
+    return selectedCandidate.fieldName;
   }
 
   const rankedPatterns = [
@@ -5549,23 +5680,28 @@ function chooseAggregateDimensionField(
     /(name|title)/i,
   ];
   for (const pattern of rankedPatterns) {
-    const hit = trimmed.find((fieldName) => pattern.test(fieldName));
+    const hit = rankedCandidates.find((candidate) =>
+      pattern.test(candidate.fieldName),
+    );
     if (hit) {
-      return hit;
+      return hit.fieldName;
     }
   }
 
-  return trimmed[0];
+  return undefined;
 }
 
 function findFieldByHints(
-  fieldNames: string[],
+  fieldDetails: DatasourceFieldDetail[],
   hints: string[],
+  allowField?: (fieldDetail: DatasourceFieldDetail) => boolean,
 ): string | undefined {
-  const normalizedFieldNames = fieldNames.map((fieldName) => ({
-    fieldName,
-    normalized: normalizeNameForMatch(fieldName),
-  }));
+  const normalizedFieldNames = fieldDetails
+    .filter((fieldDetail) => (allowField ? allowField(fieldDetail) : true))
+    .map((fieldDetail) => ({
+      fieldName: fieldDetail.name.trim(),
+      normalized: normalizeNameForMatch(fieldDetail.name),
+    }));
   for (const hint of hints) {
     const normalizedHint = normalizeNameForMatch(hint);
     const exactMatch = normalizedFieldNames.find(
@@ -5579,6 +5715,95 @@ function findFieldByHints(
     }
   }
   return undefined;
+}
+
+function isGroupingCandidateFieldDetail(
+  fieldDetail: DatasourceFieldDetail,
+): boolean {
+  if (!fieldDetail.name.trim()) {
+    return false;
+  }
+
+  if (isMeasureFieldDetail(fieldDetail) || isNumericFieldDetail(fieldDetail)) {
+    return false;
+  }
+
+  return true;
+}
+
+function scoreGroupingDimensionField(
+  fieldDetail: DatasourceFieldDetail,
+): number {
+  const normalized = normalizeNameForMatch(fieldDetail.name);
+  let score = 0;
+
+  if (
+    /title|name|label|category|type|status|segment|group|author|creator|user|profile|viz|dashboard|workbook|hashtag/.test(
+      normalized,
+    )
+  ) {
+    score += 120;
+  } else {
+    score += 40;
+  }
+
+  if (isCountLikeGroupingFieldName(fieldDetail.name)) {
+    score -= 150;
+  }
+
+  if (isDateFieldDetail(fieldDetail)) {
+    score += 60;
+  }
+
+  if (isPostSpecificDimensionField(fieldDetail.name)) {
+    score += 80;
+  }
+
+  if (isGenericCountLikeFieldName(fieldDetail.name)) {
+    score -= 120;
+  }
+
+  return score;
+}
+
+function isGenericCountLikeFieldName(fieldName: string): boolean {
+  const raw = fieldName.trim().toLowerCase();
+  const normalized = normalizeNameForMatch(fieldName);
+  return (
+    /posts?\s*count/.test(raw) ||
+    /^count$/.test(raw) ||
+    /postscount|postcount|recordcount|rowcount|countofposts|numofposts/.test(
+      normalized,
+    ) ||
+    /件数/.test(fieldName)
+  );
+}
+
+function isCountLikeGroupingFieldName(fieldName: string): boolean {
+  const segmented = fieldName
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_./\\-]+/g, " ")
+    .toLowerCase()
+    .trim();
+  return /\b(posts?|views?|favorites?|impressions?|records?|rows?|counts?)\b/.test(
+    segmented,
+  );
+}
+
+function shouldConfirmGroupingAxis(
+  questionInterpretation: QuestionInterpretation,
+): boolean {
+  if (questionInterpretation.groupingIntent !== "unknown") {
+    return false;
+  }
+
+  return Boolean(
+    questionInterpretation.analysisIntent === "comparison" ||
+    questionInterpretation.analysisIntent === "ranking" ||
+    questionInterpretation.analysisIntent === "grouped_trend" ||
+    questionInterpretation.asksForRanking ||
+    questionInterpretation.rankingTarget !== "unknown",
+  );
 }
 
 function scoreHashtagDimensionField(fieldName: string): number {
@@ -5624,6 +5849,9 @@ export function selectAggregateMetricField(
   fieldDetails: DatasourceFieldDetail[],
   questionInterpretation: QuestionInterpretation,
 ): AggregateMetricSelection {
+  const metricIsUnspecified =
+    questionInterpretation.metricIntent === "unknown" &&
+    !questionInterpretation.requestedMetricText;
   if (questionInterpretation.metricIntent === "reactions") {
     const componentFields = fieldDetails
       .filter(
@@ -5817,6 +6045,14 @@ export function selectAggregateMetricField(
       }
 
       if (
+        metricIsUnspecified &&
+        isGenericCountLikeFieldName(fieldDetail.name)
+      ) {
+        score -= 180;
+        reasons.push("implicit_count_penalty");
+      }
+
+      if (
         questionInterpretation.metricIntent !== "unknown" &&
         matchesMetricFieldIntent(
           fieldDetail.name,
@@ -5891,6 +6127,16 @@ export function selectAggregateMetricField(
     .sort((left, right) => right.score - left.score);
 
   const selected = candidates.find((candidate) => candidate.score > 0);
+  if (
+    selected &&
+    metricIsUnspecified &&
+    isGenericCountLikeFieldName(selected.fieldName)
+  ) {
+    return {
+      fieldName: undefined,
+      candidates,
+    };
+  }
   return {
     fieldName: selected?.fieldName,
     fieldSpec: selected

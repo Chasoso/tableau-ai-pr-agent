@@ -845,6 +845,18 @@ function resolveFinalUserFacingAnswer(
     });
   }
 
+  const axisConfirmationFallback = buildAxisConfirmationFallback(
+    request,
+    additionalContext,
+  );
+  if (axisConfirmationFallback) {
+    return finalizeMarkdownAnswer({
+      answer: axisConfirmationFallback,
+      finalAnswerSource: "fallback",
+      queryInsightUsedForFinalAnswer: false,
+    });
+  }
+
   const groupedTrendFallback = buildGroupedTrendAnalysisFallback(
     request,
     additionalContext,
@@ -1537,6 +1549,85 @@ function buildSafeDataAnalysisFallback(
     "",
     "これはデータソース全体にデータがないことを意味しません。次は、要求した指標名に対応するフィールドの有無と、query-datasource の返却列名を確認するのがよいです。",
   ].join("\n");
+}
+
+function buildAxisConfirmationFallback(
+  request: ChatRequest,
+  additionalContext: Awaited<
+    ReturnType<TableauContextProvider["getAdditionalContext"]>
+  >,
+): string | undefined {
+  if (additionalContext.mcpExecutionDebug?.intent !== "data_analysis") {
+    return undefined;
+  }
+
+  const answerContext = readAnswerContext(additionalContext.metadata);
+  if (!answerContext?.groupingNeedsConfirmation) {
+    return undefined;
+  }
+
+  const datasourceNames =
+    additionalContext.normalizedContext?.datasources
+      ?.map((datasource) => datasource.name)
+      .filter(Boolean) ??
+    request.dashboardContext.dataSources
+      ?.map((datasource) => datasource.name)
+      .filter(Boolean) ??
+    [];
+  const datasourceText = datasourceNames.length
+    ? datasourceNames.join("、")
+    : "対象データソース";
+  const metricNeedsClarification = Boolean(
+    !answerContext.metricSpecified &&
+    !answerContext.requestedMetricText &&
+    answerContext.metricIntent === "unknown",
+  );
+
+  return [
+    "## 回答",
+    "",
+    `このダッシュボードの「${datasourceText}」では、どの軸で比較するかの確認が必要です。`,
+    "",
+    "現在の情報だけでは、比較軸を安全に決めきれないため、集計クエリは実行していません。",
+    metricNeedsClarification ? "また、指標名も明示されていません。" : undefined,
+    "",
+    "たとえば、投稿タイプ、著者、ハッシュタグ、日付など、どの切り口で見たいかを教えてください。",
+  ]
+    .filter((line): line is string => line !== undefined)
+    .join("\n");
+}
+
+function readAnswerContext(metadata: unknown):
+  | {
+      metricSpecified?: boolean;
+      metricIntent?: string;
+      requestedMetricText?: string | null;
+      groupingIntent?: string;
+      groupingNeedsConfirmation?: boolean;
+      metricExplicitlyMissing?: boolean;
+    }
+  | undefined {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return undefined;
+  }
+
+  const answerContext = (metadata as Record<string, unknown>).answerContext;
+  if (
+    !answerContext ||
+    typeof answerContext !== "object" ||
+    Array.isArray(answerContext)
+  ) {
+    return undefined;
+  }
+
+  return answerContext as {
+    metricSpecified?: boolean;
+    metricIntent?: string;
+    requestedMetricText?: string | null;
+    groupingIntent?: string;
+    groupingNeedsConfirmation?: boolean;
+    metricExplicitlyMissing?: boolean;
+  };
 }
 
 function buildNoValidatedRankingFallback(

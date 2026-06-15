@@ -247,6 +247,47 @@ describe("TableauMcpContextProvider extraction helpers", () => {
     );
   });
 
+  it("does not default to Posts Count when the metric intent is unknown", () => {
+    const interpretation = interpretQuestion({
+      question: "Show the top categories.",
+      dashboardContext: {
+        ...baseInput.dashboardContext,
+        dataSources: [{ name: "Tableau Public Per Day(2025/04-)" }],
+      },
+    });
+
+    expect(interpretation.metricIntent).toBe("unknown");
+
+    const selection = selectAggregateMetricField(
+      [
+        {
+          name: "Posts Count",
+          dataType: "INTEGER",
+          role: "MEASURE",
+          source: "datasourceModel",
+        },
+        {
+          name: "Daily View Count",
+          dataType: "INTEGER",
+          role: "MEASURE",
+          source: "datasourceModel",
+        },
+      ],
+      interpretation,
+    );
+
+    expect(selection.fieldName).toBe("Daily View Count");
+    expect(
+      selection.candidates.find(
+        (candidate) => candidate.fieldName === "Posts Count",
+      )?.score ?? 0,
+    ).toBeLessThan(
+      selection.candidates.find(
+        (candidate) => candidate.fieldName === "Daily View Count",
+      )?.score ?? 0,
+    );
+  });
+
   it("prefers explicit impression metrics and post identifiers for post ranking questions", () => {
     const interpretation = interpretQuestion({
       question:
@@ -385,6 +426,107 @@ describe("TableauMcpContextProvider extraction helpers", () => {
         }),
       );
     }
+  });
+
+  it("blocks aggregate query recovery when the grouping axis is not known", () => {
+    const selection = buildDataAnalysisQueryRecoverySelection({
+      tools: [
+        {
+          name: "query-datasource",
+          inputSchema: {
+            type: "object",
+            properties: {
+              datasourceLuid: { type: "string" },
+              query: { type: "object" },
+              limit: { type: "number" },
+            },
+          },
+        },
+      ],
+      allowedToolNames: ["query-datasource"],
+      input: {
+        ...baseInput,
+        question: "Show the top results by metric.",
+        dashboardContext: {
+          ...baseInput.dashboardContext,
+          dataSources: [{ name: "X Account Overview Analytics" }],
+        },
+        questionInterpretation: {
+          originalQuestion: "Show the top results by metric.",
+          investigationQuestion: "Show the top results by metric.",
+          datasourceMentions: [],
+          requestType: "general",
+          analysisIntent: "ranking",
+          metricIntent: "impressions",
+          asksForRanking: true,
+          topN: 10,
+          rankingTarget: "viz",
+          groupingIntent: "unknown",
+        },
+      },
+      intent: {
+        intent: "data_analysis",
+        confidence: 0.95,
+        reasonBrief: "Need a ranking query.",
+        answerableFromDashboardContext: false,
+        needsMcp: true,
+        maxToolCalls: 4,
+      },
+      calledToolNames: new Set(["list-datasources", "get-datasource-metadata"]),
+      rawToolResults: [
+        {
+          toolName: "list-datasources",
+          result: {
+            content: [
+              {
+                text: JSON.stringify([
+                  {
+                    name: "X Account Overview Analytics",
+                    id: "ds-123",
+                    project: { name: "Sandbox" },
+                  },
+                ]),
+              },
+            ],
+          },
+        },
+        {
+          toolName: "get-datasource-metadata",
+          result: {
+            content: [
+              {
+                text: JSON.stringify({
+                  datasourceModel: {
+                    name: "X Account Overview Analytics",
+                    fields: [
+                      {
+                        name: "Posts Count",
+                        dataType: "INTEGER",
+                        role: "MEASURE",
+                      },
+                      {
+                        name: "Daily View Count",
+                        dataType: "INTEGER",
+                        role: "MEASURE",
+                      },
+                      {
+                        name: "Category",
+                        dataType: "STRING",
+                        role: "DIMENSION",
+                      },
+                    ],
+                  },
+                }),
+              },
+            ],
+          },
+        },
+      ],
+      observations: [],
+      remainingToolBudget: 2,
+    });
+
+    expect(selection).toBeUndefined();
   });
 
   it("derives engagement rate when the rate field is absent", () => {
