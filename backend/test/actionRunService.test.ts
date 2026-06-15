@@ -172,6 +172,32 @@ describe("ActionRunService", () => {
     );
   });
 
+  it("stores the authenticated user snapshot for worker reuse", async () => {
+    repositoryMock.create.mockResolvedValue(undefined);
+    const service = new ActionRunService();
+
+    await service.createActionRun({
+      request: buildRequest(),
+      authenticatedUser: {
+        userId: "user-1",
+        email: "user@example.com",
+        tableauSubject: "user@example.com",
+      },
+    });
+
+    expect(repositoryMock.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ownerType: "authenticated",
+        ownerUserId: "user-1",
+        authContextSnapshot: expect.objectContaining({
+          userId: "user-1",
+          email: "user@example.com",
+          tableauSubject: "user@example.com",
+        }),
+      }),
+    );
+  });
+
   it("includes runId in action run lifecycle logs", async () => {
     repositoryMock.create.mockResolvedValue(undefined);
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {
@@ -201,7 +227,18 @@ describe("ActionRunService", () => {
   });
 
   it("processes an action run with fixed Tableau analysis", async () => {
-    repositoryMock.claim.mockResolvedValue(buildActionRunRecord());
+    repositoryMock.claim.mockResolvedValue(
+      buildActionRunRecord({
+        ownerType: "authenticated",
+        ownerUserId: "user-1",
+        ownerKey: "user:user-1",
+        authContextSnapshot: {
+          userId: "user-1",
+          email: "user@example.com",
+          tableauSubject: "user@example.com",
+        },
+      }),
+    );
     repositoryMock.updateProgress.mockResolvedValue(buildActionRunRecord());
     repositoryMock.markCompleted.mockResolvedValue(buildActionRunRecord());
     imageMock.generateActionRunPoster.mockResolvedValue({
@@ -238,6 +275,15 @@ describe("ActionRunService", () => {
       }),
     );
     expect(analysisMock.analyzeActionRun).toHaveBeenCalledTimes(1);
+    expect(analysisMock.analyzeActionRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        authenticatedUser: expect.objectContaining({
+          userId: "user-1",
+          email: "user@example.com",
+          tableauSubject: "user@example.com",
+        }),
+      }),
+    );
     expect(imageMock.generateActionRunPoster).toHaveBeenCalledTimes(1);
     expect(slackMock.postActionRun).not.toHaveBeenCalled();
     expect(repositoryMock.markCompleted).toHaveBeenCalledWith({

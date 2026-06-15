@@ -24,6 +24,7 @@ import type {
   ActionRunRequest,
   ActionRunResult,
 } from "../types/actionRun";
+import type { ChatJobAuthSnapshot } from "../types/chatJob";
 import type { SlackWebhookPostResult } from "./slackWebhookService";
 
 export type ActionRunApprovalResponse = ActionRunGetResponse & {
@@ -47,6 +48,7 @@ export class ActionRunService {
       authenticatedUser: input.authenticatedUser,
       headers: input.headers,
     });
+    const authContextSnapshot = buildAuthSnapshot(input.authenticatedUser);
     const jobId = randomUUID();
     const createdAt = new Date().toISOString();
     const runId = jobId;
@@ -59,6 +61,7 @@ export class ActionRunService {
       ...(input.authenticatedUser?.userId
         ? { ownerUserId: input.authenticatedUser.userId }
         : {}),
+      ...(authContextSnapshot ? { authContextSnapshot } : {}),
       status: "queued",
       stage: "queued",
       progressMessages: [
@@ -285,6 +288,17 @@ export class ActionRunService {
       status: claimed.status,
     });
 
+    const effectiveAuthenticatedUser =
+      authenticatedUser ?? buildAuthenticatedUserFromSnapshot(claimed);
+
+    if (claimed.ownerType === "authenticated" && !effectiveAuthenticatedUser) {
+      logWarn("action_run.auth_context_missing", {
+        actionRunId: input.actionRunId,
+        ownerUserId: claimed.ownerUserId,
+        authSnapshotPresent: Boolean(claimed.authContextSnapshot),
+      });
+    }
+
     try {
       await this.reportProgress(input.actionRunId, {
         stage: "loading_dashboard_context",
@@ -301,7 +315,7 @@ export class ActionRunService {
 
       const response = await analysisService.analyzeActionRun({
         request: claimed.request,
-        authenticatedUser,
+        authenticatedUser: effectiveAuthenticatedUser,
       });
       const generatedImage = await imageService.generateActionRunPoster({
         actionRunId: input.actionRunId,
@@ -421,6 +435,46 @@ export class ActionRunService {
       throw new Error("You do not have access to this action run.");
     }
   }
+}
+
+function buildAuthSnapshot(
+  authenticatedUser?: AuthenticatedUser,
+): ChatJobAuthSnapshot | undefined {
+  if (!authenticatedUser?.userId) {
+    return undefined;
+  }
+
+  return {
+    userId: authenticatedUser.userId,
+    ...(authenticatedUser.email ? { email: authenticatedUser.email } : {}),
+    ...(authenticatedUser.tableauSubject || authenticatedUser.email
+      ? {
+          tableauSubject:
+            authenticatedUser.tableauSubject ?? authenticatedUser.email,
+        }
+      : {}),
+    ...(authenticatedUser.tokenUse
+      ? { tokenUse: authenticatedUser.tokenUse }
+      : {}),
+  };
+}
+
+function buildAuthenticatedUserFromSnapshot(
+  record: Pick<ActionRunRecord, "authContextSnapshot">,
+): AuthenticatedUser | undefined {
+  const snapshot = record.authContextSnapshot;
+  if (!snapshot?.userId) {
+    return undefined;
+  }
+
+  return {
+    userId: snapshot.userId,
+    ...(snapshot.email ? { email: snapshot.email } : {}),
+    ...(snapshot.tableauSubject
+      ? { tableauSubject: snapshot.tableauSubject }
+      : {}),
+    ...(snapshot.tokenUse ? { tokenUse: snapshot.tokenUse } : {}),
+  };
 }
 
 async function buildTableauFailureDiagnostics(): Promise<

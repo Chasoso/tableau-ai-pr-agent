@@ -29,6 +29,7 @@ export type TableauConnectivityDiagnostics = {
     status?: number;
     userIdHash?: string;
     siteIdHash?: string;
+    likelyCause?: string;
     error?: Record<string, unknown>;
   };
 };
@@ -130,9 +131,36 @@ export async function runTableauConnectivityDiagnostics(): Promise<TableauConnec
     diagnostics.authentication = {
       ok: false,
       signedIn: false,
+      likelyCause: inferAuthenticationLikelyCause(error),
       error: safeErrorDetails(error),
     };
   }
 
   return diagnostics;
+}
+
+function inferAuthenticationLikelyCause(error: unknown): string | undefined {
+  if (!(error instanceof Error)) {
+    return undefined;
+  }
+
+  const details =
+    "details" in error && typeof error.details === "object"
+      ? (error.details as Record<string, unknown>)
+      : undefined;
+  const status =
+    details && typeof details.status === "number" ? details.status : undefined;
+  const tableauErrorCode =
+    typeof details?.tableauErrorCode === "string"
+      ? details.tableauErrorCode
+      : undefined;
+
+  if (status === 401 || tableauErrorCode === "401001") {
+    return [
+      "Tableau rejected the Connected App JWT sign-in.",
+      "Check TABLEAU_DEFAULT_SUBJECT, Connected App trust settings, and whether the subject user exists and can sign in to the target site.",
+    ].join(" ");
+  }
+
+  return undefined;
 }
