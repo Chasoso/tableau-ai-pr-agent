@@ -29,6 +29,7 @@ The template intentionally does not output API Gateway URLs, CloudFront domains,
 - `BEDROCK_FOUNDATION_MODEL_ID`: default `amazon.nova-2-lite-v1:0`
 - `TABLEAU_MCP_TRANSPORT`: default `stdio`
 - `TABLEAU_MCP_AUTH_MODE`: default `direct-trust`
+- `TABLEAU_CONNECTIVITY_DIAGNOSTICS`: set `true` to include Tableau reachability and sign-in checks in `/health`
 - `TABLEAU_MCP_ALLOWED_TOOLS`: optional allowlist
 - `LOG_LEVEL`: default `info` (`debug` / `info` / `warn` / `error`)
 - `CHAT_DEBUG_MAX_CHARS`: default `12000` for debug chat message log truncation
@@ -62,4 +63,5 @@ The template intentionally does not output API Gateway URLs, CloudFront domains,
 - `BEDROCK_FOUNDATION_MODEL_ID`: default `amazon.nova-2-lite-v1:0`
 - `TABLEAU_MCP_TRANSPORT`: default `stdio`
 - `TABLEAU_MCP_AUTH_MODE`: default `direct-trust`
+- `TABLEAU_CONNECTIVITY_DIAGNOSTICS`: `true` にすると `/health` に Tableau の到達性とサインイン診断を含める
 - `TABLEAU_MCP_ALLOWED_TOOLS`: 任意の allowlist

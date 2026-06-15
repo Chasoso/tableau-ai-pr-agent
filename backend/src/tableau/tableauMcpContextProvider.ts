@@ -98,6 +98,8 @@ type CacheEntry = {
 };
 
 const metadataToolCache = new Map<string, CacheEntry>();
+const mcpStartupFailureCache = new Map<string, CacheEntry>();
+const MCP_STARTUP_FAILURE_CACHE_TTL_MS = 60_000;
 
 export type ToolPreconditionResult = {
   ok: boolean;
@@ -176,11 +178,28 @@ export class TableauMcpContextProvider implements TableauContextProvider {
       };
     }
 
+    const startupFailureCacheKey = buildMcpStartupFailureCacheKey({
+      tableauConfig: config.tableau,
+      mcpConfig,
+    });
+    const cachedStartupFailure = getCachedMcpStartupFailure(
+      startupFailureCacheKey,
+    );
+    if (cachedStartupFailure) {
+      logWarn("tableau.mcp.startup_failure_cached", {
+        dashboardName: input.dashboardContext.dashboardName,
+        questionRewritten: effectiveQuestion !== input.question,
+        serverUrlSummary: summarizeServerUrl(config.tableau.serverUrl),
+      });
+      return cachedStartupFailure;
+    }
+
     let client: Client | undefined;
     let transport: StdioClientTransport | undefined;
     let mcpStderrTail = "";
     let serverUrlSummary: McpServerUrlSummary | undefined;
     let runtimeSummary: McpRuntimeSummary | undefined;
+    let startupCompleted = false;
 
     try {
       const connectedApp = await getTableauConnectedAppSecrets();
@@ -256,6 +275,7 @@ export class TableauMcpContextProvider implements TableauContextProvider {
       const toolsResponse = await client.listTools(undefined, {
         timeout: mcpConfig.timeoutMs,
       });
+      startupCompleted = true;
       const tools = toolsResponse.tools as McpTool[];
       const allowedToolNames = resolveAllowedToolNames(
         tools,
@@ -715,7 +735,19 @@ export class TableauMcpContextProvider implements TableauContextProvider {
       };
     } catch (error) {
       const safeDetails = safeErrorDetails(error);
-      logError("tableau.mcp.lookup.failed", {
+      if (!startupCompleted) {
+        cacheMcpStartupFailure(startupFailureCacheKey, {
+          provider: this.name,
+          mcpConnectionFailed: true,
+          mcpFailureStage: "startup",
+          mcpFailureReason: summarizeMcpFailureReason(error, mcpStderrTail),
+          warnings: [
+            "Tableau MCP lookup failed before usable observations were collected.",
+          ],
+        });
+      }
+      const logFailure = startupCompleted ? logError : logWarn;
+      logFailure("tableau.mcp.lookup.failed", {
         ...safeDetails,
         ...(serverUrlSummary ? { serverUrlSummary } : {}),
         ...(runtimeSummary ? { runtimeSummary } : {}),
@@ -741,6 +773,11 @@ export class TableauMcpContextProvider implements TableauContextProvider {
       });
     }
   }
+}
+
+export function clearTableauMcpRuntimeCaches(): void {
+  metadataToolCache.clear();
+  mcpStartupFailureCache.clear();
 }
 
 async function callHttpMcpStub(
@@ -902,6 +939,51 @@ function validateMcpStartupConfiguration(
   }
 
   return { ok: true };
+}
+
+function buildMcpStartupFailureCacheKey(input: {
+  tableauConfig: ReturnType<typeof getConfig>["tableau"];
+  mcpConfig: ReturnType<typeof getConfig>["tableau"]["mcp"];
+}): string {
+  return [
+    input.tableauConfig.serverUrl.trim(),
+    input.tableauConfig.siteContentUrl.trim(),
+    input.mcpConfig.transport,
+    input.mcpConfig.authMode,
+    input.mcpConfig.command.trim(),
+    input.mcpConfig.args.join("\u0000"),
+  ].join("|");
+}
+
+function getCachedMcpStartupFailure(
+  cacheKey: string,
+): TableauAdditionalContext | undefined {
+  pruneStartupFailureCache();
+  const cached = mcpStartupFailureCache.get(cacheKey);
+  if (!cached) {
+    return undefined;
+  }
+
+  return cached.result as TableauAdditionalContext;
+}
+
+function cacheMcpStartupFailure(
+  cacheKey: string,
+  result: TableauAdditionalContext,
+): void {
+  mcpStartupFailureCache.set(cacheKey, {
+    expiresAt: Date.now() + MCP_STARTUP_FAILURE_CACHE_TTL_MS,
+    result,
+  });
+}
+
+function pruneStartupFailureCache(): void {
+  const now = Date.now();
+  for (const [key, entry] of mcpStartupFailureCache.entries()) {
+    if (entry.expiresAt <= now) {
+      mcpStartupFailureCache.delete(key);
+    }
+  }
 }
 
 function appendSanitizedStderrTail(

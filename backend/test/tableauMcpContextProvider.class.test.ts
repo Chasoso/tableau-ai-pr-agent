@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   TableauMcpContextProvider,
+  clearTableauMcpRuntimeCaches,
   buildRuleBasedInitialSelections,
 } from "../src/tableau/tableauMcpContextProvider";
 import {
@@ -82,6 +83,7 @@ function setMcpEnv(values: Record<string, string>): void {
 afterEach(() => {
   vi.clearAllMocks();
   vi.unstubAllGlobals();
+  clearTableauMcpRuntimeCaches();
   delete process.env.TABLEAU_MCP_TRANSPORT;
   delete process.env.TABLEAU_MCP_SERVER_URL;
   delete process.env.TABLEAU_MCP_TIMEOUT_MS;
@@ -312,6 +314,45 @@ describe("TableauMcpContextProvider", () => {
         hasMetadata: true,
       }),
     );
+  });
+
+  it("memoizes stdio startup failures so repeated lookups do not respawn MCP", async () => {
+    setMcpEnv({
+      TABLEAU_MCP_TRANSPORT: "stdio",
+      TABLEAU_MCP_SERVER_URL: "",
+      TABLEAU_MCP_TIMEOUT_MS: "5000",
+      TABLEAU_MCP_ALLOWED_TOOLS: "",
+      TABLEAU_MCP_MAX_TOOL_CALLS: "1",
+      TABLEAU_MCP_COMMAND: "",
+      TABLEAU_MCP_ARGS: "",
+      TABLEAU_MCP_TOOL_PLANNING_ENABLED: "false",
+      TABLEAU_MCP_METADATA_CACHE_ENABLED: "false",
+    });
+
+    mocks.getTableauConnectedAppSecrets.mockResolvedValue({
+      clientId: "client-id",
+      secretId: "secret-id",
+      secretValue: "secret-value",
+    });
+    mocks.client.connect.mockRejectedValueOnce(
+      new Error("Fatal error initializing server info"),
+    );
+
+    const input: GetAdditionalContextInput = {
+      dashboardContext,
+      question: "Show metadata",
+      tableauSubject: "user@example.com",
+    };
+
+    const firstResult = await provider.getAdditionalContext(input);
+    const secondResult = await provider.getAdditionalContext(input);
+
+    expect(firstResult.mcpConnectionFailed).toBe(true);
+    expect(secondResult.mcpConnectionFailed).toBe(true);
+    expect(mocks.clientConstructor).toHaveBeenCalledTimes(1);
+    expect(mocks.transportConstructor).toHaveBeenCalledTimes(1);
+    expect(mocks.client.connect).toHaveBeenCalledTimes(1);
+    expect(mocks.client.listTools).not.toHaveBeenCalled();
   });
 
   it("blocks datasource-resolution tools when they are not allowlisted", () => {

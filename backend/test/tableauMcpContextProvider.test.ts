@@ -6,6 +6,7 @@ import {
   buildMcpErrorMessage,
   checkToolPreconditions,
   classifyMcpErrorCategory,
+  clearTableauMcpRuntimeCaches,
   extractBestWorkbookId,
   extractDatasourceFieldProfilesFromRawToolResults,
   extractQueryDatasourceInsightsFromRawToolResults,
@@ -36,6 +37,7 @@ const baseInput: GetAdditionalContextInput = {
 };
 
 afterEach(() => {
+  clearTableauMcpRuntimeCaches();
   vi.unstubAllEnvs();
 });
 

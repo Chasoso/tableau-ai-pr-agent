@@ -25,6 +25,10 @@ const imageMock = vi.hoisted(() => ({
   generateActionRunPoster: vi.fn(),
 }));
 
+const tableauDiagnosticsMock = vi.hoisted(() => ({
+  runTableauConnectivityDiagnostics: vi.fn(),
+}));
+
 vi.mock("../src/repositories/actionRunRepository", () => ({
   ActionRunRepository: vi.fn(function () {
     return repositoryMock;
@@ -47,6 +51,11 @@ vi.mock("../src/services/actionRunImageService", () => ({
   ActionRunImageService: vi.fn(function () {
     return imageMock;
   }),
+}));
+
+vi.mock("../src/services/tableauConnectivityDiagnostics", () => ({
+  runTableauConnectivityDiagnostics:
+    tableauDiagnosticsMock.runTableauConnectivityDiagnostics,
 }));
 
 describe("ActionRunService", () => {
@@ -254,6 +263,84 @@ describe("ActionRunService", () => {
         }),
       }),
     );
+  });
+
+  it("includes Tableau diagnostics in failure logs and failure records", async () => {
+    repositoryMock.claim.mockResolvedValue(buildActionRunRecord());
+    repositoryMock.updateProgress.mockResolvedValue(buildActionRunRecord());
+    repositoryMock.markFailed.mockResolvedValue(buildActionRunRecord());
+    analysisMock.analyzeActionRun.mockRejectedValue(
+      new Error("Fatal error initializing server info"),
+    );
+    tableauDiagnosticsMock.runTableauConnectivityDiagnostics.mockResolvedValue({
+      enabled: true,
+      config: {
+        serverUrlConfigured: true,
+        siteContentUrlConfigured: true,
+        apiVersion: "3.25",
+        subjectConfigured: true,
+        scopesConfigured: ["tableau:content:read"],
+        connectedAppConfigured: {
+          clientId: true,
+          secretId: true,
+          secretValue: true,
+        },
+      },
+      reachability: {
+        ok: false,
+        error: {
+          errorName: "TypeError",
+          errorMessage: "fetch failed",
+        },
+      },
+      authentication: {
+        ok: false,
+        error: {
+          errorName: "ConfigurationError",
+          errorMessage: "TABLEAU_DEFAULT_SUBJECT is not configured.",
+        },
+      },
+    });
+
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {
+      // noop
+    });
+
+    const service = new ActionRunService();
+    await service.processActionRun({
+      actionRunId: "action-run-1",
+    });
+
+    const failureLog = errorSpy.mock.calls
+      .map(([payload]) => JSON.parse(String(payload)) as Record<string, unknown>)
+      .find((payload) => payload.event === "action_run.failed");
+
+    expect(failureLog).toBeDefined();
+    expect(failureLog).toEqual(
+      expect.objectContaining({
+        tableauDiagnostics: expect.objectContaining({
+          enabled: true,
+          reachability: expect.objectContaining({ ok: false }),
+        }),
+      }),
+    );
+    expect(repositoryMock.markFailed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actionRunId: "action-run-1",
+        error: expect.objectContaining({
+          details: expect.objectContaining({
+            tableauDiagnostics: expect.objectContaining({
+              enabled: true,
+              reachability: expect.objectContaining({ ok: false }),
+            }),
+          }),
+        }),
+      }),
+    );
+    expect(
+      tableauDiagnosticsMock.runTableauConnectivityDiagnostics,
+    ).toHaveBeenCalledTimes(1);
+    errorSpy.mockRestore();
   });
 
   it("sends Slack when approval is granted", async () => {

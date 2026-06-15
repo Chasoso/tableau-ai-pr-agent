@@ -3,6 +3,7 @@ import {
   buildDataAnalysisQueryRecoverySelection,
   extractQueryDatasourceInsightsFromRawToolResults,
   TableauMcpContextProvider,
+  clearTableauMcpRuntimeCaches,
 } from "../src/tableau/tableauMcpContextProvider";
 import { interpretQuestion } from "../src/services/questionInterpretation";
 import { TableauMcpToolPlanner } from "../src/services/tableauMcpToolPlanner";
@@ -137,6 +138,7 @@ describe("TableauMcpContextProvider query analysis", () => {
   });
 
   afterEach(() => {
+    clearTableauMcpRuntimeCaches();
     restoreEnv("TABLEAU_MCP_TRANSPORT", originalEnv.TABLEAU_MCP_TRANSPORT);
     restoreEnv("TABLEAU_MCP_SERVER_URL", originalEnv.TABLEAU_MCP_SERVER_URL);
     restoreEnv("TABLEAU_MCP_TIMEOUT_MS", originalEnv.TABLEAU_MCP_TIMEOUT_MS);

@@ -158,6 +158,12 @@ Parameters:
     AllowedValues:
       - "true"
       - "false"
+  TableauConnectivityDiagnostics:
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
   TableauMcpPlannerMaxOutputTokens:
     Type: Number
     Default: 600
@@ -538,6 +544,7 @@ Resources:
           TABLEAU_DEFAULT_SUBJECT: !Ref TableauDefaultSubject
           TABLEAU_SCOPES: !Ref TableauScopes
           TABLEAU_CONTEXT_PROVIDER: !Ref TableauContextProvider
+          TABLEAU_CONNECTIVITY_DIAGNOSTICS: !Ref TableauConnectivityDiagnostics
           AUTH_REQUIRED: !Ref AuthRequired
           COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
           COGNITO_CLIENT_ID: !Ref CognitoClientId
@@ -625,6 +632,7 @@ Resources:
           TABLEAU_DEFAULT_SUBJECT: !Ref TableauDefaultSubject
           TABLEAU_SCOPES: !Ref TableauScopes
           TABLEAU_CONTEXT_PROVIDER: !Ref TableauContextProvider
+          TABLEAU_CONNECTIVITY_DIAGNOSTICS: !Ref TableauConnectivityDiagnostics
           AUTH_REQUIRED: !Ref AuthRequired
           COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
           COGNITO_CLIENT_ID: !Ref CognitoClientId

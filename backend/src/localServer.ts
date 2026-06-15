@@ -32,7 +32,7 @@ const server = createServer(async (request, response) => {
     };
 
     const result = requestUrl.pathname.startsWith("/health")
-      ? await healthHandler()
+      ? await healthHandler(event)
       : requestUrl.pathname.startsWith("/chat") ||
           requestUrl.pathname.startsWith("/context") ||
           requestUrl.pathname.startsWith("/chat-jobs") ||

@@ -2,6 +2,7 @@ import { ChatJobRepository } from "../repositories/chatJobRepository";
 import { logError, logInfo, safeErrorDetails } from "../logging";
 import { ActionRunService } from "../services/actionRunService";
 import { ChatJobService } from "../services/chatJobService";
+import { runTableauConnectivityDiagnostics } from "../services/tableauConnectivityDiagnostics";
 import type { LambdaExecutionContext } from "../types/api";
 
 const chatJobRepository = new ChatJobRepository();
@@ -62,11 +63,32 @@ export async function handler(
       }),
     };
   } catch (error) {
+    const tableauDiagnostics = await buildTableauFailureDiagnostics();
     logError("chat.job.worker.failed", {
       jobId,
       jobType: record.jobType ?? "chat",
       ...safeErrorDetails(error),
+      ...(tableauDiagnostics ? { tableauDiagnostics } : {}),
     });
     throw error;
+  }
+}
+
+async function buildTableauFailureDiagnostics():
+  Promise<unknown | undefined> {
+  try {
+    return await runTableauConnectivityDiagnostics();
+  } catch (error) {
+    return {
+      enabled: true,
+      reachability: {
+        ok: false,
+        error: safeErrorDetails(error),
+      },
+      authentication: {
+        ok: false,
+        error: safeErrorDetails(error),
+      },
+    };
   }
 }

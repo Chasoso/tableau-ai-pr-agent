@@ -11,6 +11,7 @@ import {
 } from "../logging";
 import { ActionRunAnalysisService } from "./actionRunAnalysisService";
 import { ActionRunImageService } from "./actionRunImageService";
+import { runTableauConnectivityDiagnostics } from "./tableauConnectivityDiagnostics";
 import { buildActionRunImageUrl } from "./actionRunImageUrlService";
 import { ActionRunRepository } from "../repositories/actionRunRepository";
 import { SlackWebhookService } from "./slackWebhookService";
@@ -350,10 +351,15 @@ export class ActionRunService {
         humanApprovalRequired: true,
       });
     } catch (error) {
+      const tableauDiagnostics = await buildTableauFailureDiagnostics();
+      const failureDetails = {
+        ...safeErrorDetails(error),
+        ...(tableauDiagnostics ? { tableauDiagnostics } : {}),
+      };
       logError("action_run.failed", {
         runId: input.actionRunId,
         actionRunId: input.actionRunId,
-        ...safeErrorDetails(error),
+        ...failureDetails,
       });
       await repository.markFailed({
         actionRunId: input.actionRunId,
@@ -364,14 +370,14 @@ export class ActionRunService {
             error instanceof Error
               ? error.message
               : "Action run processing failed.",
-          details: safeErrorDetails(error),
+          details: failureDetails,
         },
       });
       await this.reportProgress(input.actionRunId, {
         stage: "failed",
         message: "Fixed analysis failed.",
         status: "failed",
-        debug: safeErrorDetails(error),
+        debug: failureDetails,
       });
     }
   }
@@ -414,6 +420,69 @@ export class ActionRunService {
     if (record.ownerKey !== expectedOwnerKey) {
       throw new Error("You do not have access to this action run.");
     }
+  }
+}
+
+async function buildTableauFailureDiagnostics(): Promise<
+  | {
+      enabled: true;
+      config: {
+        serverUrlConfigured: boolean;
+        siteContentUrlConfigured: boolean;
+        apiVersion: string;
+        subjectConfigured: boolean;
+        scopesConfigured: string[];
+        connectedAppConfigured: {
+          clientId: boolean;
+          secretId: boolean;
+          secretValue: boolean;
+        };
+      };
+      reachability: {
+        ok: boolean;
+        status?: number;
+        durationMs?: number;
+        error?: Record<string, unknown>;
+      };
+      authentication: {
+        ok: boolean;
+        signedIn?: boolean;
+        status?: number;
+        userIdHash?: string;
+        siteIdHash?: string;
+        error?: Record<string, unknown>;
+      };
+    }
+  | undefined
+> {
+  try {
+    return await runTableauConnectivityDiagnostics();
+  } catch (error) {
+    return {
+      enabled: true,
+      config: {
+        serverUrlConfigured: Boolean(getConfig().tableau.serverUrl.trim()),
+        siteContentUrlConfigured: Boolean(
+          getConfig().tableau.siteContentUrl.trim(),
+        ),
+        apiVersion: getConfig().tableau.apiVersion,
+        subjectConfigured: Boolean(getConfig().tableau.defaultSubject.trim()),
+        scopesConfigured: getConfig().tableau.scopes,
+        connectedAppConfigured: {
+          clientId: false,
+          secretId: false,
+          secretValue: false,
+        },
+      },
+      reachability: {
+        ok: false,
+        error: safeErrorDetails(error),
+      },
+      authentication: {
+        ok: false,
+        error: safeErrorDetails(error),
+      },
+    };
   }
 }
 
