@@ -1,8 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import {
-  mockPrPostAgentApis,
-  seedPrPostAgentState,
-} from "./pr-post-agent-e2e";
+import { mockPrPostAgentApis, seedPrPostAgentState } from "./pr-post-agent-e2e";
 
 async function uploadVenuePhoto(page: Page) {
   await page.locator('input[type="file"][accept="image/*"]').setInputFiles({
@@ -30,7 +27,9 @@ test.describe("PR投稿エージェント", () => {
     await expect(
       page.getByText("まずは、投稿シーンを教えてください。"),
     ).toBeVisible();
-    await expect(page.getByRole("button", { name: "開催中の実況" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "開催中の実況" }),
+    ).toBeVisible();
     await expect(page.getByRole("button", { name: "+" })).toBeVisible();
   });
 
@@ -45,7 +44,9 @@ test.describe("PR投稿エージェント", () => {
     await expect(
       page.getByText("投稿する画像をアップロードしてください。"),
     ).toBeVisible();
-    await expect(page.getByRole("button", { name: "カメラを起動" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "カメラを起動" }),
+    ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "ライブラリから選択" }),
     ).toBeVisible();
@@ -69,7 +70,9 @@ test.describe("PR投稿エージェント", () => {
     await expect(page.locator(".pr-post-agent-draft-summary")).toContainText(
       "開催中投稿では短文 + 写真つきが多いです。",
     );
-    await expect(page.getByRole("button", { name: "Slackに投稿" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Slackに投稿" }),
+    ).toBeVisible();
     await expect(page.getByRole("button", { name: "Xに投稿" })).toBeVisible();
 
     await page.getByRole("button", { name: "Slackに投稿" }).click();
