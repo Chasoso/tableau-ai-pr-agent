@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+﻿import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import PrActionPanel from "./PrActionPanel";
@@ -49,6 +49,7 @@ const createObjectURLMock = vi.fn(() => "blob:venue-photo");
 const revokeObjectURLMock = vi.fn();
 
 beforeEach(() => {
+  globalThis.localStorage?.clear();
   Object.defineProperty(URL, "createObjectURL", {
     configurable: true,
     value: createObjectURLMock,
@@ -295,6 +296,7 @@ describe("PrActionPanel", () => {
         currentSituation: expect.stringContaining("会場写真:venue.jpg"),
       }),
       "auth-token",
+      undefined,
     );
     expect(screen.getByRole("status")).toHaveTextContent(
       "下書き作成リクエストを送信しました",
