@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
+import { ensureChatJobOwnerToken } from "../api/chatJobOwnerToken";
 import type { ActionRunPostType } from "../types/actionRun";
 import type {
   CalendarEventCandidate,
@@ -31,6 +32,7 @@ type Props = {
   dashboardContext: DashboardContext;
   userDisplayName?: string;
   authToken?: string;
+  connectionScopeKey?: string;
 };
 
 type ChatMessage = {
@@ -83,22 +85,35 @@ const INITIAL_MESSAGES: ChatMessage[] = [
 
 const DEFAULT_CONNECTIONS: ServiceConnections = {
   google: false,
-  slack: true,
-  x: true,
+  slack: false,
+  x: false,
 };
 
 export default function PrPostAgentPanel({
   dashboardContext,
   userDisplayName,
   authToken,
+  connectionScopeKey,
 }: Props) {
   const workflowIdRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const manualTechPlayInputRef = useRef<HTMLInputElement | null>(null);
+  const [anonymousConnectionToken, setAnonymousConnectionToken] = useState<
+    string | null
+  >(null);
+  const resolvedConnectionScopeKey =
+    connectionScopeKey ??
+    (anonymousConnectionToken ? `anon:${anonymousConnectionToken}` : undefined);
+  const resolvedConnectionOwnerToken = useMemo(
+    () => resolveConnectionOwnerToken(resolvedConnectionScopeKey),
+    [resolvedConnectionScopeKey],
+  );
 
   const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
   const [serviceConnections, setServiceConnections] =
-    useState<ServiceConnections>(loadConnections);
+    useState<ServiceConnections>(() =>
+      loadConnections(resolvedConnectionScopeKey),
+    );
   const [isServiceMenuOpen, setIsServiceMenuOpen] = useState(false);
   const [isGoogleConnecting, setIsGoogleConnecting] = useState(false);
   const [workflow, setWorkflow] = useState<WorkflowState>({
@@ -239,12 +254,34 @@ export default function PrPostAgentPanel({
   }, [uploadedImage?.objectUrl]);
 
   useEffect(() => {
+    if (connectionScopeKey) {
+      return;
+    }
+
+    setAnonymousConnectionToken(ensureChatJobOwnerToken());
+  }, [connectionScopeKey]);
+
+  useEffect(() => {
+    setServiceConnections(loadConnections(resolvedConnectionScopeKey));
+  }, [resolvedConnectionScopeKey]);
+
+  useEffect(() => {
+    if (!resolvedConnectionScopeKey) {
+      return;
+    }
+
+    saveConnections(resolvedConnectionScopeKey, serviceConnections);
+  }, [resolvedConnectionScopeKey, serviceConnections]);
+
+  useEffect(() => {
     let cancelled = false;
 
     void (async () => {
       try {
-        const connectionStatus =
-          await loadGoogleCalendarConnectionStatus(authToken);
+        const connectionStatus = await loadGoogleCalendarConnectionStatus(
+          authToken,
+          resolvedConnectionOwnerToken ?? undefined,
+        );
         if (!cancelled) {
           setServiceConnections((current) => ({
             ...current,
@@ -264,7 +301,7 @@ export default function PrPostAgentPanel({
     return () => {
       cancelled = true;
     };
-  }, [authToken]);
+  }, [authToken, resolvedConnectionOwnerToken]);
 
   useEffect(() => {
     if (
@@ -291,6 +328,7 @@ export default function PrPostAgentPanel({
             imageMode === "none" ? noImageSituationMemo.trim() : undefined,
           manualTechPlayUrl: manualTechPlayUrl.trim() || undefined,
           authToken,
+          ownerToken: resolvedConnectionOwnerToken ?? undefined,
         });
 
         if (cancelled) {
@@ -338,6 +376,7 @@ export default function PrPostAgentPanel({
     manualTechPlayUrl,
     noImageSituationMemo,
     selectedPostType,
+    resolvedConnectionOwnerToken,
     uploadedImage,
   ]);
 
@@ -364,6 +403,7 @@ export default function PrPostAgentPanel({
           now: new Date().toISOString(),
         },
         authToken,
+        resolvedConnectionOwnerToken ?? undefined,
       );
 
       if (workflowId !== workflowIdRef.current) {
@@ -464,7 +504,11 @@ export default function PrPostAgentPanel({
     }
 
     setWorkflow((current) => ({ ...current, techPlayFetchStatus: "fetching" }));
-    const preview = await fetchTechPlayEventInfo(techplayUrl, input.authToken);
+    const preview = await fetchTechPlayEventInfo(
+      techplayUrl,
+      input.authToken,
+      resolvedConnectionOwnerToken ?? undefined,
+    );
     if (input.workflowId !== workflowIdRef.current) {
       return;
     }
@@ -487,6 +531,7 @@ export default function PrPostAgentPanel({
       dashboardContext,
       calendarResult: nextCalendar,
       authToken: input.authToken,
+      ownerToken: resolvedConnectionOwnerToken ?? undefined,
     });
 
     if (input.workflowId !== workflowIdRef.current) {
@@ -619,7 +664,11 @@ export default function PrPostAgentPanel({
         ...current,
         techPlayFetchStatus: "fetching",
       }));
-      const preview = await fetchTechPlayEventInfo(nextUrl, authToken);
+      const preview = await fetchTechPlayEventInfo(
+        nextUrl,
+        authToken,
+        resolvedConnectionOwnerToken ?? undefined,
+      );
       const nextCalendar = calendarResult
         ? {
             ...calendarResult,
@@ -652,6 +701,7 @@ export default function PrPostAgentPanel({
           dashboardContext,
           calendarResult: nextCalendar,
           authToken,
+          ownerToken: resolvedConnectionOwnerToken ?? undefined,
         });
         setAnalysisResult(analysis);
         setPostTrendSummary(
@@ -837,6 +887,7 @@ export default function PrPostAgentPanel({
         await startGoogleCalendarConnection(
           authToken,
           window.location.pathname + window.location.search,
+          resolvedConnectionOwnerToken ?? undefined,
         );
         setServiceConnections((current) => ({ ...current, google: true }));
       } catch (googleError) {
@@ -852,10 +903,6 @@ export default function PrPostAgentPanel({
     }
 
     setServiceConnections((current) => ({ ...current, [service]: true }));
-    window.localStorage.setItem(
-      "tableau-ai-pr-agent.service-connections",
-      JSON.stringify({ ...serviceConnections, [service]: true }),
-    );
     setIsServiceMenuOpen(false);
   }
 
@@ -1332,11 +1379,13 @@ function UserAvatarIcon() {
   );
 }
 
-function loadConnections(): ServiceConnections {
+function loadConnections(scopeKey?: string): ServiceConnections {
+  if (!scopeKey || typeof window === "undefined") {
+    return DEFAULT_CONNECTIONS;
+  }
+
   try {
-    const raw = window.localStorage.getItem(
-      "tableau-ai-pr-agent.service-connections",
-    );
+    const raw = window.localStorage.getItem(getConnectionsStorageKey(scopeKey));
     if (!raw) {
       return DEFAULT_CONNECTIONS;
     }
@@ -1344,12 +1393,38 @@ function loadConnections(): ServiceConnections {
     const parsed = JSON.parse(raw) as Partial<ServiceConnections>;
     return {
       google: parsed.google ?? false,
-      slack: parsed.slack ?? true,
-      x: parsed.x ?? true,
+      slack: parsed.slack ?? false,
+      x: parsed.x ?? false,
     };
   } catch {
     return DEFAULT_CONNECTIONS;
   }
+}
+
+function saveConnections(
+  scopeKey: string,
+  connections: ServiceConnections,
+): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(
+    getConnectionsStorageKey(scopeKey),
+    JSON.stringify(connections),
+  );
+}
+
+function getConnectionsStorageKey(scopeKey: string): string {
+  return `tableau-ai-pr-agent.service-connections.${scopeKey}`;
+}
+
+function resolveConnectionOwnerToken(scopeKey?: string): string | undefined {
+  if (!scopeKey?.startsWith("anon:")) {
+    return undefined;
+  }
+
+  return scopeKey.slice("anon:".length) || undefined;
 }
 
 function formatFileSize(bytes: number): string {

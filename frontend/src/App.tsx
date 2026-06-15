@@ -63,15 +63,18 @@ function DashboardExtensionApp() {
 
   const renderPanel = ({
     authToken,
+    connectionScopeKey,
     userDisplayName,
   }: {
     authToken?: string;
+    connectionScopeKey?: string;
     userDisplayName?: string;
   }) => (
     <div className="app-shell">
       <PrPostAgentPanel
         dashboardContext={dashboardContext}
         authToken={authToken}
+        connectionScopeKey={connectionScopeKey}
         userDisplayName={userDisplayName}
       />
     </div>
@@ -90,6 +93,9 @@ function DashboardExtensionApp() {
           session ? (
             renderPanel({
               authToken: session.idToken,
+              connectionScopeKey: session.userId
+                ? `user:${session.userId}`
+                : undefined,
               userDisplayName: session.nickname ?? session.email,
             })
           ) : (

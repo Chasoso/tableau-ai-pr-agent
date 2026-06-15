@@ -251,7 +251,9 @@ function base64Url(bytes: Uint8Array): string {
     .replaceAll("=", "");
 }
 
-function decodeClaims(token: string): Pick<AuthSession, "email" | "nickname"> {
+function decodeClaims(
+  token: string,
+): Pick<AuthSession, "userId" | "email" | "nickname"> {
   const [, payload] = token.split(".");
   if (!payload) {
     return {};
@@ -262,10 +264,12 @@ function decodeClaims(token: string): Pick<AuthSession, "email" | "nickname"> {
       payload.replaceAll("-", "+").replaceAll("_", "/"),
     );
     const decoded = JSON.parse(atob(normalized)) as {
+      sub?: string;
       email?: string;
       nickname?: string;
     };
     return {
+      userId: decoded.sub,
       email: decoded.email,
       nickname: decoded.nickname,
     };

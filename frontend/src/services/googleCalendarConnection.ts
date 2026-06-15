@@ -15,8 +15,9 @@ export type GoogleCalendarPopupResult = {
 
 export async function loadGoogleCalendarConnectionStatus(
   accessToken?: string,
+  ownerToken?: string,
 ): Promise<GoogleCalendarConnectionStatus> {
-  const response = await getGoogleCalendarStatus(accessToken);
+  const response = await getGoogleCalendarStatus(accessToken, ownerToken);
   return {
     connected: response.connected,
     status: response.status,
@@ -26,6 +27,7 @@ export async function loadGoogleCalendarConnectionStatus(
 export async function startGoogleCalendarConnection(
   accessToken?: string,
   redirectAfter?: string,
+  ownerToken?: string,
 ): Promise<GoogleCalendarPopupResult> {
   const popup = window.open(
     "",
@@ -44,6 +46,7 @@ export async function startGoogleCalendarConnection(
     startResponse = await startGoogleCalendarPopupAuth(
       { redirectAfter },
       accessToken,
+      ownerToken,
     );
   } catch (error) {
     try {

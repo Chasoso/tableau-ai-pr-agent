@@ -2,6 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import type { ChangeEvent } from "react";
 import { createActionRun } from "../api/actionRunApi";
 import { resolveCalendarEventContext } from "../api/calendarApi";
+import {
+  ensureChatJobOwnerToken,
+  loadChatJobOwnerToken,
+  storeChatJobOwnerToken,
+} from "../api/chatJobOwnerToken";
 import { env } from "../env";
 import type {
   ActionRunCreateResponse,
@@ -86,6 +91,9 @@ export default function PrActionPanel({
   userDisplayName,
   authToken,
 }: Props) {
+  const [chatJobOwnerToken, setChatJobOwnerToken] = useState<string | null>(
+    () => loadChatJobOwnerToken(),
+  );
   const [postType, setPostType] =
     useState<ActionRunPostType>(INITIAL_POST_TYPE);
   const [venuePhoto, setVenuePhoto] = useState<VenuePhotoDraft | null>(null);
@@ -116,6 +124,16 @@ export default function PrActionPanel({
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [submissionSummary, setSubmissionSummary] =
     useState<ActionRunCreateResponse | null>(null);
+
+  useEffect(() => {
+    if (authToken) {
+      return;
+    }
+
+    if (!chatJobOwnerToken) {
+      setChatJobOwnerToken(ensureChatJobOwnerToken());
+    }
+  }, [authToken, chatJobOwnerToken]);
 
   useEffect(
     () => () => {
@@ -264,7 +282,11 @@ export default function PrActionPanel({
     });
 
     try {
-      const response = await resolveCalendarEventContext(request, authToken);
+      const response = await resolveCalendarEventContext(
+        request,
+        authToken,
+        chatJobOwnerToken ?? undefined,
+      );
       setCalendarResult(response);
       setSelectedEventId(response.selectedEvent?.eventId ?? null);
       setManualTechPlayMode(response.manualTechPlayMode);
@@ -405,7 +427,15 @@ export default function PrActionPanel({
     });
 
     try {
-      const response = await createActionRun(request, authToken);
+      const response = await createActionRun(
+        request,
+        authToken,
+        chatJobOwnerToken ?? undefined,
+      );
+      if (response.ownerToken) {
+        storeChatJobOwnerToken(response.ownerToken);
+        setChatJobOwnerToken(response.ownerToken);
+      }
       setSubmissionSummary(response);
       console.debug("[pr-agent] draft.submit.done", {
         actionRunId: response.actionRunId,

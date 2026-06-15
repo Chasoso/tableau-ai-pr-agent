@@ -48,6 +48,12 @@ export async function handler(
   const isNotionCallbackRoute = routePath.startsWith("/notion/callback");
   const isCognitoPopupAuthRoute = routePath.startsWith("/auth/cognito/");
   const isGoogleCallbackRoute = routePath === "/auth/google/callback";
+  const canUseOwnerTokenFallback =
+    isChatJobRoute ||
+    isActionRunRoute ||
+    isActionRunApprovalRoute ||
+    routePath === "/calendar/resolve" ||
+    routePath === "/techplay/preview";
 
   if (method === "OPTIONS") {
     return jsonResponse(204, {});
@@ -58,7 +64,16 @@ export async function handler(
     const authResult =
       isNotionCallbackRoute || isCognitoPopupAuthRoute || isGoogleCallbackRoute
         ? { ok: true as const, user: undefined }
-        : await authenticateRequest(event.headers);
+        : canUseOwnerTokenFallback &&
+            !getHeader(event.headers, "authorization") &&
+            getHeader(event.headers, "x-chat-owner-token")
+          ? {
+              ok: true as const,
+              user: {
+                userId: `anon:${getHeader(event.headers, "x-chat-owner-token")}`,
+              },
+            }
+          : await authenticateRequest(event.headers);
     if (!authResult.ok) {
       logWarn("chat.auth.rejected", {
         requestId,
@@ -522,6 +537,16 @@ function validateTechPlayPreviewRequest(
 
 function getRoutePath(event: ApiGatewayProxyEvent): string {
   return event.rawPath ?? event.path ?? "";
+}
+
+function getHeader(
+  headers: Record<string, string | undefined> | undefined,
+  name: string,
+): string | undefined {
+  const entry = Object.entries(headers ?? {}).find(
+    ([key]) => key.toLowerCase() === name.toLowerCase(),
+  );
+  return entry?.[1];
 }
 
 function jsonResponse(

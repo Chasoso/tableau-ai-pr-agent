@@ -21,6 +21,17 @@ export function storeChatJobOwnerToken(token: string): void {
   window.localStorage.setItem(legacyStorageKey, token);
 }
 
+export function ensureChatJobOwnerToken(): string {
+  const existing = loadChatJobOwnerToken();
+  if (existing) {
+    return existing;
+  }
+
+  const token = crypto.randomUUID();
+  storeChatJobOwnerToken(token);
+  return token;
+}
+
 export function clearChatJobOwnerToken(): void {
   if (typeof window === "undefined") {
     return;

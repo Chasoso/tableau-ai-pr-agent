@@ -17,17 +17,22 @@ export async function handleGoogleCalendarAuthRoute(
 
   try {
     if (path === "/auth/google/popup/start" && method === "POST") {
-      if (!user?.userId) {
+      const effectiveUser = resolveGoogleCalendarUser(event.headers, user);
+      if (!effectiveUser) {
         return jsonResponse(401, {
-          message: "Google Calendar connection requires a signed-in user.",
+          message:
+            "Google Calendar connection requires a signed-in user or owner token.",
         });
       }
       const payload = parseStartRequest(event.body);
       logInfo("google.oauth.start.requested", {
         hasRedirectAfter: Boolean(payload.redirectAfter),
-        userHash: safeHash(user?.userId),
+        userHash: safeHash(effectiveUser.userId),
       });
-      return jsonResponse(200, await service.startPopupAuth(user, payload));
+      return jsonResponse(
+        200,
+        await service.startPopupAuth(effectiveUser, payload),
+      );
     }
 
     if (path === "/auth/google/callback" && method === "GET") {
@@ -80,21 +85,25 @@ export async function handleGoogleCalendarAuthRoute(
     }
 
     if (path === "/auth/google/status" && method === "GET") {
-      if (!user?.userId) {
+      const effectiveUser = resolveGoogleCalendarUser(event.headers, user);
+      if (!effectiveUser) {
         return jsonResponse(401, {
-          message: "Google Calendar status requires a signed-in user.",
+          message:
+            "Google Calendar status requires a signed-in user or owner token.",
         });
       }
-      return jsonResponse(200, await service.getStatus(user));
+      return jsonResponse(200, await service.getStatus(effectiveUser));
     }
 
     if (path === "/auth/google/disconnect" && method === "POST") {
-      if (!user?.userId) {
+      const effectiveUser = resolveGoogleCalendarUser(event.headers, user);
+      if (!effectiveUser) {
         return jsonResponse(401, {
-          message: "Google Calendar disconnect requires a signed-in user.",
+          message:
+            "Google Calendar disconnect requires a signed-in user or owner token.",
         });
       }
-      await service.disconnect(user);
+      await service.disconnect(effectiveUser);
       return jsonResponse(200, { ok: true });
     }
 
@@ -219,6 +228,24 @@ function getHeader(
     ([key]) => key.toLowerCase() === name.toLowerCase(),
   );
   return entry?.[1];
+}
+
+function resolveGoogleCalendarUser(
+  headers: Record<string, string | undefined> | undefined,
+  user: AuthenticatedUser | undefined,
+): AuthenticatedUser | undefined {
+  if (user?.userId) {
+    return user;
+  }
+
+  const ownerToken = getHeader(headers, "x-chat-owner-token");
+  if (!ownerToken) {
+    return undefined;
+  }
+
+  return {
+    userId: `anon:${ownerToken}`,
+  };
 }
 
 function escapeHtml(value: string): string {

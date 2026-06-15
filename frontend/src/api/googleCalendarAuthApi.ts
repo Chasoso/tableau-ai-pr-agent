@@ -9,10 +9,11 @@ const apiBaseUrl = () => env.apiBaseUrl.replace(/\/$/, "");
 
 export async function getGoogleCalendarStatus(
   accessToken?: string,
+  ownerToken?: string,
 ): Promise<GoogleCalendarStatusResponse> {
   const response = await fetch(`${apiBaseUrl()}/auth/google/status`, {
     method: "GET",
-    headers: buildHeaders(accessToken),
+    headers: buildHeaders(accessToken, ownerToken),
   });
 
   if (!response.ok) {
@@ -25,10 +26,11 @@ export async function getGoogleCalendarStatus(
 export async function startGoogleCalendarPopupAuth(
   input: { redirectAfter?: string },
   accessToken?: string,
+  ownerToken?: string,
 ): Promise<GoogleCalendarPopupStartResponse> {
   const response = await fetch(`${apiBaseUrl()}/auth/google/popup/start`, {
     method: "POST",
-    headers: buildJsonHeaders(accessToken),
+    headers: buildJsonHeaders(accessToken, ownerToken),
     body: JSON.stringify(input),
   });
 
@@ -74,16 +76,17 @@ export async function getGoogleCalendarPopupStatus(
   return body as GoogleCalendarPopupStatusResponse;
 }
 
-function buildJsonHeaders(accessToken?: string) {
+function buildJsonHeaders(accessToken?: string, ownerToken?: string) {
   return {
     "Content-Type": "application/json",
-    ...buildHeaders(accessToken),
+    ...buildHeaders(accessToken, ownerToken),
   };
 }
 
-function buildHeaders(accessToken?: string) {
+function buildHeaders(accessToken?: string, ownerToken?: string) {
   return {
     ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    ...(ownerToken ? { "X-Chat-Owner-Token": ownerToken } : {}),
   };
 }
 

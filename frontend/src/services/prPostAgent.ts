@@ -72,6 +72,7 @@ type AnalysisInput = {
   noImageSituationMemo?: string;
   manualTechPlayUrl?: string;
   authToken?: string;
+  ownerToken?: string;
 };
 
 type GeneratePrPostDraftInput = AnalysisInput & {
@@ -81,8 +82,9 @@ type GeneratePrPostDraftInput = AnalysisInput & {
 export async function resolveCalendarEventContext(
   request: CalendarResolveRequest,
   accessToken?: string,
+  ownerToken?: string,
 ): Promise<CalendarResolveResponse> {
-  return resolveCalendarEventContextApi(request, accessToken);
+  return resolveCalendarEventContextApi(request, accessToken, ownerToken);
 }
 
 export function extractTechPlayUrl(
@@ -95,8 +97,9 @@ export function extractTechPlayUrl(
 export async function fetchTechPlayEventInfo(
   techplayUrl: string,
   accessToken?: string,
+  ownerToken?: string,
 ): Promise<TechPlayPreviewResponse> {
-  return previewTechPlayEvent({ techplayUrl }, accessToken);
+  return previewTechPlayEvent({ techplayUrl }, accessToken, ownerToken);
 }
 
 export async function analyzePastPostsWithTableau(
@@ -128,7 +131,11 @@ export async function analyzePastPostsWithTableau(
     },
   };
 
-  const created = await createActionRun(request, input.authToken);
+  const created = await createActionRun(
+    request,
+    input.authToken,
+    input.ownerToken,
+  );
   const ownerToken = created.ownerToken;
   let delayMs = created.retryAfterMs || 1200;
 
@@ -136,7 +143,7 @@ export async function analyzePastPostsWithTableau(
     const job = await getActionRun(
       created.actionRunId,
       input.authToken,
-      ownerToken,
+      input.ownerToken ?? ownerToken,
     );
     if (job.status === "completed" && job.result) {
       return {
@@ -167,7 +174,11 @@ export async function generatePrPostDraft(
   const techplayPreview =
     input.calendarResult.techplayPreview ??
     (techplayUrl
-      ? await fetchTechPlayEventInfo(techplayUrl, input.authToken)
+      ? await fetchTechPlayEventInfo(
+          techplayUrl,
+          input.authToken,
+          input.ownerToken,
+        )
       : undefined);
 
   const eventName =
