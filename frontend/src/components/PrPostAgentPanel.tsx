@@ -890,7 +890,9 @@ export default function PrPostAgentPanel({
         </p>
       ) : null}
 
-      {selectedPostType && selectedPostType !== "開催中の実況" && !generatedDraft ? (
+      {selectedPostType &&
+      selectedPostType !== "開催中の実況" &&
+      !generatedDraft ? (
         <div className="pr-post-agent-message-note" role="status">
           投稿シーンとイベント情報をもとに進めます。
         </div>
@@ -1244,7 +1246,10 @@ export default function PrPostAgentPanel({
           ) : null}
         </div>
 
-        <form className="pr-post-agent-composer" onSubmit={handleComposerSubmit}>
+        <form
+          className="pr-post-agent-composer"
+          onSubmit={handleComposerSubmit}
+        >
           <textarea
             aria-label="追加メッセージ"
             rows={1}
