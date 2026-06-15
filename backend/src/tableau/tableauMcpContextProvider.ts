@@ -12,6 +12,7 @@ import {
   safeErrorDetails,
   safeHash,
 } from "../logging";
+import { runTableauConnectivityDiagnostics } from "../services/tableauConnectivityDiagnostics";
 import { TableauMcpMetadataCacheRepository } from "../repositories/tableauMcpMetadataCacheRepository";
 import {
   classifyQuestionIntent,
@@ -746,11 +747,43 @@ export class TableauMcpContextProvider implements TableauContextProvider {
           ],
         });
       }
+      const tableauDiagnostics = !startupCompleted
+        ? await runTableauConnectivityDiagnostics().catch(
+            (diagnosticsError) => ({
+              enabled: true as const,
+              config: {
+                serverUrlConfigured: Boolean(config.tableau.serverUrl.trim()),
+                siteContentUrlConfigured: Boolean(
+                  config.tableau.siteContentUrl.trim(),
+                ),
+                apiVersion: config.tableau.apiVersion,
+                subjectConfigured: Boolean(
+                  config.tableau.defaultSubject.trim(),
+                ),
+                scopesConfigured: config.tableau.scopes,
+                connectedAppConfigured: {
+                  clientId: false,
+                  secretId: false,
+                  secretValue: false,
+                },
+              },
+              reachability: {
+                ok: false,
+                error: safeErrorDetails(diagnosticsError),
+              },
+              authentication: {
+                ok: false,
+                error: safeErrorDetails(diagnosticsError),
+              },
+            }),
+          )
+        : undefined;
       const logFailure = startupCompleted ? logError : logWarn;
       logFailure("tableau.mcp.lookup.failed", {
         ...safeDetails,
         ...(serverUrlSummary ? { serverUrlSummary } : {}),
         ...(runtimeSummary ? { runtimeSummary } : {}),
+        ...(tableauDiagnostics ? { tableauDiagnostics } : {}),
         stderrTail: mcpStderrTail || undefined,
       });
       if (mcpStderrTail) {

@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => {
     clientConstructor: vi.fn().mockImplementation(() => client),
     transportConstructor: vi.fn().mockImplementation(() => transport),
     getTableauConnectedAppSecrets: vi.fn(),
+    runTableauConnectivityDiagnostics: vi.fn(),
   };
 });
 
@@ -39,6 +40,10 @@ vi.mock("@modelcontextprotocol/sdk/client/stdio.js", () => ({
 
 vi.mock("../src/aws/secrets", () => ({
   getTableauConnectedAppSecrets: mocks.getTableauConnectedAppSecrets,
+}));
+
+vi.mock("../src/services/tableauConnectivityDiagnostics", () => ({
+  runTableauConnectivityDiagnostics: mocks.runTableauConnectivityDiagnostics,
 }));
 
 const provider = new TableauMcpContextProvider();
@@ -334,6 +339,35 @@ describe("TableauMcpContextProvider", () => {
       secretId: "secret-id",
       secretValue: "secret-value",
     });
+    mocks.runTableauConnectivityDiagnostics.mockResolvedValue({
+      enabled: true,
+      config: {
+        serverUrlConfigured: true,
+        siteContentUrlConfigured: true,
+        apiVersion: "3.25",
+        subjectConfigured: true,
+        scopesConfigured: ["tableau:content:read"],
+        connectedAppConfigured: {
+          clientId: true,
+          secretId: true,
+          secretValue: true,
+        },
+      },
+      reachability: {
+        ok: false,
+        error: {
+          errorName: "TypeError",
+          errorMessage: "fetch failed",
+        },
+      },
+      authentication: {
+        ok: false,
+        error: {
+          errorName: "ConfigurationError",
+          errorMessage: "TABLEAU_DEFAULT_SUBJECT is not configured.",
+        },
+      },
+    });
     mocks.client.connect.mockRejectedValueOnce(
       new Error("Fatal error initializing server info"),
     );
@@ -352,6 +386,7 @@ describe("TableauMcpContextProvider", () => {
     expect(mocks.clientConstructor).toHaveBeenCalledTimes(1);
     expect(mocks.transportConstructor).toHaveBeenCalledTimes(1);
     expect(mocks.client.connect).toHaveBeenCalledTimes(1);
+    expect(mocks.runTableauConnectivityDiagnostics).toHaveBeenCalledTimes(1);
     expect(mocks.client.listTools).not.toHaveBeenCalled();
   });
 
