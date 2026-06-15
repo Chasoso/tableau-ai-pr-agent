@@ -93,23 +93,25 @@ describe("chatJobWorkerHandler", () => {
     chatJobMocks.processChatJob.mockRejectedValue(
       new Error("Fatal error initializing server info"),
     );
-    tableauDiagnosticsMocks.runTableauConnectivityDiagnostics.mockResolvedValue({
-      enabled: true,
-      reachability: {
-        ok: false,
-        error: {
-          errorName: "TypeError",
-          errorMessage: "fetch failed",
+    tableauDiagnosticsMocks.runTableauConnectivityDiagnostics.mockResolvedValue(
+      {
+        enabled: true,
+        reachability: {
+          ok: false,
+          error: {
+            errorName: "TypeError",
+            errorMessage: "fetch failed",
+          },
+        },
+        authentication: {
+          ok: false,
+          error: {
+            errorName: "ConfigurationError",
+            errorMessage: "TABLEAU_DEFAULT_SUBJECT is not configured.",
+          },
         },
       },
-      authentication: {
-        ok: false,
-        error: {
-          errorName: "ConfigurationError",
-          errorMessage: "TABLEAU_DEFAULT_SUBJECT is not configured.",
-        },
-      },
-    });
+    );
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {
       // noop
     });
@@ -124,7 +126,9 @@ describe("chatJobWorkerHandler", () => {
     ).rejects.toThrow("Fatal error initializing server info");
 
     const failureLog = errorSpy.mock.calls
-      .map(([payload]) => JSON.parse(String(payload)) as Record<string, unknown>)
+      .map(
+        ([payload]) => JSON.parse(String(payload)) as Record<string, unknown>,
+      )
       .find((payload) => payload.event === "chat.job.worker.failed");
 
     expect(failureLog).toEqual(

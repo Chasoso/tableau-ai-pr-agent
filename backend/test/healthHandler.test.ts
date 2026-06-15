@@ -40,7 +40,12 @@ describe("healthHandler", () => {
         },
       },
       reachability: { ok: true, status: 200, durationMs: 12 },
-      authentication: { ok: true, signedIn: true, siteIdHash: "site", userIdHash: "user" },
+      authentication: {
+        ok: true,
+        signedIn: true,
+        siteIdHash: "site",
+        userIdHash: "user",
+      },
     });
 
     const response = await handler({

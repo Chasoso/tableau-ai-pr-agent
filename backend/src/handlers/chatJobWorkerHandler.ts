@@ -74,8 +74,7 @@ export async function handler(
   }
 }
 
-async function buildTableauFailureDiagnostics():
-  Promise<unknown | undefined> {
+async function buildTableauFailureDiagnostics(): Promise<unknown | undefined> {
   try {
     return await runTableauConnectivityDiagnostics();
   } catch (error) {

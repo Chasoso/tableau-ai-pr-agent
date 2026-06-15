@@ -312,7 +312,9 @@ describe("ActionRunService", () => {
     });
 
     const failureLog = errorSpy.mock.calls
-      .map(([payload]) => JSON.parse(String(payload)) as Record<string, unknown>)
+      .map(
+        ([payload]) => JSON.parse(String(payload)) as Record<string, unknown>,
+      )
       .find((payload) => payload.event === "action_run.failed");
 
     expect(failureLog).toBeDefined();

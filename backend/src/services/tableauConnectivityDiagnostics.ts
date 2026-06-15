@@ -73,15 +73,12 @@ export async function runTableauConnectivityDiagnostics(): Promise<TableauConnec
 
   const reachabilityStartedAt = Date.now();
   try {
-    const response = await fetch(
-      `${serverUrl}/api/${apiVersion}/serverinfo`,
-      {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-        },
+    const response = await fetch(`${serverUrl}/api/${apiVersion}/serverinfo`, {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
       },
-    );
+    });
 
     diagnostics.reachability = {
       ok: response.ok,
