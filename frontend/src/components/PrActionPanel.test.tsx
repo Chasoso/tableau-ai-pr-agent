@@ -194,14 +194,13 @@ describe("PrActionPanel", () => {
       "イベント情報を自動取得できませんでした。",
     );
     expect(fallbackMessages.length).toBeGreaterThan(0);
-    expect(
-      screen.getByRole("button", { name: "手動でTechPlay URLを入力する" }),
-    ).toBeVisible();
+    const manualTechPlayButton = await screen.findByRole("button", {
+      name: "手動でTechPlay URLを入力する",
+    });
+    expect(manualTechPlayButton).toBeVisible();
 
-    await user.click(
-      screen.getByRole("button", { name: "手動でTechPlay URLを入力する" }),
-    );
-    expect(screen.getByLabelText("TechPlay URL")).toBeVisible();
+    await user.click(manualTechPlayButton);
+    expect(await screen.findByLabelText("TechPlay URL")).toBeVisible();
   });
 
   it("creates a draft from the generated preview and keeps Slack unposted", async () => {
