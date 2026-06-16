@@ -39,7 +39,8 @@ export class ActionRunAnalysisService {
     if (!fixedAnalysis.evidencePack.canGeneratePost) {
       const blockers = fixedAnalysis.evidencePack.generationBlockers ?? [];
       return {
-        summary: "Required analysis was not completed. Post generation was blocked.",
+        summary:
+          "Required analysis was not completed. Post generation was blocked.",
         suggestedSlackPostText: "",
         draftVariants: {
           x: "",
@@ -133,8 +134,10 @@ export class ActionRunAnalysisService {
         usedEvidence: {
           photo: fixedAnalysis.photoContext.available,
           survey: fixedAnalysis.surveyInsight?.available ?? false,
-          postPerformance: fixedAnalysis.postPerformanceInsight?.available ?? false,
-          accountOverview: fixedAnalysis.accountOverviewInsight?.available ?? false,
+          postPerformance:
+            fixedAnalysis.postPerformanceInsight?.available ?? false,
+          accountOverview:
+            fixedAnalysis.accountOverviewInsight?.available ?? false,
         },
         warnings,
       },

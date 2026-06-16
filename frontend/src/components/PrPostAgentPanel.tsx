@@ -752,7 +752,9 @@ export default function PrPostAgentPanel({
             role: "assistant",
             lines: analysis.result.canGeneratePost
               ? ["画像を確認しました。会場情報と投稿案をまとめます。"]
-              : ["画像が見つかりませんでした。もう一度アップロードしてください"],
+              : [
+                  "画像が見つかりませんでした。もう一度アップロードしてください",
+                ],
           },
         ]);
       }

@@ -67,8 +67,11 @@ export class ActionRunService {
       eventName: input.request.eventName,
       hasInputImage: Boolean(requestWithImage.inputImage?.objectKey),
       inputImageSource: requestWithImage.inputImage?.source ?? "none",
-      inputImageObjectKeyPresent: Boolean(requestWithImage.inputImage?.objectKey),
-      inputImageContentType: requestWithImage.inputImage?.contentType ?? undefined,
+      inputImageObjectKeyPresent: Boolean(
+        requestWithImage.inputImage?.objectKey,
+      ),
+      inputImageContentType:
+        requestWithImage.inputImage?.contentType ?? undefined,
       inputImageBytes: requestWithImage.inputImage?.bytes ?? undefined,
       inputImageWidth: requestWithImage.inputImage?.width ?? undefined,
       inputImageHeight: requestWithImage.inputImage?.height ?? undefined,
@@ -111,7 +114,9 @@ export class ActionRunService {
       postType: input.request.postType,
       eventName: input.request.eventName,
       hasInputImage: Boolean(requestWithImage.inputImage?.objectKey),
-      inputImageObjectKeyPresent: Boolean(requestWithImage.inputImage?.objectKey),
+      inputImageObjectKeyPresent: Boolean(
+        requestWithImage.inputImage?.objectKey,
+      ),
     });
 
     if (!config.actionRun.workerFunctionName) {
@@ -488,7 +493,8 @@ async function storeInputImage(
 } | null> {
   const legacyPhoto = request.clientContext?.photo;
   const inputImage = request.inputImage;
-  const objectKey = inputImage?.objectKey?.trim() ?? legacyPhoto?.objectKey?.trim();
+  const objectKey =
+    inputImage?.objectKey?.trim() ?? legacyPhoto?.objectKey?.trim();
   if (!objectKey) {
     return null;
   }

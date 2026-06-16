@@ -783,9 +783,9 @@ function buildEvidencePackHighlights(
     `Photo context: ${evidencePack.photoContext.summary}`,
     ...((evidencePack.photoContext.detectedTopics ?? []).length
       ? [
-          `Photo topics: ${(evidencePack.photoContext.detectedTopics ?? []).join(
-            " / ",
-          )}`,
+          `Photo topics: ${(
+            evidencePack.photoContext.detectedTopics ?? []
+          ).join(" / ")}`,
         ]
       : []),
     ...(evidencePack.photoContext.observedItems?.length

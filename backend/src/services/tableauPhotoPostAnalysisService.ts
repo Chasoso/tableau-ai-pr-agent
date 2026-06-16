@@ -185,12 +185,13 @@ type PhotoVisionAnalyzer = {
     contentType?: string;
     bytes: Uint8Array;
   }): Promise<
-    Partial<
-      Omit<
-        PostGenerationEvidencePack["photoContext"],
-        "available" | "source" | "skippedReason"
+    | Partial<
+        Omit<
+          PostGenerationEvidencePack["photoContext"],
+          "available" | "source" | "skippedReason"
+        >
       >
-    > | undefined
+    | undefined
   >;
 };
 
@@ -458,9 +459,7 @@ async function runPurposeAnalysis(input: {
   datasource?: ResolvedAllowedDatasource;
   photoContext: PostGenerationEvidencePack["photoContext"];
   tableauContextProvider: TableauContextProvider;
-}): Promise<
-  SurveyInsight | PostPerformanceInsight | AccountOverviewInsight
-> {
+}): Promise<SurveyInsight | PostPerformanceInsight | AccountOverviewInsight> {
   if (!input.datasource) {
     logInfo("tableau.photo_post.skippedInsightReason", {
       purpose: input.purpose,
@@ -741,10 +740,11 @@ function buildAnalysisSections(input: {
       sourceStatus:
         input.surveyInsight?.sourceStatus === "queried"
           ? "tableau_queried"
-          : input.surveyInsight?.sourceStatus ?? "skipped",
+          : (input.surveyInsight?.sourceStatus ?? "skipped"),
       skippedReason: input.surveyInsight?.available
         ? undefined
-        : input.surveyInsight?.skippedReason ?? input.surveyInsight?.evidenceSummary,
+        : (input.surveyInsight?.skippedReason ??
+          input.surveyInsight?.evidenceSummary),
       rows: (input.surveyInsight?.keyExpectations ?? []).map((label) => ({
         label,
         value: null,
@@ -760,11 +760,11 @@ function buildAnalysisSections(input: {
       sourceStatus:
         input.postPerformanceInsight?.sourceStatus === "queried"
           ? "tableau_queried"
-          : input.postPerformanceInsight?.sourceStatus ?? "skipped",
+          : (input.postPerformanceInsight?.sourceStatus ?? "skipped"),
       skippedReason: input.postPerformanceInsight?.available
         ? undefined
-        : input.postPerformanceInsight?.skippedReason ??
-          input.postPerformanceInsight?.evidenceSummary,
+        : (input.postPerformanceInsight?.skippedReason ??
+          input.postPerformanceInsight?.evidenceSummary),
       rows: (input.postPerformanceInsight?.highPerformingThemes ?? []).map(
         (label) => ({
           label,
@@ -782,11 +782,11 @@ function buildAnalysisSections(input: {
       sourceStatus:
         input.accountOverviewInsight?.sourceStatus === "queried"
           ? "tableau_queried"
-          : input.accountOverviewInsight?.sourceStatus ?? "skipped",
+          : (input.accountOverviewInsight?.sourceStatus ?? "skipped"),
       skippedReason: input.accountOverviewInsight?.available
         ? undefined
-        : input.accountOverviewInsight?.skippedReason ??
-          input.accountOverviewInsight?.evidenceSummary,
+        : (input.accountOverviewInsight?.skippedReason ??
+          input.accountOverviewInsight?.evidenceSummary),
       rows: (input.accountOverviewInsight?.notableChanges ?? []).map(
         (label) => ({
           label,
@@ -1016,8 +1016,11 @@ function buildHeuristicPhotoContext(
     detectedTopics,
     suggestedPostAngles,
     visibleText:
-      photo?.dataUrl && source !== "missing_image" ? [photo.fileName ?? ""] : [],
-    skippedReason: source === "missing_image" ? "input_image_not_found" : undefined,
+      photo?.dataUrl && source !== "missing_image"
+        ? [photo.fileName ?? ""]
+        : [],
+    skippedReason:
+      source === "missing_image" ? "input_image_not_found" : undefined,
   };
 }
 

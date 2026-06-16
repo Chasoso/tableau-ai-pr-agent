@@ -96,13 +96,13 @@ function buildFixedAnalysis() {
     },
   ];
 
-    const photoContext = {
-      available: true,
-      source: "actual_image" as const,
-      summary: "The venue is filling up. / image file: venue.jpg",
-      detectedTopics: ["venue"],
-      suggestedPostAngles: ["highlight the event atmosphere"],
-    };
+  const photoContext = {
+    available: true,
+    source: "actual_image" as const,
+    summary: "The venue is filling up. / image file: venue.jpg",
+    detectedTopics: ["venue"],
+    suggestedPostAngles: ["highlight the event atmosphere"],
+  };
 
   return {
     photoContext,

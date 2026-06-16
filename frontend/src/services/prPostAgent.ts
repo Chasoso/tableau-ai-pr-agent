@@ -118,20 +118,20 @@ export async function analyzePastPostsWithTableau(
     input.manualTechPlayUrl?.trim() ||
     extractTechPlayUrl(input.calendarResult.selectedEvent) ||
     input.calendarResult.detectedTechPlayUrl?.trim() ||
-    '';
-  const eventSource = input.calendarResult.eventSource ?? 'fallback';
+    "";
+  const eventSource = input.calendarResult.eventSource ?? "fallback";
   const eventName =
-    eventSource === 'fallback'
-      ? 'イベント情報は未取得です'
+    eventSource === "fallback"
+      ? "イベント情報は未取得です"
       : input.calendarResult.resolvedEventName?.trim() ||
         input.calendarResult.selectedEvent?.summary?.trim() ||
-        '投稿案';
+        "投稿案";
 
   const request: ActionRunRequest = {
     postType: input.postType,
     eventName,
     eventUrl:
-      eventSource === 'fallback'
+      eventSource === "fallback"
         ? undefined
         : input.calendarResult.selectedEvent?.htmlLink?.trim() ||
           input.manualTechPlayUrl?.trim() ||
@@ -149,9 +149,9 @@ export async function analyzePastPostsWithTableau(
     dashboardContext: input.dashboardContext,
     inputImage: input.image
       ? {
-          source: 'upload',
+          source: "upload",
           objectKey: input.image.inputImageObjectKey,
-          contentType: input.image.mimeType ?? 'image/jpeg',
+          contentType: input.image.mimeType ?? "image/jpeg",
           bytes: input.image.byteLength,
           width: input.image.width,
           height: input.image.height,
@@ -160,17 +160,17 @@ export async function analyzePastPostsWithTableau(
         }
       : undefined,
     clientContext: {
-      source: 'tableau-extension',
+      source: "tableau-extension",
       appVersion: env.appVersion,
       photo: {
         fileName: input.image?.fileName,
         sizeLabel: input.image?.sizeLabel,
-        mode: input.image ? 'image' : 'none',
+        mode: input.image ? "image" : "none",
         mimeType: input.image?.mimeType,
         byteLength: input.image?.byteLength,
         width: input.image?.width,
         height: input.image?.height,
-        source: input.image ? 'uploaded_image' : 'none',
+        source: input.image ? "uploaded_image" : "none",
         dataUrl: input.image?.analysisDataUrl ?? input.image?.originalDataUrl,
         objectKey: input.image?.inputImageObjectKey,
         contentType: input.image?.mimeType,
@@ -192,7 +192,7 @@ export async function analyzePastPostsWithTableau(
       input.authToken,
       input.ownerToken ?? ownerToken,
     );
-    if (job.status === 'completed' && job.result) {
+    if (job.status === "completed" && job.result) {
       return {
         actionRunId: created.actionRunId,
         ownerToken,
@@ -200,8 +200,8 @@ export async function analyzePastPostsWithTableau(
       };
     }
 
-    if (job.status === 'failed') {
-      throw new Error(job.error?.message ?? 'Tableau analysis failed.');
+    if (job.status === "failed") {
+      throw new Error(job.error?.message ?? "Tableau analysis failed.");
     }
 
     await sleep(delayMs);
@@ -216,7 +216,7 @@ export async function generatePrPostDraft(
     input.manualTechPlayUrl?.trim() ||
     extractTechPlayUrl(input.calendarResult.selectedEvent) ||
     input.calendarResult.detectedTechPlayUrl?.trim() ||
-    '';
+    "";
 
   const techplayPreview =
     input.calendarResult.techplayPreview ??
@@ -229,11 +229,11 @@ export async function generatePrPostDraft(
       : undefined);
 
   const eventName =
-    input.calendarResult.eventSource === 'fallback'
-      ? 'イベント情報は未取得です'
+    input.calendarResult.eventSource === "fallback"
+      ? "イベント情報は未取得です"
       : input.calendarResult.resolvedEventName?.trim() ||
         input.calendarResult.selectedEvent?.summary?.trim() ||
-        '投稿案';
+        "投稿案";
 
   const hashtags = buildHashtags({
     postType: input.postType,
