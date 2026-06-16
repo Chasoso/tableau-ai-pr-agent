@@ -65,19 +65,13 @@ export class ActionRunService {
       requestId: input.requestId,
       postType: input.request.postType,
       eventName: input.request.eventName,
-      hasInputImage: Boolean(imageMetadata),
-      inputImageSource: requestWithImage.clientContext?.photo?.source ?? "none",
-      inputImageObjectKeyPresent: Boolean(
-        requestWithImage.clientContext?.photo?.objectKey,
-      ),
-      inputImageContentType:
-        requestWithImage.clientContext?.photo?.contentType ?? undefined,
-      inputImageBytes:
-        requestWithImage.clientContext?.photo?.byteLength ?? undefined,
-      inputImageWidth:
-        requestWithImage.clientContext?.photo?.width ?? undefined,
-      inputImageHeight:
-        requestWithImage.clientContext?.photo?.height ?? undefined,
+      hasInputImage: Boolean(requestWithImage.inputImage?.objectKey),
+      inputImageSource: requestWithImage.inputImage?.source ?? "none",
+      inputImageObjectKeyPresent: Boolean(requestWithImage.inputImage?.objectKey),
+      inputImageContentType: requestWithImage.inputImage?.contentType ?? undefined,
+      inputImageBytes: requestWithImage.inputImage?.bytes ?? undefined,
+      inputImageWidth: requestWithImage.inputImage?.width ?? undefined,
+      inputImageHeight: requestWithImage.inputImage?.height ?? undefined,
       imageUploadCompleted: Boolean(imageMetadata),
     });
 
@@ -116,10 +110,8 @@ export class ActionRunService {
       ownerKeyHash: safeHash(ownerContext.ownerKey),
       postType: input.request.postType,
       eventName: input.request.eventName,
-      hasInputImage: Boolean(imageMetadata),
-      inputImageObjectKeyPresent: Boolean(
-        requestWithImage.clientContext?.photo?.objectKey,
-      ),
+      hasInputImage: Boolean(requestWithImage.inputImage?.objectKey),
+      inputImageObjectKeyPresent: Boolean(requestWithImage.inputImage?.objectKey),
     });
 
     if (!config.actionRun.workerFunctionName) {
@@ -174,12 +166,13 @@ export class ActionRunService {
       stage: "queued",
       pollUrl: `/action-runs/${jobId}`,
       retryAfterMs: 1500,
-      ...(requestWithImage.clientContext?.photo?.objectKey
+      ...(requestWithImage.inputImage?.objectKey
         ? {
-            inputImageObjectKey: requestWithImage.clientContext.photo.objectKey,
-            inputImageContentType:
-              requestWithImage.clientContext.photo.contentType,
-            inputImageBytes: requestWithImage.clientContext.photo.byteLength,
+            inputImageObjectKey: requestWithImage.inputImage.objectKey,
+            inputImageContentType: requestWithImage.inputImage.contentType,
+            inputImageBytes: requestWithImage.inputImage.bytes,
+            inputImageWidth: requestWithImage.inputImage.width,
+            inputImageHeight: requestWithImage.inputImage.height,
           }
         : {}),
       ...(ownerContext.ownerToken
@@ -357,6 +350,12 @@ export class ActionRunService {
         request: claimed.request,
         authenticatedUser: effectiveAuthenticatedUser,
       });
+      if (!response.canGeneratePost) {
+        const generationBlockers = response.generationBlockers ?? [];
+        throw new Error(
+          `Required analysis was not completed: ${generationBlockers.join(", ") || "unknown blockers"}`,
+        );
+      }
       const generatedImage = await imageService.generateActionRunPoster({
         actionRunId: input.actionRunId,
         runId: input.actionRunId,
@@ -487,26 +486,49 @@ async function storeInputImage(
   width?: number;
   height?: number;
 } | null> {
-  const photo = request.clientContext?.photo;
-  if (!photo || photo.mode === "none") {
+  const legacyPhoto = request.clientContext?.photo;
+  const inputImage = request.inputImage;
+  const objectKey = inputImage?.objectKey?.trim() ?? legacyPhoto?.objectKey?.trim();
+  if (!objectKey) {
     return null;
   }
 
-  if (!photo.dataUrl && !photo.objectKey) {
+  const dataUrl = legacyPhoto?.dataUrl;
+  const contentType =
+    inputImage?.contentType ??
+    legacyPhoto?.contentType ??
+    legacyPhoto?.mimeType ??
+    undefined;
+  const fileName = inputImage?.originalFileName ?? legacyPhoto?.fileName;
+  const byteLength = inputImage?.bytes ?? legacyPhoto?.byteLength;
+  const width = inputImage?.width ?? legacyPhoto?.width;
+  const height = inputImage?.height ?? legacyPhoto?.height;
+  const source =
+    inputImage?.source === "camera" ||
+    inputImage?.source === "library" ||
+    inputImage?.source === "upload"
+      ? "uploaded_image"
+      : legacyPhoto?.source === "existing_object"
+        ? "existing_object"
+        : legacyPhoto?.source === "uploaded_image"
+          ? "uploaded_image"
+          : "uploaded_image";
+
+  if (!dataUrl && source !== "existing_object") {
     return null;
   }
 
   const stored = await inputImageService.storeActionRunInputImage({
     actionRunId,
     photo: {
-      fileName: photo.fileName,
-      dataUrl: photo.dataUrl,
-      objectKey: photo.objectKey,
-      contentType: photo.contentType ?? photo.mimeType,
-      byteLength: photo.byteLength,
-      width: photo.width,
-      height: photo.height,
-      source: photo.source,
+      fileName,
+      dataUrl,
+      objectKey,
+      contentType,
+      byteLength,
+      width,
+      height,
+      source,
     },
   });
 
@@ -529,6 +551,18 @@ function attachStoredImageMetadata(
 ): ActionRunRequest {
   return {
     ...request,
+    inputImage: imageMetadata
+      ? {
+          source: request.inputImage?.source ?? "upload",
+          objectKey: imageMetadata.objectKey,
+          contentType: imageMetadata.contentType,
+          bytes: imageMetadata.byteLength,
+          width: imageMetadata.width,
+          height: imageMetadata.height,
+          originalFileName: request.inputImage?.originalFileName,
+          fileId: request.inputImage?.fileId,
+        }
+      : request.inputImage,
     clientContext: request.clientContext
       ? {
           ...request.clientContext,

@@ -13,10 +13,25 @@ export type ActionRunPostType =
 export type ActionRunRequest = {
   postType: ActionRunPostType;
   eventName: string;
+  eventUrl?: string;
+  eventSource?: "resolved" | "fallback";
+  venueMemo?: string;
   techplayUrl: string;
   currentSituation: string;
   dashboardContext: DashboardContext;
+  inputImage?: ActionRunInputImage;
   clientContext?: ClientContext;
+};
+
+export type ActionRunInputImage = {
+  source: "camera" | "library" | "upload";
+  objectKey?: string;
+  contentType: string;
+  bytes?: number;
+  width?: number;
+  height?: number;
+  originalFileName?: string;
+  fileId?: string;
 };
 
 export type ActionRunPhotoContext = NonNullable<
@@ -62,6 +77,10 @@ export type ActionRunResult = {
   checks: string[];
   imageCaption?: string;
   imageUrl?: string;
+  generatedPostSuggestion?: GeneratedPostSuggestion;
+  evidencePack?: PostGenerationEvidencePack;
+  canGeneratePost?: boolean;
+  generationBlockers?: string[];
   analysisSections?: ActionRunAnalysisSection[];
   safetyReview?: ActionRunSafetyReview;
   debug?: {
@@ -89,6 +108,45 @@ export type ActionRunResult = {
       };
     };
   };
+};
+
+export type InsightSection = {
+  available: boolean;
+  sourceStatus: "queried" | "metadata_only" | "skipped" | "failed";
+  datasourceKey: string;
+  summary?: string;
+  keyFindings?: string[];
+  evidenceRows?: unknown[];
+  skippedReason?: string;
+  failedReason?: string;
+};
+
+export type PostGenerationEvidencePack = {
+  photoContext: {
+    available: boolean;
+    source: "actual_image" | "missing_image" | "fallback";
+    summary?: string;
+    detectedTopics?: string[];
+    visibleText?: string[];
+    skippedReason?: string;
+  };
+  surveyInsight: InsightSection;
+  postPerformanceInsight: InsightSection;
+  accountOverviewInsight: InsightSection;
+  canGeneratePost: boolean;
+  generationBlockers: string[];
+};
+
+export type GeneratedPostSuggestion = {
+  text: string;
+  rationale: string;
+  usedEvidence: {
+    photo: boolean;
+    survey: boolean;
+    postPerformance: boolean;
+    accountOverview: boolean;
+  };
+  warnings: string[];
 };
 
 export type ActionRunApprovalRequest = {
@@ -153,6 +211,8 @@ export type ActionRunCreateResponse = {
   inputImageObjectKey?: string;
   inputImageContentType?: string;
   inputImageBytes?: number;
+  inputImageWidth?: number;
+  inputImageHeight?: number;
 };
 
 export type ActionRunGetResponse = {

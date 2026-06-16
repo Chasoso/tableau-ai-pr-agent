@@ -201,6 +201,7 @@ export class CalendarService {
 
     const resolvedEventName =
       selectedEvent?.summary ?? techplayPreview?.eventName ?? undefined;
+    const eventSource = preferredEventId ? "resolved" : "fallback";
 
     logInfo("calendar.resolve.completed", {
       postType: input.postType,
@@ -218,6 +219,8 @@ export class CalendarService {
       calendarLookupStatus,
       techPlayFetchStatus,
       manualTechPlayMode,
+      eventSource,
+      isFallbackEvent: eventSource === "fallback",
       searchWindowLabel,
       selectedEvent,
       candidates,
@@ -243,6 +246,8 @@ export class CalendarService {
       calendarLookupStatus: "not_found",
       techPlayFetchStatus: "not_found",
       manualTechPlayMode: true,
+      eventSource: "fallback",
+      isFallbackEvent: true,
       searchWindowLabel: input.searchWindowLabel,
       candidates: [],
       detectedTechPlayUrl: input.manualTechPlayUrl,
@@ -266,6 +271,8 @@ export class CalendarService {
       calendarLookupStatus: "error",
       techPlayFetchStatus: "error",
       manualTechPlayMode: true,
+      eventSource: "fallback",
+      isFallbackEvent: true,
       searchWindowLabel: input.searchWindowLabel,
       candidates: [],
       detectedTechPlayUrl: input.manualTechPlayUrl,

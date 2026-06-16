@@ -27,6 +27,7 @@ type VenuePhotoDraft = {
   fileName: string;
   objectUrl: string;
   sizeLabel: string;
+  fileId: string;
   mimeType?: string;
   width?: number;
   height?: number;
@@ -34,6 +35,7 @@ type VenuePhotoDraft = {
   originalDataUrl?: string;
   analysisDataUrl?: string;
   analysisCompressionLabel?: string;
+  inputImageObjectKey: string;
 };
 
 type DriveReferenceMode = "sample_markdown" | "pasted_markdown" | "none";
@@ -161,9 +163,11 @@ export default function PrActionPanel({
       : undefined);
 
   const resolvedEventName =
-    calendarResult?.resolvedEventName?.trim() ||
-    selectedEvent?.summary?.trim() ||
-    "";
+    calendarResult?.eventSource === "fallback"
+      ? ""
+      : calendarResult?.resolvedEventName?.trim() ||
+        selectedEvent?.summary?.trim() ||
+        "";
 
   const resolvedTechPlayUrl =
     calendarResult?.detectedTechPlayUrl?.trim() ||
@@ -340,10 +344,12 @@ export default function PrActionPanel({
       }
 
       const analysisPayload = await prepareImageAnalysisPayload(file);
+      const fileId = crypto.randomUUID();
       const nextPhoto = {
         fileName: file.name,
         objectUrl: URL.createObjectURL(file),
         sizeLabel: formatFileSize(file.size),
+        fileId,
         mimeType: file.type || undefined,
         width: analysisPayload.width,
         height: analysisPayload.height,
@@ -351,6 +357,7 @@ export default function PrActionPanel({
         originalDataUrl: analysisPayload.originalDataUrl,
         analysisDataUrl: analysisPayload.analysisDataUrl,
         analysisCompressionLabel: analysisPayload.compressionLabel,
+        inputImageObjectKey: buildInputImageObjectKey(fileId, file.name),
       };
       setVenuePhoto(nextPhoto);
       setVenuePhotoExpanded(true);
@@ -426,6 +433,7 @@ export default function PrActionPanel({
     const request: ActionRunRequest = {
       postType,
       eventName: resolvedEventName,
+      eventSource: calendarResult?.eventSource ?? "fallback",
       techplayUrl: resolvedTechPlayUrl,
       currentSituation: buildSituation({
         supplementMemo: resolvedSupplementMemo,
@@ -433,6 +441,18 @@ export default function PrActionPanel({
         calendarResult,
       }),
       dashboardContext,
+      inputImage: venuePhoto
+        ? {
+            source: "upload",
+            objectKey: venuePhoto.inputImageObjectKey,
+            contentType: venuePhoto.mimeType ?? "image/jpeg",
+            bytes: venuePhoto.byteLength,
+            width: venuePhoto.width,
+            height: venuePhoto.height,
+            originalFileName: venuePhoto.fileName,
+            fileId: venuePhoto.fileId,
+          }
+        : undefined,
       clientContext: {
         source: "tableau-extension",
         appVersion: env.appVersion,
@@ -447,6 +467,8 @@ export default function PrActionPanel({
               height: venuePhoto.height,
               source: "uploaded_image",
               dataUrl: venuePhoto.analysisDataUrl ?? venuePhoto.originalDataUrl,
+              objectKey: venuePhoto.inputImageObjectKey,
+              contentType: venuePhoto.mimeType,
             }
           : {
               mode: "none",
@@ -463,7 +485,7 @@ export default function PrActionPanel({
       eventName: resolvedEventName,
       hasVenuePhoto: Boolean(venuePhoto),
       inputImageSource: venuePhoto ? "uploaded_image" : "none",
-      inputImageObjectKeyPresent: false,
+      inputImageObjectKeyPresent: Boolean(venuePhoto?.inputImageObjectKey),
       inputImageContentType: venuePhoto?.mimeType,
       inputImageBytes: venuePhoto?.byteLength ?? undefined,
       inputImageWidth: venuePhoto?.width ?? undefined,
@@ -488,7 +510,12 @@ export default function PrActionPanel({
         inputImageObjectKey: response.inputImageObjectKey,
         inputImageContentType: response.inputImageContentType,
         inputImageBytes: response.inputImageBytes,
+        inputImageWidth: response.inputImageWidth,
+        inputImageHeight: response.inputImageHeight,
       });
+      if (response.inputImageObjectKey) {
+        setSubmissionError(null);
+      }
       console.debug("[pr-agent] draft.submit.done", {
         actionRunId: response.actionRunId,
         status: response.status,
@@ -552,6 +579,7 @@ export default function PrActionPanel({
           value={describeCalendarStatus(
             calendarLookupStatus,
             techPlayFetchStatus,
+            calendarResult?.eventSource,
           )}
         />
         <StatusPill
@@ -1276,6 +1304,11 @@ function formatFileSize(bytes: number): string {
   return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 }
 
+function buildInputImageObjectKey(fileId: string, fileName: string): string {
+  const safeName = fileName.replace(/[^A-Za-z0-9._-]+/gu, "_");
+  return `client-input-images/${fileId}/${safeName}`;
+}
+
 function formatCalendarTime(startIso: string, endIso: string): string {
   const formatter = new Intl.DateTimeFormat("ja-JP", {
     month: "numeric",
@@ -1316,7 +1349,12 @@ function describeCalendarProgress(
 function describeCalendarStatus(
   calendarLookupStatus: string,
   techPlayFetchStatus: string,
+  eventSource?: string,
 ): string {
+  if (eventSource === "fallback") {
+    return "イベント情報は未取得です";
+  }
+
   if (calendarLookupStatus === "searching") {
     return "確認中";
   }

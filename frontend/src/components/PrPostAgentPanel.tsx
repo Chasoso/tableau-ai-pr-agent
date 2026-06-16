@@ -552,6 +552,16 @@ export default function PrPostAgentPanel({
       ...current,
       tableauAnalysisStatus: "completed",
     }));
+    setMessages((current) => [
+      ...current,
+      {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        lines: analysis.result.canGeneratePost
+          ? ["画像を確認しました。会場情報と投稿案をまとめます。"]
+          : ["画像が見つかりませんでした。もう一度アップロードしてください"],
+      },
+    ]);
   }
 
   function clearWorkflowState() {
@@ -639,14 +649,17 @@ export default function PrPostAgentPanel({
       }
 
       const analysisPayload = await prepareImageAnalysisPayload(file);
+      const fileId = crypto.randomUUID();
       const nextImage: UploadedImage = {
         fileName: file.name,
         objectUrl: URL.createObjectURL(file),
         sizeLabel: formatFileSize(file.size),
+        fileId,
         mimeType: file.type || undefined,
         originalDataUrl: analysisPayload.originalDataUrl,
         analysisDataUrl: analysisPayload.analysisDataUrl,
         analysisCompressionLabel: analysisPayload.compressionLabel,
+        inputImageObjectKey: buildInputImageObjectKey(fileId, file.name),
       };
 
       setUploadedImage(nextImage);
@@ -656,12 +669,12 @@ export default function PrPostAgentPanel({
         {
           id: crypto.randomUUID(),
           role: "user",
-          lines: ["画像をアップロードしました。"],
+          lines: ["画像を選択しました。"],
         },
         {
           id: crypto.randomUUID(),
           role: "assistant",
-          lines: ["画像を確認しました。会場情報と投稿案をまとめます。"],
+          lines: ["画像をアップロードしました。"],
         },
       ]);
     } catch (uploadError) {
@@ -732,6 +745,16 @@ export default function PrPostAgentPanel({
           ...current,
           tableauAnalysisStatus: "completed",
         }));
+        setMessages((current) => [
+          ...current,
+          {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            lines: analysis.result.canGeneratePost
+              ? ["画像を確認しました。会場情報と投稿案をまとめます。"]
+              : ["画像が見つかりませんでした。もう一度アップロードしてください"],
+          },
+        ]);
       }
     } catch (manualError) {
       setWorkflow((current) => ({ ...current, techPlayFetchStatus: "error" }));
@@ -1531,4 +1554,9 @@ function formatFileSize(bytes: number): string {
   }
 
   return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
+function buildInputImageObjectKey(fileId: string, fileName: string): string {
+  const safeName = fileName.replace(/[^A-Za-z0-9._-]+/gu, "_");
+  return `client-input-images/${fileId}/${safeName}`;
 }

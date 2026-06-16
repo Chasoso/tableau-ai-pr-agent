@@ -13,12 +13,25 @@ export type ClientContext = {
     sizeLabel?: string;
     mode?: "image" | "none";
     mimeType?: string;
+    objectKey?: string;
+    contentType?: string;
     byteLength?: number;
     width?: number;
     height?: number;
     source?: "uploaded_image" | "existing_object" | "none";
     dataUrl?: string;
   };
+};
+
+export type ActionRunInputImage = {
+  source: "camera" | "library" | "upload";
+  objectKey?: string;
+  contentType: string;
+  bytes?: number;
+  width?: number;
+  height?: number;
+  originalFileName?: string;
+  fileId?: string;
 };
 
 export type ActionRunPostType =
@@ -31,9 +44,13 @@ export type ActionRunPostType =
 export type ActionRunRequest = {
   postType: ActionRunPostType;
   eventName: string;
+  eventUrl?: string;
+  eventSource?: "resolved" | "fallback";
+  venueMemo?: string;
   techplayUrl: string;
   currentSituation: string;
   dashboardContext: DashboardContext;
+  inputImage?: ActionRunInputImage;
   clientContext?: ClientContext;
 };
 
@@ -55,6 +72,10 @@ export type ActionRunResult = {
   evidence: string[];
   checks: string[];
   imageCaption?: string;
+  generatedPostSuggestion?: GeneratedPostSuggestion;
+  evidencePack?: PostGenerationEvidencePack;
+  canGeneratePost?: boolean;
+  generationBlockers?: string[];
   analysisSections?: ActionRunAnalysisSection[];
   debug?: {
     source?: "stub";
@@ -63,6 +84,45 @@ export type ActionRunResult = {
       "postType" | "eventName" | "techplayUrl" | "currentSituation"
     >;
   };
+};
+
+export type InsightSection = {
+  available: boolean;
+  sourceStatus: "queried" | "metadata_only" | "skipped" | "failed";
+  datasourceKey: string;
+  summary?: string;
+  keyFindings?: string[];
+  evidenceRows?: unknown[];
+  skippedReason?: string;
+  failedReason?: string;
+};
+
+export type PostGenerationEvidencePack = {
+  photoContext: {
+    available: boolean;
+    source: "actual_image" | "missing_image" | "fallback";
+    summary?: string;
+    detectedTopics?: string[];
+    visibleText?: string[];
+    skippedReason?: string;
+  };
+  surveyInsight: InsightSection;
+  postPerformanceInsight: InsightSection;
+  accountOverviewInsight: InsightSection;
+  canGeneratePost: boolean;
+  generationBlockers: string[];
+};
+
+export type GeneratedPostSuggestion = {
+  text: string;
+  rationale: string;
+  usedEvidence: {
+    photo: boolean;
+    survey: boolean;
+    postPerformance: boolean;
+    accountOverview: boolean;
+  };
+  warnings: string[];
 };
 
 export type ActionRunAnalysisSection = {
@@ -130,6 +190,8 @@ export type ActionRunCreateResponse = {
   inputImageObjectKey?: string;
   inputImageContentType?: string;
   inputImageBytes?: number;
+  inputImageWidth?: number;
+  inputImageHeight?: number;
 };
 
 export type ActionRunGetResponse = {

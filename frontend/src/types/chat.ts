@@ -111,9 +111,9 @@ export type ChatRequest = {
       sizeLabel?: string;
       mode?: "image" | "none";
       mimeType?: string;
-      dataUrl?: string;
       objectKey?: string;
       contentType?: string;
+      dataUrl?: string;
       byteLength?: number;
       width?: number;
       height?: number;
@@ -133,9 +133,9 @@ export type ContextRequest = {
       sizeLabel?: string;
       mode?: "image" | "none";
       mimeType?: string;
-      dataUrl?: string;
       objectKey?: string;
       contentType?: string;
+      dataUrl?: string;
       byteLength?: number;
       width?: number;
       height?: number;

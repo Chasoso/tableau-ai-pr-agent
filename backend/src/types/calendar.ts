@@ -72,6 +72,8 @@ export type CalendarResolveResponse = {
   calendarLookupStatus: CalendarLookupStatus;
   techPlayFetchStatus: TechPlayFetchStatus;
   manualTechPlayMode: boolean;
+  eventSource?: "resolved" | "fallback";
+  isFallbackEvent?: boolean;
   searchWindowLabel: string;
   selectedEvent?: CalendarEventCandidate;
   candidates: CalendarEventCandidate[];

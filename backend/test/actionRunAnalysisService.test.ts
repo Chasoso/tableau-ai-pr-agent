@@ -96,17 +96,20 @@ function buildFixedAnalysis() {
     },
   ];
 
-  const photoContext = {
-    source: "actual_image" as const,
-    summary: "The venue is filling up. / image file: venue.jpg",
-    detectedTopics: ["venue"],
-    suggestedPostAngles: ["highlight the event atmosphere"],
-  };
+    const photoContext = {
+      available: true,
+      source: "actual_image" as const,
+      summary: "The venue is filling up. / image file: venue.jpg",
+      detectedTopics: ["venue"],
+      suggestedPostAngles: ["highlight the event atmosphere"],
+    };
 
   return {
     photoContext,
     surveyInsight: {
       available: true,
+      sourceStatus: "queried" as const,
+      datasourceKey: "mcp_session_survey_responses",
       keyExpectations: ["practical examples"],
       keyInterests: ["Tableau"],
       concernsOrQuestions: ["setup"],
@@ -115,6 +118,8 @@ function buildFixedAnalysis() {
     },
     postPerformanceInsight: {
       available: true,
+      sourceStatus: "queried" as const,
+      datasourceKey: "x_account_analytics_contents",
       highPerformingThemes: ["session recap"],
       highPerformingPatterns: ["lead with the scene"],
       recommendedTone: ["clear"],
@@ -124,6 +129,8 @@ function buildFixedAnalysis() {
     },
     accountOverviewInsight: {
       available: true,
+      sourceStatus: "queried" as const,
+      datasourceKey: "x_account_overview_analytics",
       recentTrendSummary: "Photo posts are strong.",
       notableChanges: ["Engagement is rising."],
       timingHints: ["Post while the venue is active."],
@@ -134,6 +141,8 @@ function buildFixedAnalysis() {
       photoContext,
       surveyInsight: {
         available: true,
+        sourceStatus: "queried" as const,
+        datasourceKey: "mcp_session_survey_responses",
         keyExpectations: ["practical examples"],
         keyInterests: ["Tableau"],
         concernsOrQuestions: ["setup"],
@@ -142,6 +151,8 @@ function buildFixedAnalysis() {
       },
       postPerformanceInsight: {
         available: true,
+        sourceStatus: "queried" as const,
+        datasourceKey: "x_account_analytics_contents",
         highPerformingThemes: ["session recap"],
         highPerformingPatterns: ["lead with the scene"],
         recommendedTone: ["clear"],
@@ -151,12 +162,16 @@ function buildFixedAnalysis() {
       },
       accountOverviewInsight: {
         available: true,
+        sourceStatus: "queried" as const,
+        datasourceKey: "x_account_overview_analytics",
         recentTrendSummary: "Photo posts are strong.",
         notableChanges: ["Engagement is rising."],
         timingHints: ["Post while the venue is active."],
         accountContextForPost: "Photo posts are currently strong.",
         evidenceSummary: "Photo posts are currently strong.",
       },
+      canGeneratePost: true,
+      generationBlockers: [],
       constraints: {
         doNotInventMetrics: true,
         useEvidenceOnlyWhenAvailable: true,

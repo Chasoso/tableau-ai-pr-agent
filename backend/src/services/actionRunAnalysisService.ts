@@ -36,6 +36,61 @@ export class ActionRunAnalysisService {
       authenticatedUser: input.authenticatedUser,
     });
 
+    if (!fixedAnalysis.evidencePack.canGeneratePost) {
+      const blockers = fixedAnalysis.evidencePack.generationBlockers ?? [];
+      return {
+        summary: "Required analysis was not completed. Post generation was blocked.",
+        suggestedSlackPostText: "",
+        draftVariants: {
+          x: "",
+          linkedin: "",
+          email: "",
+          notion: "",
+        },
+        hashtags: [],
+        evidence: [],
+        checks: [],
+        imageCaption: "",
+        analysisSections: fixedAnalysis.analysisSections,
+        evidencePack: fixedAnalysis.evidencePack,
+        canGeneratePost: false,
+        generationBlockers: blockers,
+        safetyReview: buildSafetyReview({
+          request: input.request,
+          warnings: blockers,
+        }),
+        debug: {
+          source: "stub",
+          requestEcho: {
+            postType: input.request.postType,
+            eventName: input.request.eventName,
+            techplayUrl: input.request.techplayUrl,
+            currentSituation: input.request.currentSituation,
+          },
+          tableau: {
+            provider: this.tableauContextProvider.name,
+            analysisQuestions: fixedAnalysis.analysisSections.map(
+              (section) => section.question,
+            ),
+            warnings: blockers,
+            qualityReview: {
+              score: computeQualityScore(fixedAnalysis),
+              issues: blockers,
+              signals: collectTableauSignals(fixedAnalysis.analysisSections),
+              draftLength: 0,
+              refinedLength: 0,
+            },
+            prAgent: {
+              enabled: getConfig().prAgent.useStrandsAgent,
+              reviewStatus: "needs_info",
+              riskLevel: "high",
+              missingFieldCount: blockers.length,
+            },
+          },
+        },
+      };
+    }
+
     const prDraft = await runPrDraftAgent({
       request: input.request,
       analysisSections: fixedAnalysis.analysisSections,
@@ -69,6 +124,20 @@ export class ActionRunAnalysisService {
       checks,
       imageCaption,
       analysisSections: fixedAnalysis.analysisSections,
+      evidencePack: fixedAnalysis.evidencePack,
+      canGeneratePost: fixedAnalysis.evidencePack.canGeneratePost,
+      generationBlockers: fixedAnalysis.evidencePack.generationBlockers,
+      generatedPostSuggestion: {
+        text: prDraft.drafts.x,
+        rationale: summary,
+        usedEvidence: {
+          photo: fixedAnalysis.photoContext.available,
+          survey: fixedAnalysis.surveyInsight?.available ?? false,
+          postPerformance: fixedAnalysis.postPerformanceInsight?.available ?? false,
+          accountOverview: fixedAnalysis.accountOverviewInsight?.available ?? false,
+        },
+        warnings,
+      },
       safetyReview: buildSafetyReview({
         request: input.request,
         warnings,

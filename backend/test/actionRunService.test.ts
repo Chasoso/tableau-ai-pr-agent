@@ -92,6 +92,7 @@ describe("ActionRunService", () => {
     analysisMock.analyzeActionRun.mockReset();
     slackMock.postActionRun.mockReset();
     imageMock.generateActionRunPoster.mockReset();
+    tableauDiagnosticsMock.runTableauConnectivityDiagnostics.mockReset();
   });
 
   afterEach(() => {
@@ -254,6 +255,8 @@ describe("ActionRunService", () => {
       evidence: ["evidence line"],
       checks: ["check line"],
       analysisSections: [],
+      canGeneratePost: true,
+      generationBlockers: [],
       safetyReview: {
         status: "pending_manual_review",
         required: true,

@@ -1,5 +1,4 @@
 import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
-import { createHash } from "node:crypto";
 import { getS3Client } from "../aws/s3";
 import { getConfig } from "../config";
 import { logInfo } from "../logging";
@@ -33,9 +32,14 @@ export class ActionRunInputImageService {
       source?: "uploaded_image" | "existing_object" | "none";
     };
   }): Promise<StoredActionRunInputImage | null> {
+    const objectKey = input.photo.objectKey?.trim();
+    if (!objectKey) {
+      return null;
+    }
+
     if (input.photo.source === "existing_object" && input.photo.objectKey) {
       return {
-        objectKey: input.photo.objectKey,
+        objectKey,
         contentType: input.photo.contentType ?? "application/octet-stream",
         byteLength: input.photo.byteLength ?? 0,
         source: "existing_object",
@@ -57,12 +61,6 @@ export class ActionRunInputImageService {
     if (!bucketName) {
       return null;
     }
-
-    const objectKey = buildInputImageObjectKey({
-      actionRunId: input.actionRunId,
-      contentType: parsed.contentType,
-      fileName: input.photo.fileName,
-    });
 
     await this.s3Client.send(
       new PutObjectCommand({
@@ -143,46 +141,6 @@ function parseDataUrl(
     contentType,
     bytes: Uint8Array.from(Buffer.from(base64, "base64")),
   };
-}
-
-function buildInputImageObjectKey(input: {
-  actionRunId: string;
-  contentType: string;
-  fileName?: string;
-}): string {
-  const prefix = normalizeObjectKeyPrefix(
-    getConfig().s3.actionImageObjectKeyPrefix,
-  );
-  const extension = guessExtension(input.contentType, input.fileName);
-  const hash = createHash("sha256")
-    .update(`${input.actionRunId}:${input.fileName ?? ""}:${input.contentType}`)
-    .digest("hex")
-    .slice(0, 12);
-  return `${prefix}/${input.actionRunId}/input/${hash}${extension}`;
-}
-
-function guessExtension(contentType: string, fileName?: string): string {
-  const lower = contentType.toLowerCase();
-  if (lower === "image/jpeg" || lower === "image/jpg") {
-    return ".jpg";
-  }
-  if (lower === "image/png") {
-    return ".png";
-  }
-  if (lower === "image/webp") {
-    return ".webp";
-  }
-  if (lower === "image/gif") {
-    return ".gif";
-  }
-
-  const match = fileName?.match(/\.(jpe?g|png|webp|gif)$/i);
-  return match ? `.${match[1].toLowerCase()}` : ".img";
-}
-
-function normalizeObjectKeyPrefix(value: string): string {
-  const trimmed = value.trim().replace(/^\/+|\/+$/g, "");
-  return trimmed || "action-runs";
 }
 
 function sanitizeFileName(value: string): string {

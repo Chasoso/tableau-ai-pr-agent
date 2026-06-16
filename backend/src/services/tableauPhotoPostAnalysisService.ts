@@ -63,57 +63,71 @@ export const ALLOWED_TABLEAU_DATASOURCES: AllowedDatasource[] = [
 
 export type SurveyInsight = {
   available: boolean;
+  sourceStatus: "queried" | "metadata_only" | "skipped" | "failed";
+  datasourceKey: string;
   keyExpectations: string[];
   keyInterests: string[];
   concernsOrQuestions: string[];
   suggestedAngles: string[];
+  keyFindings?: string[];
+  evidenceRows?: unknown[];
+  skippedReason?: string;
+  failedReason?: string;
   evidenceSummary: string;
 };
 
 export type PostPerformanceInsight = {
   available: boolean;
+  sourceStatus: "queried" | "metadata_only" | "skipped" | "failed";
+  datasourceKey: string;
   highPerformingThemes: string[];
   highPerformingPatterns: string[];
   recommendedTone: string[];
   recommendedStructure: string[];
   avoidPatterns: string[];
+  keyFindings?: string[];
+  evidenceRows?: unknown[];
+  skippedReason?: string;
+  failedReason?: string;
   evidenceSummary: string;
 };
 
 export type AccountOverviewInsight = {
   available: boolean;
+  sourceStatus: "queried" | "metadata_only" | "skipped" | "failed";
+  datasourceKey: string;
   recentTrendSummary: string;
   notableChanges: string[];
   timingHints: string[];
   accountContextForPost: string;
+  keyFindings?: string[];
+  evidenceRows?: unknown[];
+  skippedReason?: string;
+  failedReason?: string;
   evidenceSummary: string;
 };
 
 export type PostGenerationEvidencePack = {
   photoContext: {
-    source:
-      | "actual_image"
-      | "event_metadata_only"
-      | "fallback"
-      | "missing_image";
-    summary: string;
-    detectedTopics: string[];
-    suggestedPostAngles: string[];
+    available: boolean;
+    source: "actual_image" | "missing_image" | "fallback";
+    summary?: string;
+    detectedTopics?: string[];
+    visibleText?: string[];
+    suggestedPostAngles?: string[];
     observedItems?: string[];
     sceneInference?: string;
     eventFeel?: string;
     postableElements?: string[];
     subjectCandidates?: string[];
     ocrText?: string;
+    skippedReason?: string;
   };
-  surveyInsight?: SurveyInsight;
-  postPerformanceInsight?: PostPerformanceInsight;
-  accountOverviewInsight?: AccountOverviewInsight;
-  constraints: {
-    doNotInventMetrics: boolean;
-    useEvidenceOnlyWhenAvailable: boolean;
-    keepNaturalJapanese: boolean;
-  };
+  surveyInsight: SurveyInsight;
+  postPerformanceInsight: PostPerformanceInsight;
+  accountOverviewInsight: AccountOverviewInsight;
+  canGeneratePost: boolean;
+  generationBlockers: string[];
 };
 
 export type PhotoPostAnalysisResult = {
@@ -136,11 +150,7 @@ export type PhotoPostAnalysisResult = {
   };
   debug: {
     photoContextGenerated: boolean;
-    photoContextSource:
-      | "actual_image"
-      | "event_metadata_only"
-      | "fallback"
-      | "missing_image";
+    photoContextSource: "actual_image" | "fallback" | "missing_image";
     surveyInsightStatus: "available" | "skipped" | "failed";
     postPerformanceInsightStatus: "available" | "skipped" | "failed";
     accountOverviewInsightStatus: "available" | "skipped" | "failed";
@@ -174,7 +184,14 @@ type PhotoVisionAnalyzer = {
     fileName?: string;
     contentType?: string;
     bytes: Uint8Array;
-  }): Promise<Partial<PostGenerationEvidencePack["photoContext"]> | undefined>;
+  }): Promise<
+    Partial<
+      Omit<
+        PostGenerationEvidencePack["photoContext"],
+        "available" | "source" | "skippedReason"
+      >
+    > | undefined
+  >;
 };
 
 const FIXED_ANALYSIS_QUESTIONS: Record<AllowedDatasource["purpose"], string> = {
@@ -219,8 +236,11 @@ export class TableauPhotoPostAnalysisService {
     logInfo("tableau.photo_post.photoContextGenerated", {
       photoContextGenerated: photoContextResult.generated,
       photoContextSource: photoContext.source,
-      photoTopicCount: photoContext.detectedTopics.length,
+      ...(photoContextResult.generated
+        ? { photoTopicCount: photoContext.detectedTopics?.length ?? 0 }
+        : {}),
       photoContextSkippedReason: photoContextResult.skippedReason,
+      visibleTextCount: photoContext.visibleText?.length ?? 0,
     });
 
     const listedDatasources = await this.datasourceGateway.listDatasources({
@@ -245,44 +265,25 @@ export class TableauPhotoPostAnalysisService {
         datasourceResolution.datasourceResolutionReason,
     });
 
-    const surveyInsight = await runPurposeAnalysis({
+    const analysis = await runPhotoPostTableauAnalysis({
       request: input.request,
       authenticatedUser: input.authenticatedUser,
       authContext,
-      purpose: "survey_insight",
-      datasource: datasourceResolution.selectedByPurpose.survey_insight,
+      resolvedDatasources: datasourceResolution.resolvedDatasources,
       photoContext,
       tableauContextProvider: this.tableauContextProvider,
     });
-    const postPerformanceInsight = await runPurposeAnalysis({
-      request: input.request,
-      authenticatedUser: input.authenticatedUser,
-      authContext,
-      purpose: "post_performance",
-      datasource: datasourceResolution.selectedByPurpose.post_performance,
-      photoContext,
-      tableauContextProvider: this.tableauContextProvider,
-    });
-    const accountOverviewInsight = await runPurposeAnalysis({
-      request: input.request,
-      authenticatedUser: input.authenticatedUser,
-      authContext,
-      purpose: "account_overview",
-      datasource: datasourceResolution.selectedByPurpose.account_overview,
-      photoContext,
-      tableauContextProvider: this.tableauContextProvider,
-    });
+    const surveyInsight = analysis.surveyInsight;
+    const postPerformanceInsight = analysis.postPerformanceInsight;
+    const accountOverviewInsight = analysis.accountOverviewInsight;
 
     const evidencePack: PostGenerationEvidencePack = {
       photoContext,
-      ...(surveyInsight ? { surveyInsight } : {}),
-      ...(postPerformanceInsight ? { postPerformanceInsight } : {}),
-      ...(accountOverviewInsight ? { accountOverviewInsight } : {}),
-      constraints: {
-        doNotInventMetrics: true,
-        useEvidenceOnlyWhenAvailable: true,
-        keepNaturalJapanese: true,
-      },
+      surveyInsight,
+      postPerformanceInsight,
+      accountOverviewInsight,
+      canGeneratePost: analysis.canGeneratePost,
+      generationBlockers: analysis.generationBlockers,
     };
 
     const analysisSections = buildAnalysisSections({
@@ -292,23 +293,24 @@ export class TableauPhotoPostAnalysisService {
       accountOverviewInsight,
     });
     const evidencePackGenerated =
+      photoContext.available &&
       photoContext.source === "actual_image" &&
-      Boolean(surveyInsight?.available) &&
-      Boolean(postPerformanceInsight?.available) &&
-      Boolean(accountOverviewInsight?.available);
+      analysis.canGeneratePost;
 
     logInfo("tableau.photo_post.evidencePackGenerated", {
       evidencePackGenerated,
       analysisSectionCount: analysisSections.length,
       resolvedDatasourceKeys: datasourceResolution.resolvedDatasourceKeys,
       photoContextSource: photoContext.source,
+      canGeneratePost: analysis.canGeneratePost,
+      generationBlockers: analysis.generationBlockers,
     });
 
     return {
       photoContext,
-      ...(surveyInsight ? { surveyInsight } : {}),
-      ...(postPerformanceInsight ? { postPerformanceInsight } : {}),
-      ...(accountOverviewInsight ? { accountOverviewInsight } : {}),
+      surveyInsight,
+      postPerformanceInsight,
+      accountOverviewInsight,
       evidencePack,
       analysisSections,
       datasourceResolution: {
@@ -328,19 +330,97 @@ export class TableauPhotoPostAnalysisService {
           datasourceResolution.datasourceResolutionReason,
       },
       debug: {
-        photoContextGenerated: photoContext.source === "actual_image",
+        photoContextGenerated: photoContext.available,
         photoContextSource: photoContext.source,
-        surveyInsightStatus: surveyInsight?.available ? "available" : "skipped",
-        postPerformanceInsightStatus: postPerformanceInsight?.available
+        surveyInsightStatus: surveyInsight.available
           ? "available"
-          : "skipped",
-        accountOverviewInsightStatus: accountOverviewInsight?.available
+          : surveyInsight.failedReason
+            ? "failed"
+            : "skipped",
+        postPerformanceInsightStatus: postPerformanceInsight.available
           ? "available"
-          : "skipped",
+          : postPerformanceInsight.failedReason
+            ? "failed"
+            : "skipped",
+        accountOverviewInsightStatus: accountOverviewInsight.available
+          ? "available"
+          : accountOverviewInsight.failedReason
+            ? "failed"
+            : "skipped",
         evidencePackGenerated,
       },
     };
   }
+}
+
+async function runPhotoPostTableauAnalysis(input: {
+  request: ActionRunRequest;
+  authenticatedUser?: AuthenticatedUser;
+  authContext: TableauDirectTrustAuthContext;
+  resolvedDatasources: ResolvedAllowedDatasource[];
+  photoContext: PostGenerationEvidencePack["photoContext"];
+  tableauContextProvider: TableauContextProvider;
+}): Promise<{
+  surveyInsight: SurveyInsight;
+  postPerformanceInsight: PostPerformanceInsight;
+  accountOverviewInsight: AccountOverviewInsight;
+  canGeneratePost: boolean;
+  generationBlockers: string[];
+}> {
+  const surveyInsight = await runPurposeAnalysis({
+    request: input.request,
+    authenticatedUser: input.authenticatedUser,
+    authContext: input.authContext,
+    purpose: "survey_insight",
+    datasource:
+      input.resolvedDatasources.find(
+        (item) => item.allowed.purpose === "survey_insight",
+      ) ?? undefined,
+    photoContext: input.photoContext,
+    tableauContextProvider: input.tableauContextProvider,
+  });
+  const postPerformanceInsight = await runPurposeAnalysis({
+    request: input.request,
+    authenticatedUser: input.authenticatedUser,
+    authContext: input.authContext,
+    purpose: "post_performance",
+    datasource:
+      input.resolvedDatasources.find(
+        (item) => item.allowed.purpose === "post_performance",
+      ) ?? undefined,
+    photoContext: input.photoContext,
+    tableauContextProvider: input.tableauContextProvider,
+  });
+  const accountOverviewInsight = await runPurposeAnalysis({
+    request: input.request,
+    authenticatedUser: input.authenticatedUser,
+    authContext: input.authContext,
+    purpose: "account_overview",
+    datasource:
+      input.resolvedDatasources.find(
+        (item) => item.allowed.purpose === "account_overview",
+      ) ?? undefined,
+    photoContext: input.photoContext,
+    tableauContextProvider: input.tableauContextProvider,
+  });
+
+  const availableInsightCount = [
+    surveyInsight.available,
+    postPerformanceInsight.available,
+    accountOverviewInsight.available,
+  ].filter(Boolean).length;
+  const generationBlockers = [
+    ...(input.photoContext.available ? [] : ["input_image_not_found"]),
+    ...(availableInsightCount === 0 ? ["tableau_analysis_unavailable"] : []),
+  ];
+
+  return {
+    surveyInsight,
+    postPerformanceInsight,
+    accountOverviewInsight,
+    canGeneratePost: generationBlockers.length === 0,
+    generationBlockers,
+  };
 }
 
 async function runPurposeAnalysis(input: {
@@ -351,7 +431,7 @@ async function runPurposeAnalysis(input: {
   datasource?: ResolvedAllowedDatasource;
   photoContext: PostGenerationEvidencePack["photoContext"];
   tableauContextProvider: TableauContextProvider;
-}): Promise<SurveyInsight | undefined>;
+}): Promise<SurveyInsight>;
 async function runPurposeAnalysis(input: {
   request: ActionRunRequest;
   authenticatedUser?: AuthenticatedUser;
@@ -360,7 +440,7 @@ async function runPurposeAnalysis(input: {
   datasource?: ResolvedAllowedDatasource;
   photoContext: PostGenerationEvidencePack["photoContext"];
   tableauContextProvider: TableauContextProvider;
-}): Promise<PostPerformanceInsight | undefined>;
+}): Promise<PostPerformanceInsight>;
 async function runPurposeAnalysis(input: {
   request: ActionRunRequest;
   authenticatedUser?: AuthenticatedUser;
@@ -369,7 +449,7 @@ async function runPurposeAnalysis(input: {
   datasource?: ResolvedAllowedDatasource;
   photoContext: PostGenerationEvidencePack["photoContext"];
   tableauContextProvider: TableauContextProvider;
-}): Promise<AccountOverviewInsight | undefined>;
+}): Promise<AccountOverviewInsight>;
 async function runPurposeAnalysis(input: {
   request: ActionRunRequest;
   authenticatedUser?: AuthenticatedUser;
@@ -379,7 +459,7 @@ async function runPurposeAnalysis(input: {
   photoContext: PostGenerationEvidencePack["photoContext"];
   tableauContextProvider: TableauContextProvider;
 }): Promise<
-  SurveyInsight | PostPerformanceInsight | AccountOverviewInsight | undefined
+  SurveyInsight | PostPerformanceInsight | AccountOverviewInsight
 > {
   if (!input.datasource) {
     logInfo("tableau.photo_post.skippedInsightReason", {
@@ -388,7 +468,9 @@ async function runPurposeAnalysis(input: {
     });
     return buildUnavailableInsight(
       input.purpose,
+      "missing_datasource",
       "allowed datasource could not be resolved",
+      "skipped",
     );
   }
 
@@ -400,7 +482,9 @@ async function runPurposeAnalysis(input: {
     });
     return buildUnavailableInsight(
       input.purpose,
+      "missing_subject",
       "no Tableau subject available for MCP analysis",
+      "skipped",
     );
   }
 
@@ -433,7 +517,9 @@ async function runPurposeAnalysis(input: {
     });
     return buildUnavailableInsight(
       input.purpose,
+      "query_failed",
       "Tableau analysis failed for this purpose.",
+      "failed",
     );
   }
 }
@@ -473,6 +559,8 @@ function buildPurposeInsight(
     );
     return {
       available: true,
+      sourceStatus: "queried",
+      datasourceKey: "mcp_session_survey_responses",
       keyExpectations: sliceOrFallback(keywordLabels, 0, 3, topLabels),
       keyInterests: sliceOrFallback(keywordLabels, 1, 3, topLabels),
       concernsOrQuestions: sliceOrFallback(
@@ -484,10 +572,12 @@ function buildPurposeInsight(
         topLabels,
       ),
       suggestedAngles: uniqueStrings([
-        ...photoContext.suggestedPostAngles,
+        ...(photoContext.suggestedPostAngles ?? []),
         ...topLabels.slice(0, 2),
         "Address what people care about first",
       ]).slice(0, 5),
+      keyFindings: topLabels,
+      evidenceRows: rows,
       evidenceSummary,
     };
   }
@@ -495,6 +585,8 @@ function buildPurposeInsight(
   if (purpose === "post_performance") {
     return {
       available: true,
+      sourceStatus: "queried",
+      datasourceKey: "x_account_analytics_contents",
       highPerformingThemes: sliceOrFallback(topLabels, 0, 4, [
         "photo posts",
         "live atmosphere",
@@ -515,12 +607,16 @@ function buildPurposeInsight(
         "too much hype",
         "irrelevant long text",
       ],
+      keyFindings: topLabels,
+      evidenceRows: rows,
       evidenceSummary,
     };
   }
 
   return {
     available: true,
+    sourceStatus: "queried",
+    datasourceKey: "x_account_overview_analytics",
     recentTrendSummary: evidenceSummary,
     notableChanges: sliceOrFallback(topLabels, 0, 4, [
       "recently strong themes",
@@ -533,21 +629,32 @@ function buildPurposeInsight(
     accountContextForPost: topLabels[0]
       ? `Recent posts are showing ${topLabels[0]} as a visible theme.`
       : "Use the current account context naturally.",
+    keyFindings: topLabels,
+    evidenceRows: rows,
     evidenceSummary,
   };
 }
 
 function buildUnavailableInsight(
   purpose: AllowedDatasource["purpose"],
+  datasourceKey: string,
   reason: string,
+  status: "skipped" | "failed" = "skipped",
 ): SurveyInsight | PostPerformanceInsight | AccountOverviewInsight {
   if (purpose === "survey_insight") {
     return {
       available: false,
+      sourceStatus: status,
+      datasourceKey,
       keyExpectations: [],
       keyInterests: [],
       concernsOrQuestions: [],
       suggestedAngles: [],
+      keyFindings: [],
+      evidenceRows: [],
+      ...(status === "failed"
+        ? { failedReason: reason }
+        : { skippedReason: reason }),
       evidenceSummary: reason,
     };
   }
@@ -555,21 +662,35 @@ function buildUnavailableInsight(
   if (purpose === "post_performance") {
     return {
       available: false,
+      sourceStatus: status,
+      datasourceKey,
       highPerformingThemes: [],
       highPerformingPatterns: [],
       recommendedTone: [],
       recommendedStructure: [],
       avoidPatterns: [],
+      keyFindings: [],
+      evidenceRows: [],
+      ...(status === "failed"
+        ? { failedReason: reason }
+        : { skippedReason: reason }),
       evidenceSummary: reason,
     };
   }
 
   return {
     available: false,
+    sourceStatus: status,
+    datasourceKey,
     recentTrendSummary: reason,
     notableChanges: [],
     timingHints: [],
     accountContextForPost: reason,
+    keyFindings: [],
+    evidenceRows: [],
+    ...(status === "failed"
+      ? { failedReason: reason }
+      : { skippedReason: reason }),
     evidenceSummary: reason,
   };
 }
@@ -585,20 +706,18 @@ function buildAnalysisSections(input: {
       key: "photo_context",
       title: "Photo context",
       question: "Understand the uploaded photo and identify the post angle.",
-      summary: input.photoContext.summary,
+      summary: input.photoContext.summary ?? "Photo context was not available.",
       sourceStatus:
         input.photoContext.source === "actual_image"
           ? "image_queried"
           : input.photoContext.source === "fallback"
             ? "failed"
-            : input.photoContext.source === "event_metadata_only"
-              ? "metadata_only"
-              : "skipped",
+            : "skipped",
       skippedReason:
         input.photoContext.source === "missing_image"
           ? "No input image was available."
           : undefined,
-      rows: input.photoContext.detectedTopics.map((topic) => ({
+      rows: (input.photoContext.detectedTopics ?? []).map((topic) => ({
         label: topic,
         value: null,
       })),
@@ -619,12 +738,13 @@ function buildAnalysisSections(input: {
       summary:
         input.surveyInsight?.evidenceSummary ||
         "Survey insight was unavailable.",
-      sourceStatus: input.surveyInsight?.available
-        ? "tableau_queried"
-        : "skipped",
+      sourceStatus:
+        input.surveyInsight?.sourceStatus === "queried"
+          ? "tableau_queried"
+          : input.surveyInsight?.sourceStatus ?? "skipped",
       skippedReason: input.surveyInsight?.available
         ? undefined
-        : input.surveyInsight?.evidenceSummary,
+        : input.surveyInsight?.skippedReason ?? input.surveyInsight?.evidenceSummary,
       rows: (input.surveyInsight?.keyExpectations ?? []).map((label) => ({
         label,
         value: null,
@@ -637,12 +757,14 @@ function buildAnalysisSections(input: {
       summary:
         input.postPerformanceInsight?.evidenceSummary ||
         "Post performance insight was unavailable.",
-      sourceStatus: input.postPerformanceInsight?.available
-        ? "tableau_queried"
-        : "skipped",
+      sourceStatus:
+        input.postPerformanceInsight?.sourceStatus === "queried"
+          ? "tableau_queried"
+          : input.postPerformanceInsight?.sourceStatus ?? "skipped",
       skippedReason: input.postPerformanceInsight?.available
         ? undefined
-        : input.postPerformanceInsight?.evidenceSummary,
+        : input.postPerformanceInsight?.skippedReason ??
+          input.postPerformanceInsight?.evidenceSummary,
       rows: (input.postPerformanceInsight?.highPerformingThemes ?? []).map(
         (label) => ({
           label,
@@ -657,12 +779,14 @@ function buildAnalysisSections(input: {
       summary:
         input.accountOverviewInsight?.evidenceSummary ||
         "Account overview insight was unavailable.",
-      sourceStatus: input.accountOverviewInsight?.available
-        ? "tableau_queried"
-        : "skipped",
+      sourceStatus:
+        input.accountOverviewInsight?.sourceStatus === "queried"
+          ? "tableau_queried"
+          : input.accountOverviewInsight?.sourceStatus ?? "skipped",
       skippedReason: input.accountOverviewInsight?.available
         ? undefined
-        : input.accountOverviewInsight?.evidenceSummary,
+        : input.accountOverviewInsight?.skippedReason ??
+          input.accountOverviewInsight?.evidenceSummary,
       rows: (input.accountOverviewInsight?.notableChanges ?? []).map(
         (label) => ({
           label,
@@ -720,22 +844,28 @@ async function buildPhotoContext(
     };
   }
 
+  logInfo("tableau.photo_post.inputImageFetchStarted", {
+    inputImageObjectKeyPresent: Boolean(photo.objectKey),
+    inputImageObjectKey: photo.objectKey ?? undefined,
+    inputImageContentType: photo.contentType ?? photo.mimeType ?? undefined,
+    inputImageBytes: photo.byteLength ?? undefined,
+    inputImageWidth: photo.width ?? undefined,
+    inputImageHeight: photo.height ?? undefined,
+  });
+
   const fetchedImage = photo.objectKey
     ? await inputImageService.fetchActionRunInputImage({
         objectKey: photo.objectKey,
       })
     : null;
 
-  logInfo("tableau.photo_post.inputImageFetchStarted", {
-    inputImageObjectKeyPresent: Boolean(photo.objectKey),
-    inputImageObjectKey: photo.objectKey ?? undefined,
-  });
-
   if (fetchedImage) {
     logInfo("tableau.photo_post.inputImageFetchCompleted", {
       inputImageObjectKeyPresent: true,
       inputImageBytes: fetchedImage.byteLength,
       inputImageContentType: fetchedImage.contentType,
+      inputImageWidth: photo.width ?? undefined,
+      inputImageHeight: photo.height ?? undefined,
     });
   }
 
@@ -773,6 +903,8 @@ async function buildPhotoContext(
     inputImageBytes: imageBytes.length,
     inputImageContentType: imageContentType,
     inputImageObjectKeyPresent: Boolean(photo.objectKey),
+    inputImageWidth: photo.width ?? undefined,
+    inputImageHeight: photo.height ?? undefined,
   });
 
   const vision = await visionAnalyzer.analyze({
@@ -800,11 +932,11 @@ async function buildPhotoContext(
   const heuristic = buildHeuristicPhotoContext(request, "actual_image");
   const detectedTopics = uniqueStrings([
     ...(vision.detectedTopics ?? []),
-    ...heuristic.detectedTopics,
+    ...(heuristic.detectedTopics ?? []),
   ]).slice(0, 8);
   const suggestedPostAngles = uniqueStrings([
     ...(vision.suggestedPostAngles ?? []),
-    ...heuristic.suggestedPostAngles,
+    ...(heuristic.suggestedPostAngles ?? []),
   ]).slice(0, 6);
 
   logInfo("tableau.photo_post.imageAnalysisCompleted", {
@@ -813,12 +945,15 @@ async function buildPhotoContext(
     imageAnalysisSuccess: true,
     photoContextSource: "actual_image",
     photoTopicCount: detectedTopics.length,
+    inputImageWidth: photo.width ?? undefined,
+    inputImageHeight: photo.height ?? undefined,
   });
 
   return {
     photoContext: {
       ...heuristic,
       ...vision,
+      available: true,
       source: "actual_image",
       summary: buildVisionSummary({
         currentSituation: request.currentSituation,
@@ -829,6 +964,10 @@ async function buildPhotoContext(
       }),
       detectedTopics,
       suggestedPostAngles,
+      visibleText: uniqueStrings([
+        vision.ocrText ?? "",
+        ...(vision.visibleText ?? []),
+      ]).filter(Boolean),
     },
     generated: true,
   };
@@ -871,10 +1010,14 @@ function buildHeuristicPhotoContext(
   ]).slice(0, 5);
 
   return {
+    available: source === "actual_image",
     source,
     summary,
     detectedTopics,
     suggestedPostAngles,
+    visibleText:
+      photo?.dataUrl && source !== "missing_image" ? [photo.fileName ?? ""] : [],
+    skippedReason: source === "missing_image" ? "input_image_not_found" : undefined,
   };
 }
 
@@ -1094,6 +1237,7 @@ function buildScopedDashboardContext(
 }
 
 function resolveAllowedDatasources(listed: ListedDatasource[]): {
+  resolvedDatasources: ResolvedAllowedDatasource[];
   selectedByPurpose: Partial<
     Record<AllowedDatasource["purpose"], ResolvedAllowedDatasource>
   >;
@@ -1131,6 +1275,7 @@ function resolveAllowedDatasources(listed: ListedDatasource[]): {
   ).map((allowed) => allowed.key);
 
   return {
+    resolvedDatasources: [...matched.values()],
     selectedByPurpose: {
       survey_insight: matched.get("mcp_session_survey_responses"),
       post_performance: matched.get("x_account_analytics_contents"),

@@ -30,6 +30,7 @@ export type UploadedImage = {
   fileName: string;
   objectUrl: string;
   sizeLabel: string;
+  fileId: string;
   mimeType?: string;
   width?: number;
   height?: number;
@@ -37,6 +38,7 @@ export type UploadedImage = {
   originalDataUrl?: string;
   analysisDataUrl?: string;
   analysisCompressionLabel?: string;
+  inputImageObjectKey: string;
 };
 
 export type TableauAnalysisResult = {
@@ -116,14 +118,27 @@ export async function analyzePastPostsWithTableau(
     input.manualTechPlayUrl?.trim() ||
     extractTechPlayUrl(input.calendarResult.selectedEvent) ||
     input.calendarResult.detectedTechPlayUrl?.trim() ||
-    "";
+    '';
+  const eventSource = input.calendarResult.eventSource ?? 'fallback';
+  const eventName =
+    eventSource === 'fallback'
+      ? 'イベント情報は未取得です'
+      : input.calendarResult.resolvedEventName?.trim() ||
+        input.calendarResult.selectedEvent?.summary?.trim() ||
+        '投稿案';
 
   const request: ActionRunRequest = {
     postType: input.postType,
-    eventName:
-      input.calendarResult.resolvedEventName?.trim() ||
-      input.calendarResult.selectedEvent?.summary?.trim() ||
-      "PR投稿",
+    eventName,
+    eventUrl:
+      eventSource === 'fallback'
+        ? undefined
+        : input.calendarResult.selectedEvent?.htmlLink?.trim() ||
+          input.manualTechPlayUrl?.trim() ||
+          input.calendarResult.detectedTechPlayUrl?.trim() ||
+          undefined,
+    eventSource,
+    venueMemo: input.noImageSituationMemo?.trim() || undefined,
     techplayUrl,
     currentSituation: buildCurrentSituation({
       calendarResult: input.calendarResult,
@@ -132,19 +147,33 @@ export async function analyzePastPostsWithTableau(
       manualTechPlayUrl: input.manualTechPlayUrl,
     }),
     dashboardContext: input.dashboardContext,
+    inputImage: input.image
+      ? {
+          source: 'upload',
+          objectKey: input.image.inputImageObjectKey,
+          contentType: input.image.mimeType ?? 'image/jpeg',
+          bytes: input.image.byteLength,
+          width: input.image.width,
+          height: input.image.height,
+          originalFileName: input.image.fileName,
+          fileId: input.image.fileId,
+        }
+      : undefined,
     clientContext: {
-      source: "tableau-extension",
+      source: 'tableau-extension',
       appVersion: env.appVersion,
       photo: {
         fileName: input.image?.fileName,
         sizeLabel: input.image?.sizeLabel,
-        mode: input.image ? "image" : "none",
+        mode: input.image ? 'image' : 'none',
         mimeType: input.image?.mimeType,
         byteLength: input.image?.byteLength,
         width: input.image?.width,
         height: input.image?.height,
-        source: input.image ? "uploaded_image" : "none",
+        source: input.image ? 'uploaded_image' : 'none',
         dataUrl: input.image?.analysisDataUrl ?? input.image?.originalDataUrl,
+        objectKey: input.image?.inputImageObjectKey,
+        contentType: input.image?.mimeType,
       },
     },
   };
@@ -163,7 +192,7 @@ export async function analyzePastPostsWithTableau(
       input.authToken,
       input.ownerToken ?? ownerToken,
     );
-    if (job.status === "completed" && job.result) {
+    if (job.status === 'completed' && job.result) {
       return {
         actionRunId: created.actionRunId,
         ownerToken,
@@ -171,8 +200,8 @@ export async function analyzePastPostsWithTableau(
       };
     }
 
-    if (job.status === "failed") {
-      throw new Error(job.error?.message ?? "Tableau analysis failed.");
+    if (job.status === 'failed') {
+      throw new Error(job.error?.message ?? 'Tableau analysis failed.');
     }
 
     await sleep(delayMs);
@@ -187,7 +216,7 @@ export async function generatePrPostDraft(
     input.manualTechPlayUrl?.trim() ||
     extractTechPlayUrl(input.calendarResult.selectedEvent) ||
     input.calendarResult.detectedTechPlayUrl?.trim() ||
-    "";
+    '';
 
   const techplayPreview =
     input.calendarResult.techplayPreview ??
@@ -200,9 +229,11 @@ export async function generatePrPostDraft(
       : undefined);
 
   const eventName =
-    input.calendarResult.resolvedEventName?.trim() ||
-    input.calendarResult.selectedEvent?.summary?.trim() ||
-    "PR投稿";
+    input.calendarResult.eventSource === 'fallback'
+      ? 'イベント情報は未取得です'
+      : input.calendarResult.resolvedEventName?.trim() ||
+        input.calendarResult.selectedEvent?.summary?.trim() ||
+        '投稿案';
 
   const hashtags = buildHashtags({
     postType: input.postType,
@@ -366,9 +397,11 @@ export function buildCurrentSituation(input: {
   manualTechPlayUrl?: string;
 }): string {
   const parts = [
-    input.calendarResult.selectedEvent?.summary?.trim() ||
-      input.calendarResult.resolvedEventName?.trim() ||
-      "イベント情報取得中",
+    input.calendarResult.eventSource === "fallback"
+      ? "イベント情報は未取得です"
+      : input.calendarResult.selectedEvent?.summary?.trim() ||
+        input.calendarResult.resolvedEventName?.trim() ||
+        "イベント情報は未取得です",
     input.image?.fileName ? `画像:${input.image.fileName}` : "画像なし",
     input.noImageSituationMemo?.trim() || "会場メモ未入力",
     input.calendarResult.detectedTechPlayUrl?.trim() ||
