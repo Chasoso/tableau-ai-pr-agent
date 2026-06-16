@@ -1,7 +1,4 @@
-import {
-  GetObjectCommand,
-  PutObjectCommand,
-} from "@aws-sdk/client-s3";
+import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { createHash } from "node:crypto";
 import { getS3Client } from "../aws/s3";
 import { getConfig } from "../config";

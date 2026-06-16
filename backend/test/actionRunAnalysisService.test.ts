@@ -90,7 +90,8 @@ function buildFixedAnalysis() {
       key: "evidence_pack" as const,
       title: "Evidence pack",
       question: "Combine the analysis outputs into a single evidence pack.",
-      summary: "Survey, performance, and account overview evidence are combined.",
+      summary:
+        "Survey, performance, and account overview evidence are combined.",
       rows: [{ label: "combined", value: "available" }],
     },
   ];
@@ -222,4 +223,3 @@ function buildRequest() {
     },
   } as never;
 }
-

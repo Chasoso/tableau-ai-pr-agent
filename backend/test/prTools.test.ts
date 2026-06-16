@@ -137,7 +137,10 @@ function buildEvidencePack() {
       source: "actual_image" as const,
       summary: "The venue is filling up. / image file: venue.jpg / size 1.2 MB",
       detectedTopics: ["venue", "tableau"],
-      suggestedPostAngles: ["highlight the event atmosphere", "keep the tone natural"],
+      suggestedPostAngles: [
+        "highlight the event atmosphere",
+        "keep the tone natural",
+      ],
     },
     surveyInsight: {
       available: true,
@@ -154,11 +157,13 @@ function buildEvidencePack() {
       recommendedTone: ["natural"],
       recommendedStructure: ["one sentence hook"],
       avoidPatterns: ["too much hype"],
-      evidenceSummary: "Photo posts perform well when the opening line is concise.",
+      evidenceSummary:
+        "Photo posts perform well when the opening line is concise.",
     },
     accountOverviewInsight: {
       available: true,
-      recentTrendSummary: "Recent posts are doing well when they feel conversational.",
+      recentTrendSummary:
+        "Recent posts are doing well when they feel conversational.",
       notableChanges: ["Engagement is rising on photo posts."],
       timingHints: ["Post while the venue is active."],
       accountContextForPost: "Photo posts are currently strong.",
@@ -186,5 +191,3 @@ function buildSourceInfo() {
     missingFields: [],
   };
 }
-
-

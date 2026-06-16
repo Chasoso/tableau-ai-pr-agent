@@ -743,7 +743,10 @@ async function buildPhotoContext(
     fetchedImage?.bytes ??
     (photo.dataUrl ? parseDataUrl(photo.dataUrl)?.bytes : undefined);
   const imageContentType =
-    fetchedImage?.contentType ?? photo.contentType ?? photo.mimeType ?? undefined;
+    fetchedImage?.contentType ??
+    photo.contentType ??
+    photo.mimeType ??
+    undefined;
 
   if (!imageBytes || !imageContentType) {
     logInfo("tableau.photo_post.imageAnalysisCompleted", {
@@ -794,7 +797,7 @@ async function buildPhotoContext(
     };
   }
 
-  const heuristic = buildHeuristicPhotoContext(request, 'actual_image');
+  const heuristic = buildHeuristicPhotoContext(request, "actual_image");
   const detectedTopics = uniqueStrings([
     ...(vision.detectedTopics ?? []),
     ...heuristic.detectedTopics,
@@ -973,7 +976,9 @@ function createPhotoVisionAnalyzer(): PhotoVisionAnalyzer {
       fileName?: string;
       contentType?: string;
       bytes: Uint8Array;
-    }): Promise<Partial<PostGenerationEvidencePack["photoContext"]> | undefined> {
+    }): Promise<
+      Partial<PostGenerationEvidencePack["photoContext"]> | undefined
+    > {
       const format = resolveBedrockImageFormat(input.contentType);
       if (!format) {
         return undefined;
@@ -1372,6 +1377,3 @@ function normalize(value?: string): string {
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-
-
-
