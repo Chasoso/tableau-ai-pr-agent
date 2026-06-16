@@ -7,6 +7,7 @@ import type { DashboardContext } from "../types/tableau";
 const mocks = vi.hoisted(() => ({
   createActionRun: vi.fn(),
   resolveCalendarEventContext: vi.fn(),
+  uploadActionRunInputImage: vi.fn(),
 }));
 
 vi.mock("../env", () => ({
@@ -34,6 +35,10 @@ vi.mock("../api/actionRunApi", () => ({
 
 vi.mock("../api/calendarApi", () => ({
   resolveCalendarEventContext: mocks.resolveCalendarEventContext,
+}));
+
+vi.mock("../api/actionRunImageApi", () => ({
+  uploadActionRunInputImage: mocks.uploadActionRunInputImage,
 }));
 
 const dashboardContext: DashboardContext = {
@@ -67,6 +72,7 @@ afterEach(() => {
   revokeObjectURLMock.mockClear();
   mocks.createActionRun.mockReset();
   mocks.resolveCalendarEventContext.mockReset();
+  mocks.uploadActionRunInputImage.mockReset();
 });
 
 describe("PrActionPanel", () => {
@@ -137,6 +143,14 @@ describe("PrActionPanel", () => {
       warnings: [],
       notes: [],
     });
+    mocks.uploadActionRunInputImage.mockResolvedValue({
+      objectKey: "client-input-images/mock-upload/venue.jpg",
+      contentType: "image/jpeg",
+      byteLength: 11,
+      width: 1,
+      height: 1,
+      source: "uploaded_image",
+    });
 
     render(<PrActionPanel dashboardContext={dashboardContext} />);
 
@@ -150,6 +164,7 @@ describe("PrActionPanel", () => {
     await waitFor(() => {
       expect(mocks.resolveCalendarEventContext).toHaveBeenCalled();
     });
+    expect(mocks.uploadActionRunInputImage).toHaveBeenCalled();
     expect(mocks.resolveCalendarEventContext.mock.calls[0]?.[0]).toEqual(
       expect.objectContaining({
         postType: "開催中の実況",
@@ -180,6 +195,14 @@ describe("PrActionPanel", () => {
       candidates: [],
       warnings: ["Google Calendar event could not be found automatically."],
       notes: [],
+    });
+    mocks.uploadActionRunInputImage.mockResolvedValue({
+      objectKey: "client-input-images/mock-upload/venue.jpg",
+      contentType: "image/jpeg",
+      byteLength: 11,
+      width: 1,
+      height: 1,
+      source: "uploaded_image",
     });
 
     render(<PrActionPanel dashboardContext={dashboardContext} />);
@@ -253,6 +276,14 @@ describe("PrActionPanel", () => {
       warnings: [],
       notes: [],
     });
+    mocks.uploadActionRunInputImage.mockResolvedValue({
+      objectKey: "client-input-images/mock-upload/venue.jpg",
+      contentType: "image/jpeg",
+      byteLength: 11,
+      width: 1,
+      height: 1,
+      source: "uploaded_image",
+    });
     mocks.createActionRun.mockResolvedValue({
       actionRunId: "action-run-1",
       jobType: "action_run",
@@ -274,6 +305,7 @@ describe("PrActionPanel", () => {
       screen.getByLabelText("写真を選ぶ"),
       new File(["photo-bytes"], "venue.jpg", { type: "image/jpeg" }),
     );
+    expect(mocks.uploadActionRunInputImage).toHaveBeenCalled();
     await screen.findAllByText("イベント情報を取得しました");
     await user.click(screen.getByRole("button", { name: "投稿案を作成" }));
 
@@ -295,6 +327,10 @@ describe("PrActionPanel", () => {
         eventName: "Tableau User Group Tokyo 2026",
         techplayUrl: "https://techplay.jp/event/example",
         currentSituation: expect.stringContaining("会場写真:venue.jpg"),
+        inputImage: expect.objectContaining({
+          objectKey: "client-input-images/mock-upload/venue.jpg",
+          source: "upload",
+        }),
       }),
       "auth-token",
       undefined,

@@ -31,6 +31,7 @@ export type UploadedImage = {
   objectUrl: string;
   sizeLabel: string;
   fileId: string;
+  source: "camera" | "library" | "upload";
   mimeType?: string;
   width?: number;
   height?: number;
@@ -149,7 +150,7 @@ export async function analyzePastPostsWithTableau(
     dashboardContext: input.dashboardContext,
     inputImage: input.image
       ? {
-          source: "upload",
+          source: input.image.source,
           objectKey: input.image.inputImageObjectKey,
           contentType: input.image.mimeType ?? "image/jpeg",
           bytes: input.image.byteLength,

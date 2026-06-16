@@ -39,12 +39,20 @@ export type TableauConnectivityDiagnostics = {
 };
 
 export async function runTableauConnectivityDiagnostics(): Promise<TableauConnectivityDiagnostics> {
+  return runTableauConnectivityDiagnosticsWithAuthContext();
+}
+
+export async function runTableauConnectivityDiagnosticsWithAuthContext(input?: {
+  authenticatedUser?: import("../types/auth").AuthenticatedUser;
+}): Promise<TableauConnectivityDiagnostics> {
   const config = getConfig();
   const connectedApp = await getTableauConnectedAppSecrets();
   const serverUrl = config.tableau.serverUrl.trim();
   const siteContentUrl = config.tableau.siteContentUrl.trim();
   const apiVersion = config.tableau.apiVersion;
-  const authContext = resolveTableauDirectTrustAuthContext();
+  const authContext = resolveTableauDirectTrustAuthContext({
+    authenticatedUser: input?.authenticatedUser,
+  });
 
   const diagnostics: TableauConnectivityDiagnostics = {
     enabled: true,
@@ -133,6 +141,15 @@ export async function runTableauConnectivityDiagnostics(): Promise<TableauConnec
       apiVersion,
     }),
   );
+  logInfo("tableau.connectivity_diagnostics.auth_context", {
+    diagnosticsAuthConfigSource: authContext.authConfigSource,
+    diagnosticsSubjectHash: safeHash(authContext.subject),
+    runtimeSubjectHash: safeHash(authContext.subject),
+    diagnosticsSubjectMatchesRuntime: true,
+    diagnosticsAuthFallback:
+      authContext.authConfigSource === "environment" &&
+      !input?.authenticatedUser,
+  });
 
   try {
     const session = await client.signInWithJwt();

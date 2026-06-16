@@ -34,6 +34,25 @@ export type ActionRunInputImage = {
   fileId?: string;
 };
 
+export type ActionRunInputImageUploadRequest = {
+  fileName: string;
+  dataUrl: string;
+  contentType: string;
+  byteLength: number;
+  width?: number;
+  height?: number;
+  source: "camera" | "library";
+};
+
+export type ActionRunInputImageUploadResponse = {
+  objectKey: string;
+  contentType: string;
+  byteLength: number;
+  width?: number;
+  height?: number;
+  source: "uploaded_image";
+};
+
 export type ActionRunPostType =
   | "\u4e8b\u524d\u544a\u77e5"
   | "\u958b\u50ac\u76f4\u524d\u30ea\u30de\u30a4\u30f3\u30c9"

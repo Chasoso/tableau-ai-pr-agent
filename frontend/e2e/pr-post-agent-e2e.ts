@@ -128,6 +128,36 @@ export async function mockPrPostAgentApis(page: Page) {
     });
   });
 
+  await page.route("**/api/action-run-input-images", async (route) => {
+    const requestBody = route.request().postDataJSON() as {
+      fileName?: string;
+      dataUrl?: string;
+      contentType?: string;
+      byteLength?: number;
+      width?: number;
+      height?: number;
+      source?: string;
+    };
+
+    expect(requestBody.fileName).toBeTruthy();
+    expect(requestBody.dataUrl).toMatch(/^data:image\//);
+    expect(requestBody.contentType).toBeTruthy();
+    expect(requestBody.byteLength).toBeGreaterThan(0);
+    expect(requestBody.source).toBe("library");
+
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        objectKey: "client-input-images/mock-upload/venue.jpg",
+        contentType: requestBody.contentType ?? "image/jpeg",
+        byteLength: requestBody.byteLength ?? 0,
+        width: requestBody.width,
+        height: requestBody.height,
+        source: "uploaded_image",
+      }),
+    });
+  });
+
   await page.route("**/api/action-runs", async (route) => {
     const requestBody = route.request().postDataJSON() as {
       postType?: string;
@@ -135,12 +165,17 @@ export async function mockPrPostAgentApis(page: Page) {
       techplayUrl?: string;
       currentSituation?: string;
       dashboardContext?: unknown;
+      inputImage?: { objectKey?: string; source?: string };
     };
 
     expect(requestBody.postType).toBeTruthy();
     expect(requestBody.eventName).toBe("Tableau User Group Tokyo 2026");
     expect(requestBody.techplayUrl).toBe(calendarTechPlayUrl);
     expect(requestBody.dashboardContext).toBeTruthy();
+    expect(requestBody.inputImage?.objectKey).toBe(
+      "client-input-images/mock-upload/venue.jpg",
+    );
+    expect(requestBody.inputImage?.source).toBe("library");
 
     await route.fulfill({
       contentType: "application/json",
@@ -152,6 +187,11 @@ export async function mockPrPostAgentApis(page: Page) {
         pollUrl: "/action-runs/action-run-1",
         retryAfterMs: 1500,
         ownerToken: "owner-token-1",
+        inputImageObjectKey: "client-input-images/mock-upload/venue.jpg",
+        inputImageContentType: "image/jpeg",
+        inputImageBytes: 11,
+        inputImageWidth: 1,
+        inputImageHeight: 1,
       }),
     });
   });

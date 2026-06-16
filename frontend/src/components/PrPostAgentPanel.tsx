@@ -27,6 +27,7 @@ import {
   loadGoogleCalendarConnectionStatus,
   startGoogleCalendarConnection,
 } from "../services/googleCalendarConnection";
+import { uploadActionRunInputImage } from "../api/actionRunImageApi";
 import { prepareImageAnalysisPayload } from "../utils/prepareImageAnalysisPayload";
 
 type Props = {
@@ -97,6 +98,7 @@ export default function PrPostAgentPanel({
   connectionScopeKey,
 }: Props) {
   const workflowIdRef = useRef(0);
+  const tableauAnalysisInFlightRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const manualTechPlayInputRef = useRef<HTMLInputElement | null>(null);
   const [anonymousConnectionToken, setAnonymousConnectionToken] = useState<
@@ -217,7 +219,7 @@ export default function PrPostAgentPanel({
     if (
       selectedPostType === "開催中の実況" &&
       imageMode !== "none" &&
-      !uploadedImage
+      !uploadedImage?.inputImageObjectKey
     ) {
       return false;
     }
@@ -313,6 +315,40 @@ export default function PrPostAgentPanel({
 
   useEffect(() => {
     if (
+      !selectedPostType ||
+      !calendarResult ||
+      workflow.techPlayFetchStatus !== "fetched" ||
+      workflow.tableauAnalysisStatus === "fetching" ||
+      workflow.tableauAnalysisStatus === "completed"
+    ) {
+      return;
+    }
+
+    if (
+      selectedPostType === "開催中の実況" &&
+      imageMode !== "none" &&
+      !uploadedImage?.inputImageObjectKey
+    ) {
+      return;
+    }
+
+    void runTableauAnalysisIfReady({
+      workflowId: workflowIdRef.current,
+      postType: selectedPostType,
+      calendar: calendarResult,
+      image: uploadedImage,
+    });
+  }, [
+    calendarResult,
+    imageMode,
+    selectedPostType,
+    uploadedImage,
+    workflow.tableauAnalysisStatus,
+    workflow.techPlayFetchStatus,
+  ]);
+
+  useEffect(() => {
+    if (
       !canGenerate ||
       !selectedPostType ||
       !calendarResult ||
@@ -326,8 +362,18 @@ export default function PrPostAgentPanel({
 
     void (async () => {
       try {
+        if (
+          selectedPostType === "開催中の実況" &&
+          imageMode !== "none" &&
+          !uploadedImage?.inputImageObjectKey
+        ) {
+          throw new Error(
+            "画像のアップロードが完了していません。もう一度アップロードしてください。",
+          );
+        }
+
         const draft = await generatePrPostDraft({
-          postType: selectedPostType,
+          postType: selectedPostType!,
           dashboardContext,
           calendarResult,
           analysis: analysisResult,
@@ -529,6 +575,13 @@ export default function PrPostAgentPanel({
 
     setCalendarResult(nextCalendar);
     setWorkflow((current) => ({ ...current, techPlayFetchStatus: "fetched" }));
+    void runTableauAnalysisIfReady({
+      workflowId: input.workflowId,
+      postType: input.postType,
+      calendar: nextCalendar,
+      image: uploadedImage,
+    });
+    return;
     setWorkflow((current) => ({
       ...current,
       tableauAnalysisStatus: "fetching",
@@ -644,26 +697,81 @@ export default function PrPostAgentPanel({
     }
 
     try {
+      console.debug("[pr-agent] imageSelectionChanged", {
+        imageMode,
+        selectedImageFilePresent: Boolean(file),
+        selectedImageFileName: file.name,
+        selectedImageContentType: file.type || undefined,
+        selectedImageBytes: file.size,
+      });
       if (uploadedImage?.objectUrl) {
         URL.revokeObjectURL(uploadedImage.objectUrl);
       }
 
       const analysisPayload = await prepareImageAnalysisPayload(file);
       const fileId = crypto.randomUUID();
+      console.debug("[pr-agent] imageUploadStarted", {
+        selectedImageFileName: file.name,
+        selectedImageContentType: file.type || undefined,
+        selectedImageBytes: file.size,
+        selectedImageWidth: analysisPayload.width,
+        selectedImageHeight: analysisPayload.height,
+      });
+      const uploadResult = await uploadActionRunInputImage(
+        {
+          fileName: file.name,
+          dataUrl: analysisPayload.originalDataUrl,
+          contentType: file.type || "image/jpeg",
+          byteLength: file.size,
+          width: analysisPayload.width,
+          height: analysisPayload.height,
+          source: imageMode === "camera" ? "camera" : "library",
+        },
+        authToken,
+        resolvedConnectionOwnerToken ?? undefined,
+      );
       const nextImage: UploadedImage = {
         fileName: file.name,
         objectUrl: URL.createObjectURL(file),
         sizeLabel: formatFileSize(file.size),
         fileId,
+        source: imageMode === "camera" ? "camera" : "library",
         mimeType: file.type || undefined,
+        byteLength: uploadResult.byteLength,
+        width: uploadResult.width ?? analysisPayload.width,
+        height: uploadResult.height ?? analysisPayload.height,
         originalDataUrl: analysisPayload.originalDataUrl,
         analysisDataUrl: analysisPayload.analysisDataUrl,
         analysisCompressionLabel: analysisPayload.compressionLabel,
-        inputImageObjectKey: buildInputImageObjectKey(fileId, file.name),
+        inputImageObjectKey: uploadResult.objectKey,
       };
 
       setUploadedImage(nextImage);
       setImagePreviewExpanded(false);
+      console.debug("[pr-agent] imageUploadCompleted", {
+        uploadedImageObjectKeyPresent: Boolean(uploadResult.objectKey),
+        uploadedImageObjectKey: uploadResult.objectKey,
+        uploadedImageContentType: uploadResult.contentType,
+        uploadedImageBytes: uploadResult.byteLength,
+        uploadedImageWidth: uploadResult.width,
+        uploadedImageHeight: uploadResult.height,
+      });
+      console.debug("[pr-agent] actionRunImageLinked", {
+        inputImageSource: imageMode === "camera" ? "camera" : "library",
+        inputImageObjectKey: uploadResult.objectKey,
+        inputImageContentType: uploadResult.contentType,
+        inputImageBytes: uploadResult.byteLength,
+        inputImageWidth: uploadResult.width,
+        inputImageHeight: uploadResult.height,
+      });
+      if (selectedPostType && calendarResult) {
+        void runTableauAnalysisIfReady({
+          workflowId: workflowIdRef.current,
+          postType: selectedPostType!,
+          calendar: calendarResult,
+          image: nextImage,
+        });
+      }
       setMessages((current) => [
         ...current,
         {
@@ -731,15 +839,15 @@ export default function PrPostAgentPanel({
           tableauAnalysisStatus: "fetching",
         }));
         const analysis = await analyzePastPostsWithTableau({
-          postType: selectedPostType,
+          postType: selectedPostType!,
           dashboardContext,
-          calendarResult: nextCalendar,
+          calendarResult: nextCalendar!,
           authToken,
           ownerToken: resolvedConnectionOwnerToken ?? undefined,
         });
         setAnalysisResult(analysis);
         setPostTrendSummary(
-          buildPostTrendSummary(analysis.result, selectedPostType),
+          buildPostTrendSummary(analysis.result, selectedPostType!),
         );
         setWorkflow((current) => ({
           ...current,
@@ -766,6 +874,89 @@ export default function PrPostAgentPanel({
           : "TechPlay URLの取得に失敗しました。",
       );
       return;
+    }
+  }
+
+  async function runTableauAnalysisIfReady(input: {
+    workflowId: number;
+    postType: ActionRunPostType;
+    calendar: CalendarResolveResponse;
+    image?: UploadedImage | null;
+  }) {
+    if (input.workflowId !== workflowIdRef.current) {
+      return;
+    }
+
+    if (tableauAnalysisInFlightRef.current !== null) {
+      return;
+    }
+
+    if (workflow.tableauAnalysisStatus === "completed") {
+      return;
+    }
+
+    const requiresImage =
+      input.postType === "開催中の実況" && imageMode !== "none";
+    if (requiresImage && !input.image?.inputImageObjectKey) {
+      return;
+    }
+
+    tableauAnalysisInFlightRef.current = input.workflowId;
+    setWorkflow((current) => ({
+      ...current,
+      tableauAnalysisStatus: "fetching",
+    }));
+
+    try {
+      const analysis = await analyzePastPostsWithTableau({
+        postType: input.postType,
+        dashboardContext,
+        calendarResult: input.calendar,
+        image: input.image ?? null,
+        authToken,
+        ownerToken: resolvedConnectionOwnerToken ?? undefined,
+      });
+
+      if (input.workflowId !== workflowIdRef.current) {
+        return;
+      }
+
+      setAnalysisResult(analysis);
+      setPostTrendSummary(
+        buildPostTrendSummary(analysis.result, input.postType),
+      );
+      setWorkflow((current) => ({
+        ...current,
+        tableauAnalysisStatus: "completed",
+      }));
+      setMessages((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          lines: analysis.result.canGeneratePost
+            ? ["画像とTableau分析をそろえて投稿案を作成しました。"]
+            : ["画像が不足しているため、投稿案の作成は保留しました。"],
+        },
+      ]);
+    } catch (analysisError) {
+      if (input.workflowId !== workflowIdRef.current) {
+        return;
+      }
+
+      setWorkflow((current) => ({
+        ...current,
+        tableauAnalysisStatus: "error",
+      }));
+      setError(
+        analysisError instanceof Error
+          ? analysisError.message
+          : "Tableau分析に失敗しました。",
+      );
+    } finally {
+      if (tableauAnalysisInFlightRef.current === input.workflowId) {
+        tableauAnalysisInFlightRef.current = null;
+      }
     }
   }
 
@@ -1556,9 +1747,4 @@ function formatFileSize(bytes: number): string {
   }
 
   return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
-}
-
-function buildInputImageObjectKey(fileId: string, fileName: string): string {
-  const safeName = fileName.replace(/[^A-Za-z0-9._-]+/gu, "_");
-  return `client-input-images/${fileId}/${safeName}`;
 }

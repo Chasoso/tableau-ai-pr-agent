@@ -7,6 +7,7 @@ import {
   loadChatJobOwnerToken,
   storeChatJobOwnerToken,
 } from "../api/chatJobOwnerToken";
+import { uploadActionRunInputImage } from "../api/actionRunImageApi";
 import { env } from "../env";
 import type {
   ActionRunCreateResponse,
@@ -188,7 +189,8 @@ export default function PrActionPanel({
   const canGenerateDraft = Boolean(
     resolvedEventName &&
     resolvedTechPlayUrl &&
-    (venuePhoto || resolvedSupplementMemo) &&
+    ((venuePhoto?.inputImageObjectKey && venuePhoto) ||
+      resolvedSupplementMemo) &&
     calendarLookupStatus !== "searching" &&
     techPlayFetchStatus !== "fetching",
   );
@@ -339,29 +341,72 @@ export default function PrActionPanel({
     }
 
     try {
+      console.debug("[pr-agent] imageSelectionChanged", {
+        imageMode: "library",
+        selectedImageFilePresent: Boolean(file),
+        selectedImageFileName: file.name,
+        selectedImageContentType: file.type || undefined,
+        selectedImageBytes: file.size,
+      });
       if (venuePhoto?.objectUrl) {
         URL.revokeObjectURL(venuePhoto.objectUrl);
       }
 
       const analysisPayload = await prepareImageAnalysisPayload(file);
       const fileId = crypto.randomUUID();
+      console.debug("[pr-agent] imageUploadStarted", {
+        selectedImageFileName: file.name,
+        selectedImageContentType: file.type || undefined,
+        selectedImageBytes: file.size,
+        selectedImageWidth: analysisPayload.width,
+        selectedImageHeight: analysisPayload.height,
+      });
+      const uploadResult = await uploadActionRunInputImage(
+        {
+          fileName: file.name,
+          dataUrl: analysisPayload.originalDataUrl,
+          contentType: file.type || "image/jpeg",
+          byteLength: file.size,
+          width: analysisPayload.width,
+          height: analysisPayload.height,
+          source: "library",
+        },
+        authToken,
+        chatJobOwnerToken ?? undefined,
+      );
       const nextPhoto = {
         fileName: file.name,
         objectUrl: URL.createObjectURL(file),
         sizeLabel: formatFileSize(file.size),
         fileId,
         mimeType: file.type || undefined,
-        width: analysisPayload.width,
-        height: analysisPayload.height,
-        byteLength: analysisPayload.byteLength,
+        width: uploadResult.width ?? analysisPayload.width,
+        height: uploadResult.height ?? analysisPayload.height,
+        byteLength: uploadResult.byteLength,
         originalDataUrl: analysisPayload.originalDataUrl,
         analysisDataUrl: analysisPayload.analysisDataUrl,
         analysisCompressionLabel: analysisPayload.compressionLabel,
-        inputImageObjectKey: buildInputImageObjectKey(fileId, file.name),
+        inputImageObjectKey: uploadResult.objectKey,
       };
       setVenuePhoto(nextPhoto);
       setVenuePhotoExpanded(true);
       setGenerated(false);
+      console.debug("[pr-agent] imageUploadCompleted", {
+        uploadedImageObjectKeyPresent: Boolean(uploadResult.objectKey),
+        uploadedImageObjectKey: uploadResult.objectKey,
+        uploadedImageContentType: uploadResult.contentType,
+        uploadedImageBytes: uploadResult.byteLength,
+        uploadedImageWidth: uploadResult.width,
+        uploadedImageHeight: uploadResult.height,
+      });
+      console.debug("[pr-agent] actionRunImageLinked", {
+        inputImageSource: "library",
+        inputImageObjectKey: uploadResult.objectKey,
+        inputImageContentType: uploadResult.contentType,
+        inputImageBytes: uploadResult.byteLength,
+        inputImageWidth: uploadResult.width,
+        inputImageHeight: uploadResult.height,
+      });
       console.debug("[pr-agent] venue.photo.added", {
         fileName: nextPhoto.fileName,
         sizeLabel: nextPhoto.sizeLabel,
@@ -371,7 +416,7 @@ export default function PrActionPanel({
       setSubmissionError(
         error instanceof Error
           ? error.message
-          : "画像の読み込みに失敗しました。",
+          : "画像のアップロードに失敗しました。もう一度アップロードしてください。",
       );
     }
   }
@@ -1302,11 +1347,6 @@ function formatFileSize(bytes: number): string {
   }
 
   return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
-}
-
-function buildInputImageObjectKey(fileId: string, fileName: string): string {
-  const safeName = fileName.replace(/[^A-Za-z0-9._-]+/gu, "_");
-  return `client-input-images/${fileId}/${safeName}`;
 }
 
 function formatCalendarTime(startIso: string, endIso: string): string {

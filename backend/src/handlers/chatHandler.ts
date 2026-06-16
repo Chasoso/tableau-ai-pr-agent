@@ -20,6 +20,7 @@ import type {
 } from "../types/api";
 import type {
   ActionRunApprovalRequest,
+  ActionRunInputImageUploadRequest,
   ActionRunRequest,
 } from "../types/actionRun";
 import type { CalendarResolveRequest } from "../types/calendar";
@@ -44,6 +45,7 @@ export async function handler(
   const isActionRunRoute = routePath.startsWith("/action-runs");
   const isActionRunApprovalRoute =
     routePath.startsWith("/action-runs/") && routePath.endsWith("/approval");
+  const isActionRunInputImageRoute = routePath === "/action-run-input-images";
   const isTechPlayRoute = routePath.startsWith("/techplay");
   const isNotionCallbackRoute = routePath.startsWith("/notion/callback");
   const isCognitoPopupAuthRoute = routePath.startsWith("/auth/cognito/");
@@ -54,7 +56,8 @@ export async function handler(
     isActionRunRoute ||
     isActionRunApprovalRoute ||
     routePath === "/calendar/resolve" ||
-    routePath === "/techplay/preview";
+    routePath === "/techplay/preview" ||
+    isActionRunInputImageRoute;
 
   if (method === "OPTIONS") {
     return jsonResponse(204, {});
@@ -173,6 +176,34 @@ export async function handler(
         status: response.status,
       });
       return jsonResponse(202, response);
+    }
+
+    if (routePath === "/action-run-input-images" && method === "POST") {
+      const request = parseRequest(
+        event.body,
+      ) as ActionRunInputImageUploadRequest;
+      const validationError = validateActionRunInputImageUploadRequest(request);
+      if (validationError) {
+        logWarn("action_run.input_image_upload.invalid", {
+          requestId,
+          validationError,
+        });
+        return jsonResponse(400, { message: validationError });
+      }
+
+      const response = await actionRunService.uploadActionRunInputImage({
+        request,
+        authenticatedUser: authResult.user,
+        headers: event.headers,
+        requestId,
+      });
+      logInfo("action_run.input_image_upload.completed", {
+        requestId,
+        objectKey: response.objectKey,
+        contentType: response.contentType,
+        byteLength: response.byteLength,
+      });
+      return jsonResponse(201, response);
     }
 
     if (routePath === "/calendar/resolve" && method === "POST") {
@@ -486,6 +517,36 @@ function validateActionRunRequest(request: ActionRunRequest): string | null {
 
   if (!Array.isArray(request.dashboardContext.worksheets)) {
     return "dashboardContext.worksheets must be an array.";
+  }
+
+  if (request.inputImage?.source && !request.inputImage.objectKey?.trim()) {
+    return "inputImage.objectKey is required when inputImage is provided.";
+  }
+
+  return null;
+}
+
+function validateActionRunInputImageUploadRequest(
+  request: ActionRunInputImageUploadRequest,
+): string | null {
+  if (!request.fileName?.trim()) {
+    return "fileName is required.";
+  }
+
+  if (!request.dataUrl?.trim()) {
+    return "dataUrl is required.";
+  }
+
+  if (!request.contentType?.trim()) {
+    return "contentType is required.";
+  }
+
+  if (!Number.isFinite(request.byteLength) || request.byteLength <= 0) {
+    return "byteLength is required.";
+  }
+
+  if (!request.source) {
+    return "source is required.";
   }
 
   return null;

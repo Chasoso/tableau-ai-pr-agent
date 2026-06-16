@@ -12,7 +12,7 @@ import {
 import { ActionRunAnalysisService } from "./actionRunAnalysisService";
 import { ActionRunImageService } from "./actionRunImageService";
 import { ActionRunInputImageService } from "./actionRunInputImageService";
-import { runTableauConnectivityDiagnostics } from "./tableauConnectivityDiagnostics";
+import { runTableauConnectivityDiagnosticsWithAuthContext } from "./tableauConnectivityDiagnostics";
 import { buildActionRunImageUrl } from "./actionRunImageUrlService";
 import { ActionRunRepository } from "../repositories/actionRunRepository";
 import { SlackWebhookService } from "./slackWebhookService";
@@ -21,6 +21,8 @@ import type {
   ActionRunApprovalRequest,
   ActionRunGetResponse,
   ActionRunCreateResponse,
+  ActionRunInputImageUploadRequest,
+  ActionRunInputImageUploadResponse,
   ActionRunRecord,
   ActionRunRequest,
   ActionRunResult,
@@ -39,6 +41,56 @@ const inputImageService = new ActionRunInputImageService();
 const slackWebhookService = new SlackWebhookService();
 
 export class ActionRunService {
+  async uploadActionRunInputImage(input: {
+    request: ActionRunInputImageUploadRequest;
+    authenticatedUser?: AuthenticatedUser;
+    headers?: Record<string, string | undefined>;
+    requestId?: string;
+  }): Promise<ActionRunInputImageUploadResponse> {
+    void input.authenticatedUser;
+    void input.headers;
+    const uploadId = randomUUID();
+    const objectKey = buildInputImageObjectKey(
+      uploadId,
+      input.request.fileName,
+    );
+    const stored = await inputImageService.storeActionRunInputImage({
+      actionRunId: uploadId,
+      photo: {
+        fileName: input.request.fileName,
+        dataUrl: input.request.dataUrl,
+        objectKey,
+        contentType: input.request.contentType,
+        byteLength: input.request.byteLength,
+        width: input.request.width,
+        height: input.request.height,
+        source: "uploaded_image",
+      },
+    });
+
+    if (!stored) {
+      throw new Error("Failed to store input image.");
+    }
+
+    logInfo("action_run.input_image_upload.started", {
+      requestId: input.requestId,
+      objectKey,
+      contentType: stored.contentType,
+      byteLength: stored.byteLength,
+      width: stored.width,
+      height: stored.height,
+    });
+
+    return {
+      objectKey: stored.objectKey,
+      contentType: stored.contentType,
+      byteLength: stored.byteLength,
+      width: stored.width,
+      height: stored.height,
+      source: "uploaded_image",
+    };
+  }
+
   async createActionRun(input: {
     request: ActionRunRequest;
     authenticatedUser?: AuthenticatedUser;
@@ -409,7 +461,9 @@ export class ActionRunService {
         humanApprovalRequired: true,
       });
     } catch (error) {
-      const tableauDiagnostics = await buildTableauFailureDiagnostics();
+      const tableauDiagnostics = await buildTableauFailureDiagnostics(
+        effectiveAuthenticatedUser,
+      );
       const failureDetails = {
         ...safeErrorDetails(error),
         ...(tableauDiagnostics ? { tableauDiagnostics } : {}),
@@ -649,7 +703,9 @@ function buildAuthenticatedUserFromSnapshot(
   };
 }
 
-async function buildTableauFailureDiagnostics(): Promise<
+async function buildTableauFailureDiagnostics(
+  authenticatedUser?: AuthenticatedUser,
+): Promise<
   | {
       enabled: true;
       config: {
@@ -682,7 +738,9 @@ async function buildTableauFailureDiagnostics(): Promise<
   | undefined
 > {
   try {
-    return await runTableauConnectivityDiagnostics();
+    return await runTableauConnectivityDiagnosticsWithAuthContext({
+      authenticatedUser,
+    });
   } catch (error) {
     return {
       enabled: true,
@@ -739,4 +797,13 @@ function getHeader(
     ([key]) => key.toLowerCase() === name.toLowerCase(),
   );
   return entry?.[1]?.trim() || undefined;
+}
+
+function buildInputImageObjectKey(uploadId: string, fileName?: string): string {
+  const safeName = sanitizeFileName(fileName?.trim() || "image");
+  return `client-input-images/${uploadId}/${safeName}`;
+}
+
+function sanitizeFileName(value: string): string {
+  return value.replace(/[^A-Za-z0-9._-]+/g, "_");
 }

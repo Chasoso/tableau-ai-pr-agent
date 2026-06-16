@@ -34,6 +34,25 @@ export type ActionRunInputImage = {
   fileId?: string;
 };
 
+export type ActionRunInputImageUploadRequest = {
+  fileName?: string;
+  dataUrl: string;
+  contentType: string;
+  byteLength: number;
+  width?: number;
+  height?: number;
+  source: "camera" | "library" | "upload";
+};
+
+export type ActionRunInputImageUploadResponse = {
+  objectKey: string;
+  contentType: string;
+  byteLength: number;
+  width?: number;
+  height?: number;
+  source: "uploaded_image";
+};
+
 export type ActionRunPhotoContext = NonNullable<
   NonNullable<ActionRunRequest["clientContext"]>["photo"]
 > & {
