@@ -27,6 +27,7 @@ const imageMock = vi.hoisted(() => ({
 
 const tableauDiagnosticsMock = vi.hoisted(() => ({
   runTableauConnectivityDiagnostics: vi.fn(),
+  runTableauConnectivityDiagnosticsWithAuthContext: vi.fn(),
 }));
 
 vi.mock("../src/repositories/actionRunRepository", () => ({
@@ -56,6 +57,8 @@ vi.mock("../src/services/actionRunImageService", () => ({
 vi.mock("../src/services/tableauConnectivityDiagnostics", () => ({
   runTableauConnectivityDiagnostics:
     tableauDiagnosticsMock.runTableauConnectivityDiagnostics,
+  runTableauConnectivityDiagnosticsWithAuthContext:
+    tableauDiagnosticsMock.runTableauConnectivityDiagnosticsWithAuthContext,
 }));
 
 describe("ActionRunService", () => {
@@ -93,6 +96,7 @@ describe("ActionRunService", () => {
     slackMock.postActionRun.mockReset();
     imageMock.generateActionRunPoster.mockReset();
     tableauDiagnosticsMock.runTableauConnectivityDiagnostics.mockReset();
+    tableauDiagnosticsMock.runTableauConnectivityDiagnosticsWithAuthContext.mockReset();
   });
 
   afterEach(() => {
@@ -321,35 +325,37 @@ describe("ActionRunService", () => {
     analysisMock.analyzeActionRun.mockRejectedValue(
       new Error("Fatal error initializing server info"),
     );
-    tableauDiagnosticsMock.runTableauConnectivityDiagnostics.mockResolvedValue({
-      enabled: true,
-      config: {
-        serverUrlConfigured: true,
-        siteContentUrlConfigured: true,
-        apiVersion: "3.25",
-        subjectConfigured: true,
-        scopesConfigured: ["tableau:content:read"],
-        connectedAppConfigured: {
-          clientId: true,
-          secretId: true,
-          secretValue: true,
+    tableauDiagnosticsMock.runTableauConnectivityDiagnosticsWithAuthContext.mockResolvedValue(
+      {
+        enabled: true,
+        config: {
+          serverUrlConfigured: true,
+          siteContentUrlConfigured: true,
+          apiVersion: "3.25",
+          subjectConfigured: true,
+          scopesConfigured: ["tableau:content:read"],
+          connectedAppConfigured: {
+            clientId: true,
+            secretId: true,
+            secretValue: true,
+          },
+        },
+        reachability: {
+          ok: false,
+          error: {
+            errorName: "TypeError",
+            errorMessage: "fetch failed",
+          },
+        },
+        authentication: {
+          ok: false,
+          error: {
+            errorName: "ConfigurationError",
+            errorMessage: "TABLEAU_DEFAULT_SUBJECT is not configured.",
+          },
         },
       },
-      reachability: {
-        ok: false,
-        error: {
-          errorName: "TypeError",
-          errorMessage: "fetch failed",
-        },
-      },
-      authentication: {
-        ok: false,
-        error: {
-          errorName: "ConfigurationError",
-          errorMessage: "TABLEAU_DEFAULT_SUBJECT is not configured.",
-        },
-      },
-    });
+    );
 
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {
       // noop
@@ -389,7 +395,7 @@ describe("ActionRunService", () => {
       }),
     );
     expect(
-      tableauDiagnosticsMock.runTableauConnectivityDiagnostics,
+      tableauDiagnosticsMock.runTableauConnectivityDiagnosticsWithAuthContext,
     ).toHaveBeenCalledTimes(1);
     errorSpy.mockRestore();
   });
