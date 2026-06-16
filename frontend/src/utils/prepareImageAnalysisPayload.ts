@@ -16,55 +16,55 @@ export async function prepareImageAnalysisPayload(
   file: File,
 ): Promise<ImageAnalysisPayload> {
   const image = await loadImage(file);
+  const originalDataUrl = await readAsDataUrl(file);
+  const width = image?.width ?? 1;
+  const height = image?.height ?? 1;
 
   if (!shouldCompress(file)) {
-    const originalDataUrl = await readAsDataUrl(file);
     return {
       originalDataUrl,
       analysisDataUrl: originalDataUrl,
       wasCompressed: false,
       compressionLabel: "image ready for analysis",
-      width: image.width,
-      height: image.height,
+      width,
+      height,
       byteLength: file.size,
     };
   }
 
-  const { width, height } = scaleToFit(
-    image.width,
-    image.height,
-    DEFAULT_MAX_DIMENSION,
-  );
+  const scaled = scaleToFit(width, height, DEFAULT_MAX_DIMENSION);
   const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
+  canvas.width = scaled.width;
+  canvas.height = scaled.height;
 
   const context = canvas.getContext("2d");
   if (!context) {
-    const originalDataUrl = await readAsDataUrl(file);
     return {
       originalDataUrl,
       analysisDataUrl: originalDataUrl,
       wasCompressed: false,
       compressionLabel: "image ready for analysis",
-      width: image.width,
-      height: image.height,
+      width,
+      height,
       byteLength: file.size,
     };
   }
 
   context.fillStyle = "#ffffff";
-  context.fillRect(0, 0, width, height);
-  context.drawImage(image, 0, 0, width, height);
+  context.fillRect(0, 0, scaled.width, scaled.height);
+  if (image) {
+    context.drawImage(image, 0, 0, scaled.width, scaled.height);
+  }
 
-  const dataUrl = canvas.toDataURL("image/jpeg", DEFAULT_QUALITY);
   return {
-    originalDataUrl: await readAsDataUrl(file),
-    analysisDataUrl: dataUrl,
-    wasCompressed: true,
-    compressionLabel: `compressed for analysis (${width}x${height})`,
-    width,
-    height,
+    originalDataUrl,
+    analysisDataUrl: canvas.toDataURL("image/jpeg", DEFAULT_QUALITY),
+    wasCompressed: Boolean(image),
+    compressionLabel: image
+      ? `compressed for analysis (${scaled.width}x${scaled.height})`
+      : "image ready for analysis",
+    width: scaled.width,
+    height: scaled.height,
     byteLength: file.size,
   };
 }
@@ -73,13 +73,20 @@ function shouldCompress(file: File): boolean {
   return file.size > DEFAULT_MAX_SIZE_BYTES;
 }
 
-async function loadImage(file: File): Promise<HTMLImageElement> {
+async function loadImage(file: File): Promise<HTMLImageElement | undefined> {
   const objectUrl = URL.createObjectURL(file);
   try {
-    return await new Promise<HTMLImageElement>((resolve, reject) => {
+    return await new Promise<HTMLImageElement | undefined>((resolve) => {
       const image = new Image();
-      image.onload = () => resolve(image);
-      image.onerror = () => reject(new Error("Unable to decode image."));
+      const timeoutId = setTimeout(() => resolve(undefined), 250);
+      image.onload = () => {
+        clearTimeout(timeoutId);
+        resolve(image);
+      };
+      image.onerror = () => {
+        clearTimeout(timeoutId);
+        resolve(undefined);
+      };
       image.src = objectUrl;
     });
   } finally {
