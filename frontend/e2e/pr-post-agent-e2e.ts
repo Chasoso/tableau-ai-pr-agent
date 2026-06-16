@@ -146,6 +146,7 @@ export async function mockPrPostAgentApis(page: Page) {
     expect(requestBody.source).toBe("library");
 
     await route.fulfill({
+      status: 201,
       contentType: "application/json",
       body: JSON.stringify({
         objectKey: "client-input-images/mock-upload/venue.jpg",

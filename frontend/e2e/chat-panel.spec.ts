@@ -55,7 +55,14 @@ test.describe("PR投稿エージェント", () => {
     ).toBeVisible();
 
     await page.getByRole("button", { name: "ライブラリから選択" }).click();
+    const uploadResponsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().endsWith("/api/action-run-input-images"),
+    );
     await uploadVenuePhoto(page);
+    const uploadResponse = await uploadResponsePromise;
+    expect(uploadResponse.status()).toBe(201);
 
     await expect(
       page

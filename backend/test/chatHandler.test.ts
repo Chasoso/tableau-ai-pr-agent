@@ -1,4 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const actionRunServiceMocks = vi.hoisted(() => ({
+  uploadActionRunInputImage: vi.fn(),
+}));
+
+vi.mock("../src/services/actionRunService", () => ({
+  ActionRunService: vi.fn().mockImplementation(() => actionRunServiceMocks),
+}));
+
 import { handler } from "../src/handlers/chatHandler";
 
 describe("chatHandler", () => {
@@ -8,6 +17,7 @@ describe("chatHandler", () => {
   beforeEach(() => {
     delete process.env.AUTH_REQUIRED;
     delete process.env.NOTION_MCP_ENABLED;
+    actionRunServiceMocks.uploadActionRunInputImage.mockReset();
   });
 
   afterEach(() => {
@@ -150,6 +160,61 @@ describe("chatHandler", () => {
     });
 
     expect(response.statusCode).not.toBe(401);
+  });
+
+  it("routes action-run input image uploads to the chat handler", async () => {
+    actionRunServiceMocks.uploadActionRunInputImage.mockResolvedValue({
+      objectKey: "client-input-images/mock-upload/venue.jpg",
+      contentType: "image/jpeg",
+      byteLength: 11,
+      width: 1,
+      height: 1,
+      source: "uploaded_image",
+    });
+
+    const response = await handler({
+      httpMethod: "POST",
+      rawPath: "/action-run-input-images",
+      headers: {},
+      body: JSON.stringify({
+        fileName: "venue.jpg",
+        dataUrl: "data:image/jpeg;base64,cGhvdG8=",
+        contentType: "image/jpeg",
+        byteLength: 11,
+        width: 1,
+        height: 1,
+        source: "library",
+      }),
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(JSON.parse(response.body)).toEqual({
+      objectKey: "client-input-images/mock-upload/venue.jpg",
+      contentType: "image/jpeg",
+      byteLength: 11,
+      width: 1,
+      height: 1,
+      source: "uploaded_image",
+    });
+    expect(
+      actionRunServiceMocks.uploadActionRunInputImage,
+    ).toHaveBeenCalledTimes(1);
+    expect(
+      actionRunServiceMocks.uploadActionRunInputImage,
+    ).toHaveBeenCalledWith({
+      request: {
+        fileName: "venue.jpg",
+        dataUrl: "data:image/jpeg;base64,cGhvdG8=",
+        contentType: "image/jpeg",
+        byteLength: 11,
+        width: 1,
+        height: 1,
+        source: "library",
+      },
+      authenticatedUser: undefined,
+      headers: {},
+      requestId: undefined,
+    });
   });
 
   it("shows the Cognito error description on callback failures", async () => {
