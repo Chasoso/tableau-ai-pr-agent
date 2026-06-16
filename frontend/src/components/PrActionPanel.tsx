@@ -29,6 +29,7 @@ type VenuePhotoDraft = {
   objectUrl: string;
   sizeLabel: string;
   fileId: string;
+  source: "camera" | "library" | "upload";
   mimeType?: string;
   width?: number;
   height?: number;
@@ -379,6 +380,7 @@ export default function PrActionPanel({
         objectUrl: URL.createObjectURL(file),
         sizeLabel: formatFileSize(file.size),
         fileId,
+        source: "library" as const,
         mimeType: file.type || undefined,
         width: uploadResult.width ?? analysisPayload.width,
         height: uploadResult.height ?? analysisPayload.height,
@@ -488,7 +490,7 @@ export default function PrActionPanel({
       dashboardContext,
       inputImage: venuePhoto
         ? {
-            source: "upload",
+            source: venuePhoto.source,
             objectKey: venuePhoto.inputImageObjectKey,
             contentType: venuePhoto.mimeType ?? "image/jpeg",
             bytes: venuePhoto.byteLength,
@@ -529,7 +531,7 @@ export default function PrActionPanel({
       postType,
       eventName: resolvedEventName,
       hasVenuePhoto: Boolean(venuePhoto),
-      inputImageSource: venuePhoto ? "uploaded_image" : "none",
+      inputImageSource: venuePhoto ? venuePhoto.source : "none",
       inputImageObjectKeyPresent: Boolean(venuePhoto?.inputImageObjectKey),
       inputImageContentType: venuePhoto?.mimeType,
       inputImageBytes: venuePhoto?.byteLength ?? undefined,

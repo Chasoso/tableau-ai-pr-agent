@@ -305,7 +305,9 @@ describe("PrActionPanel", () => {
       screen.getByLabelText("写真を選ぶ"),
       new File(["photo-bytes"], "venue.jpg", { type: "image/jpeg" }),
     );
-    expect(mocks.uploadActionRunInputImage).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(mocks.uploadActionRunInputImage).toHaveBeenCalled();
+    });
     await screen.findAllByText("イベント情報を取得しました");
     await user.click(screen.getByRole("button", { name: "投稿案を作成" }));
 
@@ -329,7 +331,7 @@ describe("PrActionPanel", () => {
         currentSituation: expect.stringContaining("会場写真:venue.jpg"),
         inputImage: expect.objectContaining({
           objectKey: "client-input-images/mock-upload/venue.jpg",
-          source: "upload",
+          source: "library",
         }),
       }),
       "auth-token",
