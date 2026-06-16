@@ -99,6 +99,8 @@ export async function mockPrPostAgentApis(page: Page) {
         detectedTechPlayUrl: calendarTechPlayUrl,
         techplayPreview: null,
         resolvedEventName: "Tableau User Group Tokyo 2026",
+        eventSource: "resolved",
+        isFallbackEvent: false,
         warnings: [],
         notes: [],
       }),
