@@ -346,4 +346,55 @@ describe("PrActionPanel", () => {
     expect(screen.getByText("Action Run ID")).toBeVisible();
     expect(screen.getByText("action-run-1")).toBeVisible();
   });
+
+  it("does not create an action run when image upload fails", async () => {
+    const user = userEvent.setup();
+    mocks.resolveCalendarEventContext.mockResolvedValue({
+      provider: "mock",
+      calendarLookupStatus: "found",
+      techPlayFetchStatus: "fetched",
+      manualTechPlayMode: false,
+      searchWindowLabel: "today and around now",
+      selectedEvent: {
+        eventId: "mock-current-tableau-user-group",
+        summary: "Tableau User Group Tokyo 2026",
+        description: "Live session",
+        location: "Tokyo",
+        start: "2026-06-14T02:30:00.000Z",
+        end: "2026-06-14T04:30:00.000Z",
+        htmlLink:
+          "https://calendar.google.com/calendar/u/0/r/eventedit/mock-current",
+        techplayUrls: ["https://techplay.jp/event/example"],
+        score: 100,
+        scoreReasons: ["TechPlay URL detected."],
+      },
+      candidates: [],
+      detectedTechPlayUrl: "https://techplay.jp/event/example",
+      resolvedEventName: "Tableau User Group Tokyo 2026",
+      warnings: [],
+      notes: [],
+    });
+    mocks.uploadActionRunInputImage.mockRejectedValue(
+      new TypeError(
+        'Invalid character in header content ["content-disposition"]',
+      ),
+    );
+
+    render(<PrActionPanel dashboardContext={dashboardContext} />);
+
+    await user.upload(
+      screen.getByLabelText("写真を選ぶ"),
+      new File(["photo-bytes"], "会場写真 2026 #1.jpeg", {
+        type: "image/jpeg",
+      }),
+    );
+
+    expect(
+      await screen.findByText(
+        "画像のアップロードに失敗しました。もう一度選択してください。",
+      ),
+    ).toBeVisible();
+    expect(mocks.createActionRun).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "投稿案を作成" })).toBeDisabled();
+  });
 });

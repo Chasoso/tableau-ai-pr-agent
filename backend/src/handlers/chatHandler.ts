@@ -191,19 +191,35 @@ export async function handler(
         return jsonResponse(400, { message: validationError });
       }
 
-      const response = await actionRunService.uploadActionRunInputImage({
-        request,
-        authenticatedUser: authResult.user,
-        headers: event.headers,
-        requestId,
-      });
-      logInfo("action_run.input_image_upload.completed", {
-        requestId,
-        objectKey: response.objectKey,
-        contentType: response.contentType,
-        byteLength: response.byteLength,
-      });
-      return jsonResponse(201, response);
+      try {
+        const response = await actionRunService.uploadActionRunInputImage({
+          request,
+          authenticatedUser: authResult.user,
+          headers: event.headers,
+          requestId,
+        });
+        logInfo("action_run.input_image_upload.completed", {
+          requestId,
+          objectKey: response.objectKey,
+          contentType: response.contentType,
+          byteLength: response.byteLength,
+        });
+        return jsonResponse(201, response);
+      } catch (error) {
+        logError("action_run.input_image_upload.failed", {
+          requestId,
+          failureStage: "store_action_run_input_image",
+          originalFileNamePresent: Boolean(request.fileName?.trim()),
+          contentDispositionHeaderUsed: false,
+          ...safeErrorDetails(error),
+        });
+        return jsonResponse(500, {
+          ok: false,
+          errorCode: "image_upload_failed",
+          message:
+            "画像のアップロードに失敗しました。ファイル名を変更するか、別の画像で再度お試しください。",
+        });
+      }
     }
 
     if (routePath === "/calendar/resolve" && method === "POST") {

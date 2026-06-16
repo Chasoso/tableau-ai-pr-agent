@@ -69,9 +69,6 @@ export class ActionRunInputImageService {
         Body: Buffer.from(parsed.bytes),
         ContentType: parsed.contentType,
         CacheControl: "private, max-age=31536000, immutable",
-        ContentDisposition: input.photo.fileName
-          ? `inline; filename="${sanitizeFileName(input.photo.fileName)}"`
-          : "inline",
       }),
     );
 
@@ -141,8 +138,4 @@ function parseDataUrl(
     contentType,
     bytes: Uint8Array.from(Buffer.from(base64, "base64")),
   };
-}
-
-function sanitizeFileName(value: string): string {
-  return value.replace(/["\\]/g, "_");
 }

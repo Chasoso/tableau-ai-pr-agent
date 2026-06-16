@@ -445,11 +445,7 @@ export default function PrActionPanel({
         postType,
       });
     } catch (error) {
-      setSubmissionError(
-        error instanceof Error
-          ? error.message
-          : "画像のアップロードに失敗しました。もう一度アップロードしてください。",
-      );
+      setSubmissionError(normalizeImageUploadError(error));
     }
   }
 
@@ -534,6 +530,13 @@ export default function PrActionPanel({
   }
 
   async function handleCreateDraft() {
+    if (!venuePhoto?.inputImageObjectKey) {
+      setSubmissionError(
+        "画像のアップロードに失敗しました。もう一度選択してください。",
+      );
+      return;
+    }
+
     const request: ActionRunRequest = {
       postType,
       eventName: resolvedEventName,
@@ -650,6 +653,11 @@ export default function PrActionPanel({
       preferredEventId: candidateId,
       reason: "selection",
     });
+  }
+
+  function normalizeImageUploadError(error: unknown): string {
+    void error;
+    return "画像のアップロードに失敗しました。もう一度選択してください。";
   }
 
   return (

@@ -217,6 +217,37 @@ describe("chatHandler", () => {
     });
   });
 
+  it("returns a structured error when action-run input image upload fails", async () => {
+    actionRunServiceMocks.uploadActionRunInputImage.mockRejectedValue(
+      new TypeError(
+        'Invalid character in header content ["content-disposition"]',
+      ),
+    );
+
+    const response = await handler({
+      httpMethod: "POST",
+      rawPath: "/action-run-input-images",
+      headers: {},
+      body: JSON.stringify({
+        fileName: "会場写真 2026 #1.jpeg",
+        dataUrl: "data:image/jpeg;base64,cGhvdG8=",
+        contentType: "image/jpeg",
+        byteLength: 11,
+        width: 1,
+        height: 1,
+        source: "library",
+      }),
+    });
+
+    expect(response.statusCode).toBe(500);
+    expect(JSON.parse(response.body)).toEqual({
+      ok: false,
+      errorCode: "image_upload_failed",
+      message:
+        "画像のアップロードに失敗しました。ファイル名を変更するか、別の画像で再度お試しください。",
+    });
+  });
+
   it("shows the Cognito error description on callback failures", async () => {
     process.env.AUTH_REQUIRED = "true";
     process.env.COGNITO_CLIENT_ID = "client-123";
