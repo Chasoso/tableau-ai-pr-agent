@@ -5,6 +5,7 @@ import {
 } from "../src/services/tableauPhotoPostAnalysisService";
 import type { ActionRunRequest } from "../src/types/actionRun";
 import type { TableauContextProvider } from "../src/tableau/contextProvider";
+import { resolveTableauDirectTrustAuthContext } from "../src/tableau/tableauDirectTrustAuth";
 
 describe("TableauPhotoPostAnalysisService", () => {
   const originalAllowedLuids = ALLOWED_TABLEAU_DATASOURCES.map(
@@ -57,6 +58,13 @@ describe("TableauPhotoPostAnalysisService", () => {
       provider as never,
       gateway as never,
     );
+    const authContext = resolveTableauDirectTrustAuthContext({
+      authenticatedUser: {
+        userId: "user-1",
+        email: "user@example.com",
+        tableauSubject: "user@example.com",
+      },
+    });
     const result = await service.analyze({
       request: buildRequest(),
       authenticatedUser: {
@@ -66,6 +74,19 @@ describe("TableauPhotoPostAnalysisService", () => {
     });
 
     expect(gateway.listDatasources).toHaveBeenCalledTimes(1);
+    const listDatasourcesMock = gateway.listDatasources as unknown as {
+      mock: {
+        calls: unknown[][];
+      };
+    };
+    const firstCall = listDatasourcesMock.mock.calls[0]?.[0] as
+      | {
+          authContext?: {
+            subject?: string;
+          };
+        }
+      | undefined;
+    expect(firstCall?.authContext?.subject).toBe(authContext.subject);
     expect(result.datasourceResolution.allowedDatasourceKeys).toEqual([
       "mcp_session_survey_responses",
       "x_account_analytics_contents",
@@ -87,6 +108,7 @@ describe("TableauPhotoPostAnalysisService", () => {
       expect(input.dashboardContext.dataSources?.[0]?.name).not.toBe(
         "Disallowed Datasource",
       );
+      expect(input.tableauAuth?.subject).toBe(authContext.subject);
     }
   });
 

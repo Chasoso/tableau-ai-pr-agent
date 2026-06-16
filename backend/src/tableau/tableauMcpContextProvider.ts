@@ -15,6 +15,11 @@ import {
 import { runTableauConnectivityDiagnostics } from "../services/tableauConnectivityDiagnostics";
 import { TableauMcpMetadataCacheRepository } from "../repositories/tableauMcpMetadataCacheRepository";
 import {
+  buildTableauDirectTrustAuthLog,
+  resolveTableauDirectTrustAuthContext,
+  type TableauDirectTrustAuthContext,
+} from "./tableauDirectTrustAuth";
+import {
   classifyQuestionIntent,
   resolveAllowedToolNames,
   TableauMcpToolPlanner,
@@ -154,7 +159,9 @@ export class TableauMcpContextProvider implements TableauContextProvider {
       };
     }
 
-    if (!input.tableauSubject) {
+    const resolvedSubject =
+      input.tableauAuth?.subject ?? input.tableauSubject ?? "";
+    if (!resolvedSubject) {
       return {
         provider: this.name,
         warnings: [
@@ -163,6 +170,12 @@ export class TableauMcpContextProvider implements TableauContextProvider {
       };
     }
 
+    const authContext =
+      input.tableauAuth ??
+      resolveTableauDirectTrustAuthContext({
+        authenticatedUser: input.authenticatedUser,
+        subjectOverride: input.tableauSubject,
+      });
     const startupValidation = validateMcpStartupConfiguration(config.tableau);
     if (!startupValidation.ok) {
       logWarn("tableau.mcp.preflight_failed", {
@@ -182,6 +195,7 @@ export class TableauMcpContextProvider implements TableauContextProvider {
     const startupFailureCacheKey = buildMcpStartupFailureCacheKey({
       tableauConfig: config.tableau,
       mcpConfig,
+      authContext,
     });
     const cachedStartupFailure = getCachedMcpStartupFailure(
       startupFailureCacheKey,
@@ -227,7 +241,7 @@ export class TableauMcpContextProvider implements TableauContextProvider {
       const command = resolveMcpCommand(mcpConfig.command);
       const args = resolveMcpArgs(command, mcpConfig.args);
       const env = buildMcpEnvironment({
-        tableauSubject: input.tableauSubject,
+        tableauAuth: authContext,
         connectedApp,
       });
       serverUrlSummary = summarizeServerUrl(config.tableau.serverUrl);
@@ -241,7 +255,13 @@ export class TableauMcpContextProvider implements TableauContextProvider {
         commandBaseName: summarizeCommandBaseName(command),
         argsCount: args.length,
         authMode: mcpConfig.authMode,
-        tableauSubjectHash: safeHash(input.tableauSubject),
+        ...buildTableauDirectTrustAuthLog({
+          authContext,
+          connectedApp,
+          serverUrl: config.tableau.serverUrl,
+          siteContentUrl: config.tableau.siteContentUrl,
+          apiVersion: config.tableau.apiVersion,
+        }),
         serverUrlSummary,
         runtimeSummary,
         dashboardName: input.dashboardContext.dashboardName,
@@ -259,7 +279,13 @@ export class TableauMcpContextProvider implements TableauContextProvider {
         command,
         args,
         authMode: mcpConfig.authMode || "direct-trust",
-        tableauSubjectHash: safeHash(input.tableauSubject),
+        ...buildTableauDirectTrustAuthLog({
+          authContext,
+          connectedApp,
+          serverUrl: config.tableau.serverUrl,
+          siteContentUrl: config.tableau.siteContentUrl,
+          apiVersion: config.tableau.apiVersion,
+        }),
         serverUrlSummary,
         dashboardName: input.dashboardContext.dashboardName,
       });
@@ -433,6 +459,7 @@ export class TableauMcpContextProvider implements TableauContextProvider {
               toolName: selection.tool.name,
               args: selection.arguments,
               tableauSubject: input.tableauSubject,
+              tableauAuth: input.tableauAuth,
               timeoutMs: mcpConfig.timeoutMs,
             }),
           }));
@@ -542,6 +569,7 @@ export class TableauMcpContextProvider implements TableauContextProvider {
             toolName: selection.tool.name,
             args: selection.arguments,
             tableauSubject: input.tableauSubject,
+            tableauAuth: input.tableauAuth,
             timeoutMs: mcpConfig.timeoutMs,
           });
           const outcome = await processSelectionOutcome({
@@ -773,9 +801,7 @@ export class TableauMcpContextProvider implements TableauContextProvider {
                   config.tableau.siteContentUrl.trim(),
                 ),
                 apiVersion: config.tableau.apiVersion,
-                subjectConfigured: Boolean(
-                  config.tableau.defaultSubject.trim(),
-                ),
+                subjectConfigured: authContext.subjectConfigured,
                 scopesConfigured: config.tableau.scopes,
                 connectedAppConfigured: {
                   clientId: false,
@@ -922,7 +948,7 @@ function resolveMcpArgs(command: string, configuredArgs: string[]): string[] {
 }
 
 function buildMcpEnvironment(input: {
-  tableauSubject: string;
+  tableauAuth: TableauDirectTrustAuthContext;
   connectedApp: { clientId: string; secretId: string; secretValue: string };
 }): Record<string, string> {
   const config = getConfig();
@@ -935,7 +961,7 @@ function buildMcpEnvironment(input: {
     SITE_NAME: config.tableau.siteContentUrl,
     TRANSPORT: "stdio",
     AUTH: config.tableau.mcp.authMode || "direct-trust",
-    JWT_SUB_CLAIM: input.tableauSubject,
+    JWT_SUB_CLAIM: input.tableauAuth.subject,
     CONNECTED_APP_CLIENT_ID: input.connectedApp.clientId,
     CONNECTED_APP_SECRET_ID: input.connectedApp.secretId,
     CONNECTED_APP_SECRET_VALUE: input.connectedApp.secretValue,
@@ -993,10 +1019,12 @@ function validateMcpStartupConfiguration(
 function buildMcpStartupFailureCacheKey(input: {
   tableauConfig: ReturnType<typeof getConfig>["tableau"];
   mcpConfig: ReturnType<typeof getConfig>["tableau"]["mcp"];
+  authContext: TableauDirectTrustAuthContext;
 }): string {
   return [
     input.tableauConfig.serverUrl.trim(),
     input.tableauConfig.siteContentUrl.trim(),
+    input.authContext.subjectHash ?? "anonymous",
     input.mcpConfig.transport,
     input.mcpConfig.authMode,
     input.mcpConfig.command.trim(),
@@ -1108,7 +1136,25 @@ type McpTransportDiagnostics = {
   command: string;
   args: string[];
   authMode: string;
-  tableauSubjectHash?: string;
+  authConfigSource?: string;
+  subjectSource?: string;
+  subjectHash?: string;
+  subjectConfigured?: boolean;
+  mcpSubjectHash?: string;
+  restSubjectHash?: string;
+  subjectHashesMatch?: boolean;
+  connectedAppClientIdHash?: string;
+  connectedAppSecretIdHash?: string;
+  siteContentUrlHash?: string;
+  serverHost?: string;
+  apiVersion?: string;
+  jwtPayload?: {
+    issHash?: string;
+    subHash?: string;
+    aud?: string;
+    expRemainingSeconds?: number;
+    scp?: string[];
+  };
   serverUrlSummary: McpServerUrlSummary;
   dashboardName: string;
 };
@@ -2702,6 +2748,7 @@ async function executeToolWithCache(input: {
   toolName: string;
   args: Record<string, unknown>;
   tableauSubject: string | undefined;
+  tableauAuth?: TableauDirectTrustAuthContext;
   timeoutMs: number;
 }): Promise<{
   result: unknown;
@@ -2742,7 +2789,7 @@ async function executeToolWithCache(input: {
 
   pruneMetadataToolCache();
   const cacheKey = buildCacheKey(
-    input.tableauSubject,
+    input.tableauAuth?.subjectHash ?? safeHash(input.tableauSubject) ?? "anon",
     input.toolName,
     executionArgs,
   );
@@ -2799,7 +2846,10 @@ async function executeToolWithCache(input: {
   try {
     await metadataCacheRepository.put({
       cacheKey,
-      subjectHash: safeHash(input.tableauSubject) ?? "anonymous",
+      subjectHash:
+        input.tableauAuth?.subjectHash ??
+        safeHash(input.tableauSubject) ??
+        "anonymous",
       toolName: input.toolName,
       argsHash: safeHash(stableStringify(executionArgs)) ?? "unknown",
       result: result.result,

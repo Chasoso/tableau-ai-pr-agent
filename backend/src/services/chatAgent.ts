@@ -34,6 +34,7 @@ import type {
   TableauAdditionalContext,
   TableauDatasourceRef,
 } from "../types/tableau";
+import type { TableauDirectTrustAuthContext } from "../tableau/tableauDirectTrustAuth";
 
 const MAX_HISTORY_QUESTION_CHARS = 180;
 const MAX_HISTORY_ANSWER_CHARS = 260;
@@ -277,6 +278,7 @@ export async function runLightweightAgentLoop(input: {
   recentHistory: ChatHistoryRecord[];
   authenticatedUser?: AuthenticatedUser;
   tableauSubject?: string;
+  tableauAuth?: TableauDirectTrustAuthContext;
   baseQuestionInterpretation?: QuestionInterpretation;
   getRemainingTimeInMillis?: () => number;
 }): Promise<AgentLoopResult> {
@@ -312,6 +314,7 @@ export async function runLightweightAgentLoop(input: {
       questionInterpretation: baseQuestionInterpretation,
       authenticatedUser: input.authenticatedUser,
       tableauSubject: input.tableauSubject,
+      tableauAuth: input.tableauAuth,
     });
     return {
       additionalContext,
@@ -388,6 +391,7 @@ export async function runLightweightAgentLoop(input: {
       intentHint: toIntentHint(plan),
       authenticatedUser: input.authenticatedUser,
       tableauSubject: input.tableauSubject,
+      tableauAuth: input.tableauAuth,
     });
     collectedContexts.push(additionalContext);
 

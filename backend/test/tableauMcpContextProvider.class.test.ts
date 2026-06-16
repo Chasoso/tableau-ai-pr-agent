@@ -4,6 +4,7 @@ import {
   clearTableauMcpRuntimeCaches,
   buildRuleBasedInitialSelections,
 } from "../src/tableau/tableauMcpContextProvider";
+import { resolveTableauDirectTrustAuthContext } from "../src/tableau/tableauDirectTrustAuth";
 import {
   TableauMcpToolPlanner,
   type ClassifiedQuestionIntent,
@@ -281,6 +282,14 @@ describe("TableauMcpContextProvider", () => {
       ],
     });
 
+    const authContext = resolveTableauDirectTrustAuthContext({
+      authenticatedUser: {
+        userId: "user-1",
+        email: "user@example.com",
+        tableauSubject: "user@example.com",
+      },
+    });
+
     const result = await provider.getAdditionalContext({
       dashboardContext: {
         ...dashboardContext,
@@ -304,10 +313,14 @@ describe("TableauMcpContextProvider", () => {
       },
       intentHint: intent,
       tableauSubject: "user@example.com",
+      tableauAuth: authContext,
     });
 
     expect(mocks.clientConstructor).toHaveBeenCalledTimes(1);
     expect(mocks.transportConstructor).toHaveBeenCalledTimes(1);
+    expect(
+      mocks.transportConstructor.mock.calls[0]?.[0]?.env?.JWT_SUB_CLAIM,
+    ).toBe("user@example.com");
     expect(mocks.client.connect).toHaveBeenCalledTimes(1);
     expect(mocks.client.listTools).toHaveBeenCalledTimes(1);
     expect(mocks.client.callTool).toHaveBeenCalledTimes(1);

@@ -5,6 +5,7 @@ import type {
   TableauAdditionalContext,
 } from "../types/tableau";
 import type { AuthenticatedUser } from "../types/auth";
+import type { TableauDirectTrustAuthContext } from "./tableauDirectTrustAuth";
 
 export type GetAdditionalContextInput = {
   dashboardContext: DashboardContext;
@@ -14,6 +15,7 @@ export type GetAdditionalContextInput = {
   intentHint?: ClassifiedQuestionIntent;
   authenticatedUser?: AuthenticatedUser;
   tableauSubject?: string;
+  tableauAuth?: TableauDirectTrustAuthContext;
 };
 
 export interface TableauContextProvider {

@@ -1,7 +1,12 @@
 import { getConfig } from "../config";
 import { getTableauConnectedAppSecrets } from "../aws/secrets";
-import { logInfo, safeHash } from "../logging";
-import { generateTableauConnectedAppJwt } from "./tableauAuth";
+import { logInfo, logWarn } from "../logging";
+import { buildTableauConnectedAppJwt } from "./tableauAuth";
+import {
+  buildTableauDirectTrustAuthLog,
+  resolveTableauDirectTrustAuthContext,
+  type TableauDirectTrustAuthContext,
+} from "./tableauDirectTrustAuth";
 import { TableauRequestError } from "./tableauErrors";
 
 export type TableauSession = {
@@ -16,6 +21,7 @@ export type TableauRestClientOptions = {
   apiVersion?: string;
   subject?: string;
   scopes?: string[];
+  authContext?: TableauDirectTrustAuthContext;
 };
 
 export class TableauRestClient {
@@ -24,6 +30,7 @@ export class TableauRestClient {
   private readonly apiVersion: string;
   private readonly subject: string;
   private readonly scopes: string[];
+  private readonly authContext: TableauDirectTrustAuthContext;
 
   constructor(options: TableauRestClientOptions = {}) {
     const config = getConfig();
@@ -33,7 +40,12 @@ export class TableauRestClient {
     this.siteContentUrl =
       options.siteContentUrl ?? config.tableau.siteContentUrl;
     this.apiVersion = options.apiVersion ?? config.tableau.apiVersion;
-    this.subject = options.subject ?? config.tableau.defaultSubject;
+    this.authContext =
+      options.authContext ??
+      resolveTableauDirectTrustAuthContext({
+        subjectOverride: options.subject,
+      });
+    this.subject = options.subject ?? this.authContext.subject;
     this.scopes = options.scopes ?? config.tableau.scopes;
   }
 
@@ -43,21 +55,23 @@ export class TableauRestClient {
     }
 
     const connectedApp = await getTableauConnectedAppSecrets();
-    logInfo("tableau.rest.sign_in.configuration", {
-      serverHost: safeHost(this.serverUrl),
-      siteContentUrlConfigured: this.siteContentUrl.length > 0,
-      apiVersion: this.apiVersion,
-      subjectHash: safeHash(this.subject),
-      scopes: this.scopes,
-      connectedAppClientIdHash: safeHash(connectedApp.clientId),
-      connectedAppSecretIdHash: safeHash(connectedApp.secretId),
-      connectedAppSecretValueConfigured: connectedApp.secretValue.length > 0,
-    });
-    const token = generateTableauConnectedAppJwt({
+    const jwt = buildTableauConnectedAppJwt({
       connectedApp,
       subject: this.subject,
       scopes: this.scopes,
     });
+    logInfo(
+      "tableau.rest.sign_in.configuration",
+      buildTableauDirectTrustAuthLog({
+        authContext: this.authContext,
+        connectedApp,
+        serverUrl: this.serverUrl,
+        siteContentUrl: this.siteContentUrl,
+        apiVersion: this.apiVersion,
+        jwtPayload: jwt.payload,
+      }),
+    );
+    const token = jwt.token;
 
     const response = await fetch(
       `${this.serverUrl}/api/${this.apiVersion}/auth/signin`,
@@ -80,6 +94,16 @@ export class TableauRestClient {
 
     if (!response.ok) {
       const tableauError = await readTableauError(response);
+      logWarn("tableau.rest.sign_in.failed", {
+        status: response.status,
+        tableauErrorCode: tableauError.tableauErrorCode,
+        tableauErrorSummary: tableauError.tableauErrorSummary,
+        tableauErrorDetail: tableauError.tableauErrorDetail,
+        hints: buildSigninFailureHints({
+          status: response.status,
+          tableauErrorCode: tableauError.tableauErrorCode,
+        }),
+      });
       throw new TableauRequestError(
         `Tableau sign in failed with status ${response.status}.`,
         {
@@ -188,14 +212,6 @@ function trimTrailingSlash(value: string): string {
   return value.replace(/\/$/, "");
 }
 
-function safeHost(value: string): string | undefined {
-  try {
-    return new URL(value).host;
-  } catch {
-    return undefined;
-  }
-}
-
 async function readTableauError(response: Response): Promise<{
   tableauErrorCode?: string;
   tableauErrorSummary?: string;
@@ -223,4 +239,21 @@ async function readTableauError(response: Response): Promise<{
   } catch {
     return {};
   }
+}
+
+function buildSigninFailureHints(input: {
+  status: number;
+  tableauErrorCode?: string;
+}): string[] {
+  if (input.status !== 401 && input.tableauErrorCode !== "401001") {
+    return [];
+  }
+
+  return [
+    "Confirm the subject matches the Tableau Cloud user name for the target site.",
+    "Confirm the subject user belongs to the target Tableau site.",
+    "Confirm the Connected App clientId / secretId / secretValue combination is correct.",
+    "Confirm Direct Trust is enabled on the Connected App.",
+    "Confirm the MCP stdio subject and REST sign-in subject are identical.",
+  ];
 }

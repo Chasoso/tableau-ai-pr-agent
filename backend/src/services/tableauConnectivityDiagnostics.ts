@@ -1,6 +1,10 @@
 import { getConfig } from "../config";
 import { getTableauConnectedAppSecrets } from "../aws/secrets";
-import { safeErrorDetails, safeHash } from "../logging";
+import { logInfo, safeErrorDetails, safeHash } from "../logging";
+import {
+  buildTableauDirectTrustAuthLog,
+  resolveTableauDirectTrustAuthContext,
+} from "../tableau/tableauDirectTrustAuth";
 import { TableauRestClient } from "../tableau/tableauRestClient";
 
 export type TableauConnectivityDiagnostics = {
@@ -40,7 +44,7 @@ export async function runTableauConnectivityDiagnostics(): Promise<TableauConnec
   const serverUrl = config.tableau.serverUrl.trim();
   const siteContentUrl = config.tableau.siteContentUrl.trim();
   const apiVersion = config.tableau.apiVersion;
-  const subject = config.tableau.defaultSubject.trim();
+  const authContext = resolveTableauDirectTrustAuthContext();
 
   const diagnostics: TableauConnectivityDiagnostics = {
     enabled: true,
@@ -48,7 +52,7 @@ export async function runTableauConnectivityDiagnostics(): Promise<TableauConnec
       serverUrlConfigured: Boolean(serverUrl),
       siteContentUrlConfigured: Boolean(siteContentUrl),
       apiVersion,
-      subjectConfigured: Boolean(subject),
+      subjectConfigured: authContext.subjectConfigured,
       scopesConfigured: config.tableau.scopes,
       connectedAppConfigured: {
         clientId: Boolean(connectedApp.clientId.trim()),
@@ -102,7 +106,7 @@ export async function runTableauConnectivityDiagnostics(): Promise<TableauConnec
     };
   }
 
-  if (!subject) {
+  if (!authContext.subject) {
     diagnostics.authentication.error = {
       errorName: "ConfigurationError",
       errorMessage: "TABLEAU_DEFAULT_SUBJECT is not configured.",
@@ -114,9 +118,21 @@ export async function runTableauConnectivityDiagnostics(): Promise<TableauConnec
     serverUrl,
     siteContentUrl,
     apiVersion,
-    subject,
+    subject: authContext.subject,
+    authContext,
     scopes: config.tableau.scopes,
   });
+
+  logInfo(
+    "tableau.connectivity_diagnostics.configuration",
+    buildTableauDirectTrustAuthLog({
+      authContext,
+      connectedApp,
+      serverUrl,
+      siteContentUrl,
+      apiVersion,
+    }),
+  );
 
   try {
     const session = await client.signInWithJwt();

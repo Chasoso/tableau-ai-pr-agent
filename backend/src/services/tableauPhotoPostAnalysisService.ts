@@ -9,6 +9,11 @@ import { getTableauConnectedAppSecrets } from "../aws/secrets";
 import { getConfig } from "../config";
 import { logInfo, logWarn, safeErrorDetails } from "../logging";
 import type { AuthenticatedUser } from "../types/auth";
+import {
+  buildTableauDirectTrustAuthLog,
+  resolveTableauDirectTrustAuthContext,
+  type TableauDirectTrustAuthContext,
+} from "../tableau/tableauDirectTrustAuth";
 import type {
   ActionRunAnalysisSection,
   ActionRunRequest,
@@ -146,7 +151,9 @@ type ResolvedAllowedDatasource = {
 };
 
 type ListDatasourcesGateway = {
-  listDatasources(): Promise<ListedDatasource[]>;
+  listDatasources(input?: {
+    authContext?: TableauDirectTrustAuthContext;
+  }): Promise<ListedDatasource[]>;
 };
 
 type PhotoVisionAnalyzer = {
@@ -178,6 +185,18 @@ export class TableauPhotoPostAnalysisService {
     request: ActionRunRequest;
     authenticatedUser?: AuthenticatedUser;
   }): Promise<PhotoPostAnalysisResult> {
+    const authContext = resolveTableauDirectTrustAuthContext({
+      authenticatedUser: input.authenticatedUser,
+    });
+    logInfo(
+      "tableau.photo_post.auth_context",
+      buildTableauDirectTrustAuthLog({
+        authContext,
+        serverUrl: getConfig().tableau.serverUrl,
+        siteContentUrl: getConfig().tableau.siteContentUrl,
+        apiVersion: getConfig().tableau.apiVersion,
+      }),
+    );
     const photoContext = await buildPhotoContext(
       input.request,
       this.photoVisionAnalyzer,
@@ -187,7 +206,9 @@ export class TableauPhotoPostAnalysisService {
       photoTopicCount: photoContext.detectedTopics.length,
     });
 
-    const listedDatasources = await this.datasourceGateway.listDatasources();
+    const listedDatasources = await this.datasourceGateway.listDatasources({
+      authContext,
+    });
     const datasourceResolution = resolveAllowedDatasources(listedDatasources);
     logInfo("tableau.photo_post.datasourceResolution", {
       allowedDatasourceCount: ALLOWED_TABLEAU_DATASOURCES.length,
@@ -210,6 +231,7 @@ export class TableauPhotoPostAnalysisService {
     const surveyInsight = await runPurposeAnalysis({
       request: input.request,
       authenticatedUser: input.authenticatedUser,
+      authContext,
       purpose: "survey_insight",
       datasource: datasourceResolution.selectedByPurpose.survey_insight,
       photoContext,
@@ -218,6 +240,7 @@ export class TableauPhotoPostAnalysisService {
     const postPerformanceInsight = await runPurposeAnalysis({
       request: input.request,
       authenticatedUser: input.authenticatedUser,
+      authContext,
       purpose: "post_performance",
       datasource: datasourceResolution.selectedByPurpose.post_performance,
       photoContext,
@@ -226,6 +249,7 @@ export class TableauPhotoPostAnalysisService {
     const accountOverviewInsight = await runPurposeAnalysis({
       request: input.request,
       authenticatedUser: input.authenticatedUser,
+      authContext,
       purpose: "account_overview",
       datasource: datasourceResolution.selectedByPurpose.account_overview,
       photoContext,
@@ -298,6 +322,7 @@ export class TableauPhotoPostAnalysisService {
 async function runPurposeAnalysis(input: {
   request: ActionRunRequest;
   authenticatedUser?: AuthenticatedUser;
+  authContext: TableauDirectTrustAuthContext;
   purpose: "survey_insight";
   datasource?: ResolvedAllowedDatasource;
   photoContext: PostGenerationEvidencePack["photoContext"];
@@ -306,6 +331,7 @@ async function runPurposeAnalysis(input: {
 async function runPurposeAnalysis(input: {
   request: ActionRunRequest;
   authenticatedUser?: AuthenticatedUser;
+  authContext: TableauDirectTrustAuthContext;
   purpose: "post_performance";
   datasource?: ResolvedAllowedDatasource;
   photoContext: PostGenerationEvidencePack["photoContext"];
@@ -314,6 +340,7 @@ async function runPurposeAnalysis(input: {
 async function runPurposeAnalysis(input: {
   request: ActionRunRequest;
   authenticatedUser?: AuthenticatedUser;
+  authContext: TableauDirectTrustAuthContext;
   purpose: "account_overview";
   datasource?: ResolvedAllowedDatasource;
   photoContext: PostGenerationEvidencePack["photoContext"];
@@ -322,6 +349,7 @@ async function runPurposeAnalysis(input: {
 async function runPurposeAnalysis(input: {
   request: ActionRunRequest;
   authenticatedUser?: AuthenticatedUser;
+  authContext: TableauDirectTrustAuthContext;
   purpose: AllowedDatasource["purpose"];
   datasource?: ResolvedAllowedDatasource;
   photoContext: PostGenerationEvidencePack["photoContext"];
@@ -340,9 +368,7 @@ async function runPurposeAnalysis(input: {
     );
   }
 
-  const subject =
-    input.authenticatedUser?.tableauSubject ??
-    getConfig().tableau.defaultSubject;
+  const subject = input.authContext.subject;
   if (!subject.trim()) {
     logWarn("tableau.photo_post.failedInsightReason", {
       purpose: input.purpose,
@@ -368,6 +394,7 @@ async function runPurposeAnalysis(input: {
         dashboardContext,
         authenticatedUser: input.authenticatedUser,
         tableauSubject: subject,
+        tableauAuth: input.authContext,
       });
     return buildPurposeInsight(
       input.purpose,
@@ -953,13 +980,15 @@ function resolveAllowedDatasources(listed: ListedDatasource[]): {
 
 function createListDatasourcesGateway(): ListDatasourcesGateway {
   return {
-    async listDatasources(): Promise<ListedDatasource[]> {
+    async listDatasources(input?: {
+      authContext?: TableauDirectTrustAuthContext;
+    }): Promise<ListedDatasource[]> {
       const config = getConfig();
       if (config.tableau.contextProvider === "mock") {
         return [];
       }
 
-      const transport = await createMcpTransport();
+      const transport = await createMcpTransport(input?.authContext);
       const client = new Client({
         name: "tableau-ai-pr-agent-backend",
         version: "0.1.0",
@@ -984,13 +1013,17 @@ function createListDatasourcesGateway(): ListDatasourcesGateway {
   };
 }
 
-async function createMcpTransport(): Promise<StdioClientTransport> {
+async function createMcpTransport(
+  authContext?: TableauDirectTrustAuthContext,
+): Promise<StdioClientTransport> {
   const config = getConfig();
   const connectedApp = await getTableauConnectedAppSecrets();
   const command = resolveMcpCommand(config.tableau.mcp.command);
   const args = resolveMcpArgs(command, config.tableau.mcp.args);
+  const resolvedAuthContext =
+    authContext ?? resolveTableauDirectTrustAuthContext();
   const env = buildMcpEnvironment({
-    tableauSubject: config.tableau.defaultSubject,
+    tableauAuth: resolvedAuthContext,
     connectedApp,
   });
 
@@ -1021,7 +1054,7 @@ function resolveMcpArgs(command: string, configuredArgs: string[]): string[] {
 }
 
 function buildMcpEnvironment(input: {
-  tableauSubject: string;
+  tableauAuth: TableauDirectTrustAuthContext;
   connectedApp: { clientId: string; secretId: string; secretValue: string };
 }): Record<string, string> {
   const config = getConfig();
@@ -1033,7 +1066,7 @@ function buildMcpEnvironment(input: {
     SITE_NAME: config.tableau.siteContentUrl,
     TRANSPORT: "stdio",
     AUTH: config.tableau.mcp.authMode || "direct-trust",
-    JWT_SUB_CLAIM: input.tableauSubject,
+    JWT_SUB_CLAIM: input.tableauAuth.subject,
     CONNECTED_APP_CLIENT_ID: input.connectedApp.clientId,
     CONNECTED_APP_SECRET_ID: input.connectedApp.secretId,
     CONNECTED_APP_SECRET_VALUE: input.connectedApp.secretValue,

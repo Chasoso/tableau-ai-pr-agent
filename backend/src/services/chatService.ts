@@ -7,6 +7,7 @@ import {
 } from "../repositories/chatHistoryRepository";
 import { DirectTableauApiContextProvider } from "../tableau/directTableauApiContextProvider";
 import { MockTableauContextProvider } from "../tableau/mockTableauContextProvider";
+import { resolveTableauDirectTrustAuthContext } from "../tableau/tableauDirectTrustAuth";
 import { TableauMcpContextProvider } from "../tableau/tableauMcpContextProvider";
 import type { TableauContextProvider } from "../tableau/contextProvider";
 import type { AuthenticatedUser } from "../types/auth";
@@ -72,7 +73,10 @@ export class ChatService {
       question: request.question,
       dashboardContext: request.dashboardContext,
     });
-    const tableauSubject = resolveTableauSubject(authenticatedUser);
+    const tableauAuth = resolveTableauDirectTrustAuthContext({
+      authenticatedUser,
+    });
+    const tableauSubject = tableauAuth.subject;
     const ownerUserId =
       options.conversationOwnerKey ?? authenticatedUser?.userId;
     await progressReporter.report({
@@ -170,6 +174,7 @@ export class ChatService {
       recentHistory,
       authenticatedUser,
       tableauSubject,
+      tableauAuth,
       baseQuestionInterpretation: requestInterpretation,
       getRemainingTimeInMillis: options.getRemainingTimeInMillis,
     });
@@ -417,7 +422,10 @@ export class ChatService {
     request: ContextRequest,
     authenticatedUser?: AuthenticatedUser,
   ): Promise<ContextResponse> {
-    const tableauSubject = resolveTableauSubject(authenticatedUser);
+    const tableauAuth = resolveTableauDirectTrustAuthContext({
+      authenticatedUser,
+    });
+    const tableauSubject = tableauAuth.subject;
     logInfo("chat.service.context_patch.started", {
       provider: this.contextProvider.name,
       dashboardName: request.dashboardContext.dashboardName,
@@ -434,6 +442,7 @@ export class ChatService {
       question: "Resolve dashboard context for Tableau Assistant UI.",
       authenticatedUser,
       tableauSubject,
+      tableauAuth,
     });
     const dashboardContextPatch = buildDashboardContextPatch(
       request,
@@ -2604,14 +2613,4 @@ function createContextProvider(
     default:
       return new MockTableauContextProvider();
   }
-}
-
-function resolveTableauSubject(
-  authenticatedUser: AuthenticatedUser | undefined,
-): string | undefined {
-  const config = getConfig();
-  return (
-    authenticatedUser?.tableauSubject ??
-    (config.tableau.defaultSubject || undefined)
-  );
 }

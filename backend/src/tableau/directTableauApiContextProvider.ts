@@ -11,6 +11,7 @@ import type {
   GetAdditionalContextInput,
   TableauContextProvider,
 } from "./contextProvider";
+import { resolveTableauDirectTrustAuthContext } from "./tableauDirectTrustAuth";
 import { TableauMetadataClient } from "./tableauMetadataClient";
 import { TableauRestClient, type TableauSession } from "./tableauRestClient";
 
@@ -29,19 +30,32 @@ export class DirectTableauApiContextProvider implements TableauContextProvider {
   ): Promise<TableauAdditionalContext> {
     const warnings: string[] = [];
     let session: TableauSession | undefined;
-    const restClient = input.tableauSubject
-      ? new TableauRestClient({ subject: input.tableauSubject })
+    const authContext =
+      input.tableauAuth ??
+      resolveTableauDirectTrustAuthContext({
+        authenticatedUser: input.authenticatedUser,
+        subjectOverride: input.tableauSubject,
+      });
+    const restClient = authContext.subject
+      ? new TableauRestClient({
+          subject: authContext.subject,
+          authContext,
+        })
       : this.restClient;
 
     try {
       logInfo("tableau.direct.sign_in.started", {
-        tableauSubjectHash: safeHash(input.tableauSubject),
+        authConfigSource: authContext.authConfigSource,
+        subjectSource: authContext.subjectSource,
+        subjectHash: authContext.subjectHash,
         dashboardName: input.dashboardContext.dashboardName,
         workbookName: input.dashboardContext.workbookName ?? undefined,
       });
       session = await restClient.signInWithJwt();
       logInfo("tableau.direct.sign_in.completed", {
-        tableauSubjectHash: safeHash(input.tableauSubject),
+        authConfigSource: authContext.authConfigSource,
+        subjectSource: authContext.subjectSource,
+        subjectHash: authContext.subjectHash,
         siteIdHash: safeHash(session.siteId),
         userIdHash: safeHash(session.userId),
       });
