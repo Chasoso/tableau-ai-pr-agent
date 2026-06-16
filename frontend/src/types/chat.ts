@@ -79,6 +79,18 @@ export type ChatJobDisplayState = {
   error?: ChatJobError;
 };
 
+export type ClientPhotoContext = {
+  fileName?: string;
+  sizeLabel?: string;
+  mode?: "image" | "none";
+  mimeType?: string;
+  byteLength?: number;
+  width?: number;
+  height?: number;
+  source?: "uploaded_image" | "existing_object" | "none";
+  dataUrl?: string;
+};
+
 export type ChatRole = "user" | "assistant" | "system";
 
 export type ChatMessage = {
@@ -100,6 +112,12 @@ export type ChatRequest = {
       mode?: "image" | "none";
       mimeType?: string;
       dataUrl?: string;
+      objectKey?: string;
+      contentType?: string;
+      byteLength?: number;
+      width?: number;
+      height?: number;
+      source?: "uploaded_image" | "existing_object" | "none";
     };
   };
   sessionId?: string;
@@ -116,6 +134,12 @@ export type ContextRequest = {
       mode?: "image" | "none";
       mimeType?: string;
       dataUrl?: string;
+      objectKey?: string;
+      contentType?: string;
+      byteLength?: number;
+      width?: number;
+      height?: number;
+      source?: "uploaded_image" | "existing_object" | "none";
     };
   };
 };

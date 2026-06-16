@@ -19,6 +19,17 @@ export type ActionRunRequest = {
   clientContext?: ClientContext;
 };
 
+export type ActionRunPhotoContext = NonNullable<
+  NonNullable<ActionRunRequest["clientContext"]>["photo"]
+> & {
+  objectKey?: string;
+  contentType?: string;
+  byteLength?: number;
+  width?: number;
+  height?: number;
+  source?: "uploaded_image" | "existing_object" | "none";
+};
+
 export type ActionRunSafetyReview = {
   status: "pending_manual_review" | "approved" | "rejected" | "sent_to_slack";
   required: true;
@@ -115,6 +126,14 @@ export type ActionRunAnalysisSection = {
   dimensionField?: string;
   metricField?: string;
   warnings?: string[];
+  sourceStatus?:
+    | "image_queried"
+    | "tableau_queried"
+    | "metadata_only"
+    | "skipped"
+    | "failed";
+  skippedReason?: string;
+  failedReason?: string;
 };
 
 export type ActionRunRecord = Omit<ChatJobRecord, "request" | "result"> & {
@@ -131,6 +150,9 @@ export type ActionRunCreateResponse = {
   pollUrl: string;
   retryAfterMs: number;
   ownerToken?: string;
+  inputImageObjectKey?: string;
+  inputImageContentType?: string;
+  inputImageBytes?: number;
 };
 
 export type ActionRunGetResponse = {

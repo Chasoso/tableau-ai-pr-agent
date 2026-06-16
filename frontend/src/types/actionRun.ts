@@ -13,6 +13,10 @@ export type ClientContext = {
     sizeLabel?: string;
     mode?: "image" | "none";
     mimeType?: string;
+    byteLength?: number;
+    width?: number;
+    height?: number;
+    source?: "uploaded_image" | "existing_object" | "none";
     dataUrl?: string;
   };
 };
@@ -31,6 +35,17 @@ export type ActionRunRequest = {
   currentSituation: string;
   dashboardContext: DashboardContext;
   clientContext?: ClientContext;
+};
+
+export type ActionRunPhotoContext = NonNullable<
+  NonNullable<ActionRunRequest["clientContext"]>["photo"]
+> & {
+  objectKey?: string;
+  contentType?: string;
+  byteLength?: number;
+  width?: number;
+  height?: number;
+  source?: "uploaded_image" | "existing_object" | "none";
 };
 
 export type ActionRunResult = {
@@ -80,6 +95,14 @@ export type ActionRunAnalysisSection = {
   dimensionField?: string;
   metricField?: string;
   warnings?: string[];
+  sourceStatus?:
+    | "image_queried"
+    | "tableau_queried"
+    | "metadata_only"
+    | "skipped"
+    | "failed";
+  skippedReason?: string;
+  failedReason?: string;
 };
 
 export type ActionRunApprovalRequest = {
@@ -104,6 +127,9 @@ export type ActionRunCreateResponse = {
   pollUrl: string;
   retryAfterMs: number;
   ownerToken?: string;
+  inputImageObjectKey?: string;
+  inputImageContentType?: string;
+  inputImageBytes?: number;
 };
 
 export type ActionRunGetResponse = {

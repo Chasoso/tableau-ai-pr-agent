@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import type { ChangeEvent } from "react";
 import { createActionRun } from "../api/actionRunApi";
 import { resolveCalendarEventContext } from "../api/calendarApi";
@@ -28,6 +28,9 @@ type VenuePhotoDraft = {
   objectUrl: string;
   sizeLabel: string;
   mimeType?: string;
+  width?: number;
+  height?: number;
+  byteLength?: number;
   originalDataUrl?: string;
   analysisDataUrl?: string;
   analysisCompressionLabel?: string;
@@ -342,6 +345,9 @@ export default function PrActionPanel({
         objectUrl: URL.createObjectURL(file),
         sizeLabel: formatFileSize(file.size),
         mimeType: file.type || undefined,
+        width: analysisPayload.width,
+        height: analysisPayload.height,
+        byteLength: analysisPayload.byteLength,
         originalDataUrl: analysisPayload.originalDataUrl,
         analysisDataUrl: analysisPayload.analysisDataUrl,
         analysisCompressionLabel: analysisPayload.compressionLabel,
@@ -436,10 +442,15 @@ export default function PrActionPanel({
               sizeLabel: venuePhoto.sizeLabel,
               mode: "image",
               mimeType: venuePhoto.mimeType,
+              byteLength: venuePhoto.byteLength,
+              width: venuePhoto.width,
+              height: venuePhoto.height,
+              source: "uploaded_image",
               dataUrl: venuePhoto.analysisDataUrl ?? venuePhoto.originalDataUrl,
             }
           : {
               mode: "none",
+              source: "none",
             },
       },
     };
@@ -451,6 +462,12 @@ export default function PrActionPanel({
       postType,
       eventName: resolvedEventName,
       hasVenuePhoto: Boolean(venuePhoto),
+      inputImageSource: venuePhoto ? "uploaded_image" : "none",
+      inputImageObjectKeyPresent: false,
+      inputImageContentType: venuePhoto?.mimeType,
+      inputImageBytes: venuePhoto?.byteLength ?? undefined,
+      inputImageWidth: venuePhoto?.width ?? undefined,
+      inputImageHeight: venuePhoto?.height ?? undefined,
       calendarLookupStatus,
       techPlayFetchStatus,
     });
@@ -466,6 +483,12 @@ export default function PrActionPanel({
         setChatJobOwnerToken(response.ownerToken);
       }
       setSubmissionSummary(response);
+      console.debug("[pr-agent] actionRunImageLinked", {
+        actionRunId: response.actionRunId,
+        inputImageObjectKey: response.inputImageObjectKey,
+        inputImageContentType: response.inputImageContentType,
+        inputImageBytes: response.inputImageBytes,
+      });
       console.debug("[pr-agent] draft.submit.done", {
         actionRunId: response.actionRunId,
         status: response.status,

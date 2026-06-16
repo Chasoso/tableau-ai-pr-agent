@@ -15,6 +15,12 @@ export type ClientContext = {
     mode?: "image" | "none";
     mimeType?: string;
     dataUrl?: string;
+    objectKey?: string;
+    contentType?: string;
+    byteLength?: number;
+    width?: number;
+    height?: number;
+    source?: "uploaded_image" | "existing_object" | "none";
   };
 };
 

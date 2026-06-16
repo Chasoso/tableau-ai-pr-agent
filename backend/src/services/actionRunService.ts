@@ -11,6 +11,7 @@ import {
 } from "../logging";
 import { ActionRunAnalysisService } from "./actionRunAnalysisService";
 import { ActionRunImageService } from "./actionRunImageService";
+import { ActionRunInputImageService } from "./actionRunInputImageService";
 import { runTableauConnectivityDiagnostics } from "./tableauConnectivityDiagnostics";
 import { buildActionRunImageUrl } from "./actionRunImageUrlService";
 import { ActionRunRepository } from "../repositories/actionRunRepository";
@@ -34,6 +35,7 @@ export type ActionRunApprovalResponse = ActionRunGetResponse & {
 const repository = new ActionRunRepository();
 const analysisService = new ActionRunAnalysisService();
 const imageService = new ActionRunImageService();
+const inputImageService = new ActionRunInputImageService();
 const slackWebhookService = new SlackWebhookService();
 
 export class ActionRunService {
@@ -52,6 +54,32 @@ export class ActionRunService {
     const jobId = randomUUID();
     const createdAt = new Date().toISOString();
     const runId = jobId;
+    const imageMetadata = await storeInputImage(jobId, input.request);
+    const requestWithImage = imageMetadata
+      ? attachStoredImageMetadata(input.request, imageMetadata)
+      : stripInputImageDataUrl(input.request);
+
+    logInfo("action_run_input_received", {
+      runId,
+      actionRunId: jobId,
+      requestId: input.requestId,
+      postType: input.request.postType,
+      eventName: input.request.eventName,
+      hasInputImage: Boolean(imageMetadata),
+      inputImageSource: requestWithImage.clientContext?.photo?.source ?? "none",
+      inputImageObjectKeyPresent: Boolean(
+        requestWithImage.clientContext?.photo?.objectKey,
+      ),
+      inputImageContentType:
+        requestWithImage.clientContext?.photo?.contentType ?? undefined,
+      inputImageBytes:
+        requestWithImage.clientContext?.photo?.byteLength ?? undefined,
+      inputImageWidth:
+        requestWithImage.clientContext?.photo?.width ?? undefined,
+      inputImageHeight:
+        requestWithImage.clientContext?.photo?.height ?? undefined,
+      imageUploadCompleted: Boolean(imageMetadata),
+    });
 
     const record: ActionRunRecord = {
       jobId,
@@ -71,7 +99,7 @@ export class ActionRunService {
           message: "Action run request accepted.",
         },
       ],
-      request: input.request,
+      request: requestWithImage,
       createdAt,
       updatedAt: createdAt,
       expiresAt:
@@ -88,6 +116,10 @@ export class ActionRunService {
       ownerKeyHash: safeHash(ownerContext.ownerKey),
       postType: input.request.postType,
       eventName: input.request.eventName,
+      hasInputImage: Boolean(imageMetadata),
+      inputImageObjectKeyPresent: Boolean(
+        requestWithImage.clientContext?.photo?.objectKey,
+      ),
     });
 
     if (!config.actionRun.workerFunctionName) {
@@ -142,6 +174,14 @@ export class ActionRunService {
       stage: "queued",
       pollUrl: `/action-runs/${jobId}`,
       retryAfterMs: 1500,
+      ...(requestWithImage.clientContext?.photo?.objectKey
+        ? {
+            inputImageObjectKey: requestWithImage.clientContext.photo.objectKey,
+            inputImageContentType:
+              requestWithImage.clientContext.photo.contentType,
+            inputImageBytes: requestWithImage.clientContext.photo.byteLength,
+          }
+        : {}),
       ...(ownerContext.ownerToken
         ? { ownerToken: ownerContext.ownerToken }
         : {}),
@@ -435,6 +475,98 @@ export class ActionRunService {
       throw new Error("You do not have access to this action run.");
     }
   }
+}
+
+async function storeInputImage(
+  actionRunId: string,
+  request: ActionRunRequest,
+): Promise<{
+  objectKey: string;
+  contentType: string;
+  byteLength: number;
+  width?: number;
+  height?: number;
+} | null> {
+  const photo = request.clientContext?.photo;
+  if (!photo || photo.mode === "none") {
+    return null;
+  }
+
+  if (!photo.dataUrl && !photo.objectKey) {
+    return null;
+  }
+
+  const stored = await inputImageService.storeActionRunInputImage({
+    actionRunId,
+    photo: {
+      fileName: photo.fileName,
+      dataUrl: photo.dataUrl,
+      objectKey: photo.objectKey,
+      contentType: photo.contentType ?? photo.mimeType,
+      byteLength: photo.byteLength,
+      width: photo.width,
+      height: photo.height,
+      source: photo.source,
+    },
+  });
+
+  if (!stored) {
+    return null;
+  }
+
+  return stored;
+}
+
+function attachStoredImageMetadata(
+  request: ActionRunRequest,
+  imageMetadata: {
+    objectKey: string;
+    contentType: string;
+    byteLength: number;
+    width?: number;
+    height?: number;
+  },
+): ActionRunRequest {
+  return {
+    ...request,
+    clientContext: request.clientContext
+      ? {
+          ...request.clientContext,
+          photo: request.clientContext.photo
+            ? {
+                ...request.clientContext.photo,
+                objectKey: imageMetadata.objectKey,
+                contentType: imageMetadata.contentType,
+                byteLength: imageMetadata.byteLength,
+                width: imageMetadata.width,
+                height: imageMetadata.height,
+                source: "uploaded_image",
+                dataUrl: undefined,
+              }
+            : request.clientContext.photo,
+        }
+      : request.clientContext,
+  };
+}
+
+function stripInputImageDataUrl(request: ActionRunRequest): ActionRunRequest {
+  const photo = request.clientContext?.photo;
+  if (!photo?.dataUrl) {
+    return request;
+  }
+
+  return {
+    ...request,
+    clientContext: request.clientContext
+      ? {
+          ...request.clientContext,
+          photo: {
+            ...photo,
+            dataUrl: undefined,
+          },
+        }
+      : request.clientContext,
+  };
 }
 
 function buildAuthSnapshot(

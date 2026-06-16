@@ -31,6 +31,9 @@ export type UploadedImage = {
   objectUrl: string;
   sizeLabel: string;
   mimeType?: string;
+  width?: number;
+  height?: number;
+  byteLength?: number;
   originalDataUrl?: string;
   analysisDataUrl?: string;
   analysisCompressionLabel?: string;
@@ -137,6 +140,10 @@ export async function analyzePastPostsWithTableau(
         sizeLabel: input.image?.sizeLabel,
         mode: input.image ? "image" : "none",
         mimeType: input.image?.mimeType,
+        byteLength: input.image?.byteLength,
+        width: input.image?.width,
+        height: input.image?.height,
+        source: input.image ? "uploaded_image" : "none",
         dataUrl: input.image?.analysisDataUrl ?? input.image?.originalDataUrl,
       },
     },

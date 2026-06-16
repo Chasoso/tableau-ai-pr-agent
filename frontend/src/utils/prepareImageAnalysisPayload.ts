@@ -1,4 +1,4 @@
-const DEFAULT_MAX_SIZE_BYTES = 1_500_000;
+﻿const DEFAULT_MAX_SIZE_BYTES = 1_500_000;
 const DEFAULT_MAX_DIMENSION = 1600;
 const DEFAULT_QUALITY = 0.82;
 
@@ -7,22 +7,29 @@ export type ImageAnalysisPayload = {
   analysisDataUrl: string;
   wasCompressed: boolean;
   compressionLabel: string;
+  width: number;
+  height: number;
+  byteLength: number;
 };
 
 export async function prepareImageAnalysisPayload(
   file: File,
 ): Promise<ImageAnalysisPayload> {
+  const image = await loadImage(file);
+
   if (!shouldCompress(file)) {
     const originalDataUrl = await readAsDataUrl(file);
     return {
       originalDataUrl,
       analysisDataUrl: originalDataUrl,
       wasCompressed: false,
-      compressionLabel: "分析用: 元画像を使用",
+      compressionLabel: "image ready for analysis",
+      width: image.width,
+      height: image.height,
+      byteLength: file.size,
     };
   }
 
-  const image = await loadImage(file);
   const { width, height } = scaleToFit(
     image.width,
     image.height,
@@ -39,7 +46,10 @@ export async function prepareImageAnalysisPayload(
       originalDataUrl,
       analysisDataUrl: originalDataUrl,
       wasCompressed: false,
-      compressionLabel: "分析用: 元画像を使用",
+      compressionLabel: "image ready for analysis",
+      width: image.width,
+      height: image.height,
+      byteLength: file.size,
     };
   }
 
@@ -52,7 +62,10 @@ export async function prepareImageAnalysisPayload(
     originalDataUrl: await readAsDataUrl(file),
     analysisDataUrl: dataUrl,
     wasCompressed: true,
-    compressionLabel: `分析用: 圧縮済み (${width}×${height})`,
+    compressionLabel: `compressed for analysis (${width}x${height})`,
+    width,
+    height,
+    byteLength: file.size,
   };
 }
 

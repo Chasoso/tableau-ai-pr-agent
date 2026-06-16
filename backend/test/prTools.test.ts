@@ -24,7 +24,7 @@ describe("prTools", () => {
     expect(output.drafts.notion).toContain("# Tableau User Group Tokyo 2026");
     expect(output.sourceInfo.analysisHighlights).toEqual(
       expect.arrayContaining([
-        "Photo context: The venue is filling up. / 画像ファイル: venue.jpg / サイズ感: 1.2 MB",
+        "Photo context: The venue is filling up. / image file: venue.jpg / size 1.2 MB",
         "Survey insight: Participants want practical examples.",
       ]),
     );
@@ -134,33 +134,31 @@ function buildAnalysisSections() {
 function buildEvidencePack() {
   return {
     photoContext: {
-      summary:
-        "The venue is filling up. / 画像ファイル: venue.jpg / サイズ感: 1.2 MB",
+      source: "actual_image" as const,
+      summary: "The venue is filling up. / image file: venue.jpg / size 1.2 MB",
       detectedTopics: ["venue", "tableau"],
-      suggestedPostAngles: ["現場感を短く伝える", "参加者の期待に寄せる"],
+      suggestedPostAngles: ["highlight the event atmosphere", "keep the tone natural"],
     },
     surveyInsight: {
       available: true,
       keyExpectations: ["practical examples"],
       keyInterests: ["Tableau tips"],
       concernsOrQuestions: ["setup details"],
-      suggestedAngles: ["参加者の期待に寄せる"],
+      suggestedAngles: ["focus on practical value"],
       evidenceSummary: "Participants want practical examples.",
     },
     postPerformanceInsight: {
       available: true,
-      highPerformingThemes: ["写真付き投稿"],
-      highPerformingPatterns: ["短く要点を先に出す"],
-      recommendedTone: ["自然体"],
-      recommendedStructure: ["1文目で現場感を出す"],
-      avoidPatterns: ["過剰な煽り"],
-      evidenceSummary:
-        "Photo posts perform well when the opening line is concise.",
+      highPerformingThemes: ["live session recap"],
+      highPerformingPatterns: ["open with the scene"],
+      recommendedTone: ["natural"],
+      recommendedStructure: ["one sentence hook"],
+      avoidPatterns: ["too much hype"],
+      evidenceSummary: "Photo posts perform well when the opening line is concise.",
     },
     accountOverviewInsight: {
       available: true,
-      recentTrendSummary:
-        "Recent posts are doing well when they feel conversational.",
+      recentTrendSummary: "Recent posts are doing well when they feel conversational.",
       notableChanges: ["Engagement is rising on photo posts."],
       timingHints: ["Post while the venue is active."],
       accountContextForPost: "Photo posts are currently strong.",
@@ -188,3 +186,5 @@ function buildSourceInfo() {
     missingFields: [],
   };
 }
+
+

@@ -78,12 +78,32 @@ describe("ActionRunAnalysisService", () => {
 });
 
 function buildFixedAnalysis() {
-  return {
-    photoContext: {
+  const analysisSections = [
+    {
+      key: "photo_context" as const,
+      title: "Photo context",
+      question: "Understand the uploaded photo and identify the post angle.",
       summary: "The venue is filling up. / image file: venue.jpg",
-      detectedTopics: ["venue"],
-      suggestedPostAngles: ["highlight the现场感"],
+      rows: [{ label: "venue", value: null }],
     },
+    {
+      key: "evidence_pack" as const,
+      title: "Evidence pack",
+      question: "Combine the analysis outputs into a single evidence pack.",
+      summary: "Survey, performance, and account overview evidence are combined.",
+      rows: [{ label: "combined", value: "available" }],
+    },
+  ];
+
+  const photoContext = {
+    source: "actual_image" as const,
+    summary: "The venue is filling up. / image file: venue.jpg",
+    detectedTopics: ["venue"],
+    suggestedPostAngles: ["highlight the event atmosphere"],
+  };
+
+  return {
+    photoContext,
     surveyInsight: {
       available: true,
       keyExpectations: ["practical examples"],
@@ -110,11 +130,7 @@ function buildFixedAnalysis() {
       evidenceSummary: "Photo posts are currently strong.",
     },
     evidencePack: {
-      photoContext: {
-        summary: "The venue is filling up. / image file: venue.jpg",
-        detectedTopics: ["venue"],
-        suggestedPostAngles: ["highlight the现场感"],
-      },
+      photoContext,
       surveyInsight: {
         available: true,
         keyExpectations: ["practical examples"],
@@ -146,23 +162,7 @@ function buildFixedAnalysis() {
         keepNaturalJapanese: true,
       },
     },
-    analysisSections: [
-      {
-        key: "photo_context" as const,
-        title: "Photo context",
-        question: "Understand the uploaded photo and identify the post angle.",
-        summary: "The venue is filling up. / image file: venue.jpg",
-        rows: [{ label: "venue", value: null }],
-      },
-      {
-        key: "evidence_pack" as const,
-        title: "Evidence pack",
-        question: "Combine the analysis outputs into a single evidence pack.",
-        summary:
-          "Survey, performance, and account overview evidence are combined.",
-        rows: [{ label: "combined", value: "available" }],
-      },
-    ],
+    analysisSections,
     datasourceResolution: {
       allowedDatasourceCount: 3,
       allowedDatasourceKeys: [
@@ -222,3 +222,4 @@ function buildRequest() {
     },
   } as never;
 }
+

@@ -8,12 +8,14 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { getTableauConnectedAppSecrets } from "../aws/secrets";
 import { getConfig } from "../config";
 import { logInfo, logWarn, safeErrorDetails } from "../logging";
+import { ActionRunInputImageService } from "./actionRunInputImageService";
 import type { AuthenticatedUser } from "../types/auth";
 import {
   buildTableauDirectTrustAuthLog,
   resolveTableauDirectTrustAuthContext,
   type TableauDirectTrustAuthContext,
 } from "../tableau/tableauDirectTrustAuth";
+import type { ClassifiedQuestionIntent } from "../services/tableauMcpToolPlanner";
 import type {
   ActionRunAnalysisSection,
   ActionRunRequest,
@@ -89,6 +91,11 @@ export type AccountOverviewInsight = {
 
 export type PostGenerationEvidencePack = {
   photoContext: {
+    source:
+      | "actual_image"
+      | "event_metadata_only"
+      | "fallback"
+      | "missing_image";
     summary: string;
     detectedTopics: string[];
     suggestedPostAngles: string[];
@@ -129,6 +136,11 @@ export type PhotoPostAnalysisResult = {
   };
   debug: {
     photoContextGenerated: boolean;
+    photoContextSource:
+      | "actual_image"
+      | "event_metadata_only"
+      | "fallback"
+      | "missing_image";
     surveyInsightStatus: "available" | "skipped" | "failed";
     postPerformanceInsightStatus: "available" | "skipped" | "failed";
     accountOverviewInsightStatus: "available" | "skipped" | "failed";
@@ -160,8 +172,8 @@ type PhotoVisionAnalyzer = {
   analyze(input: {
     currentSituation: string;
     fileName?: string;
-    mimeType?: string;
-    dataUrl: string;
+    contentType?: string;
+    bytes: Uint8Array;
   }): Promise<Partial<PostGenerationEvidencePack["photoContext"]> | undefined>;
 };
 
@@ -179,6 +191,7 @@ export class TableauPhotoPostAnalysisService {
     private readonly tableauContextProvider: TableauContextProvider,
     private readonly datasourceGateway: ListDatasourcesGateway = createListDatasourcesGateway(),
     private readonly photoVisionAnalyzer: PhotoVisionAnalyzer = createPhotoVisionAnalyzer(),
+    private readonly inputImageService: ActionRunInputImageService = new ActionRunInputImageService(),
   ) {}
 
   async analyze(input: {
@@ -197,13 +210,17 @@ export class TableauPhotoPostAnalysisService {
         apiVersion: getConfig().tableau.apiVersion,
       }),
     );
-    const photoContext = await buildPhotoContext(
+    const photoContextResult = await buildPhotoContext(
       input.request,
       this.photoVisionAnalyzer,
+      this.inputImageService,
     );
+    const photoContext = photoContextResult.photoContext;
     logInfo("tableau.photo_post.photoContextGenerated", {
-      photoContextGenerated: true,
+      photoContextGenerated: photoContextResult.generated,
+      photoContextSource: photoContext.source,
       photoTopicCount: photoContext.detectedTopics.length,
+      photoContextSkippedReason: photoContextResult.skippedReason,
     });
 
     const listedDatasources = await this.datasourceGateway.listDatasources({
@@ -274,11 +291,17 @@ export class TableauPhotoPostAnalysisService {
       postPerformanceInsight,
       accountOverviewInsight,
     });
+    const evidencePackGenerated =
+      photoContext.source === "actual_image" &&
+      Boolean(surveyInsight?.available) &&
+      Boolean(postPerformanceInsight?.available) &&
+      Boolean(accountOverviewInsight?.available);
 
     logInfo("tableau.photo_post.evidencePackGenerated", {
-      evidencePackGenerated: true,
+      evidencePackGenerated,
       analysisSectionCount: analysisSections.length,
       resolvedDatasourceKeys: datasourceResolution.resolvedDatasourceKeys,
+      photoContextSource: photoContext.source,
     });
 
     return {
@@ -305,7 +328,8 @@ export class TableauPhotoPostAnalysisService {
           datasourceResolution.datasourceResolutionReason,
       },
       debug: {
-        photoContextGenerated: true,
+        photoContextGenerated: photoContext.source === "actual_image",
+        photoContextSource: photoContext.source,
         surveyInsightStatus: surveyInsight?.available ? "available" : "skipped",
         postPerformanceInsightStatus: postPerformanceInsight?.available
           ? "available"
@@ -313,7 +337,7 @@ export class TableauPhotoPostAnalysisService {
         accountOverviewInsightStatus: accountOverviewInsight?.available
           ? "available"
           : "skipped",
-        evidencePackGenerated: true,
+        evidencePackGenerated,
       },
     };
   }
@@ -391,6 +415,7 @@ async function runPurposeAnalysis(input: {
       await input.tableauContextProvider.getAdditionalContext({
         question,
         planningQuestion: question,
+        intentHint: buildFixedPhotoPostIntent(),
         dashboardContext,
         authenticatedUser: input.authenticatedUser,
         tableauSubject: subject,
@@ -411,6 +436,17 @@ async function runPurposeAnalysis(input: {
       "Tableau analysis failed for this purpose.",
     );
   }
+}
+
+function buildFixedPhotoPostIntent(): ClassifiedQuestionIntent {
+  return {
+    intent: "data_analysis",
+    confidence: 1,
+    reasonBrief: "Photo post generation always runs fixed Tableau analysis.",
+    answerableFromDashboardContext: false,
+    needsMcp: true,
+    maxToolCalls: 4,
+  };
 }
 
 function buildPurposeInsight(
@@ -470,7 +506,7 @@ function buildPurposeInsight(
       ]),
       recommendedTone: ["natural", "not too loud", "slightly energetic"],
       recommendedStructure: [
-        "Open with the现场感",
+        "Open with the most relevant observation",
         "Add one useful detail",
         "Finish with a minimal set of hashtags",
       ],
@@ -550,6 +586,18 @@ function buildAnalysisSections(input: {
       title: "Photo context",
       question: "Understand the uploaded photo and identify the post angle.",
       summary: input.photoContext.summary,
+      sourceStatus:
+        input.photoContext.source === "actual_image"
+          ? "image_queried"
+          : input.photoContext.source === "fallback"
+            ? "failed"
+            : input.photoContext.source === "event_metadata_only"
+              ? "metadata_only"
+              : "skipped",
+      skippedReason:
+        input.photoContext.source === "missing_image"
+          ? "No input image was available."
+          : undefined,
       rows: input.photoContext.detectedTopics.map((topic) => ({
         label: topic,
         value: null,
@@ -571,6 +619,12 @@ function buildAnalysisSections(input: {
       summary:
         input.surveyInsight?.evidenceSummary ||
         "Survey insight was unavailable.",
+      sourceStatus: input.surveyInsight?.available
+        ? "tableau_queried"
+        : "skipped",
+      skippedReason: input.surveyInsight?.available
+        ? undefined
+        : input.surveyInsight?.evidenceSummary,
       rows: (input.surveyInsight?.keyExpectations ?? []).map((label) => ({
         label,
         value: null,
@@ -583,6 +637,12 @@ function buildAnalysisSections(input: {
       summary:
         input.postPerformanceInsight?.evidenceSummary ||
         "Post performance insight was unavailable.",
+      sourceStatus: input.postPerformanceInsight?.available
+        ? "tableau_queried"
+        : "skipped",
+      skippedReason: input.postPerformanceInsight?.available
+        ? undefined
+        : input.postPerformanceInsight?.evidenceSummary,
       rows: (input.postPerformanceInsight?.highPerformingThemes ?? []).map(
         (label) => ({
           label,
@@ -597,6 +657,12 @@ function buildAnalysisSections(input: {
       summary:
         input.accountOverviewInsight?.evidenceSummary ||
         "Account overview insight was unavailable.",
+      sourceStatus: input.accountOverviewInsight?.available
+        ? "tableau_queried"
+        : "skipped",
+      skippedReason: input.accountOverviewInsight?.available
+        ? undefined
+        : input.accountOverviewInsight?.evidenceSummary,
       rows: (input.accountOverviewInsight?.notableChanges ?? []).map(
         (label) => ({
           label,
@@ -614,6 +680,7 @@ function buildAnalysisSections(input: {
         postPerformanceInsight: input.postPerformanceInsight,
         accountOverviewInsight: input.accountOverviewInsight,
       }),
+      sourceStatus: "metadata_only",
       rows: [],
     },
   ];
@@ -638,24 +705,96 @@ function buildEvidencePackSummary(input: {
 async function buildPhotoContext(
   request: ActionRunRequest,
   visionAnalyzer: PhotoVisionAnalyzer,
-): Promise<PostGenerationEvidencePack["photoContext"]> {
+  inputImageService: ActionRunInputImageService,
+): Promise<{
+  photoContext: PostGenerationEvidencePack["photoContext"];
+  generated: boolean;
+  skippedReason?: string;
+}> {
   const photo = request.clientContext?.photo;
-  const heuristic = buildHeuristicPhotoContext(request);
-  if (!photo?.dataUrl || photo.mode === "none") {
-    return heuristic;
+  if (!photo || photo.mode === "none") {
+    return {
+      photoContext: buildHeuristicPhotoContext(request, "missing_image"),
+      generated: false,
+      skippedReason: "missing_image",
+    };
   }
+
+  const fetchedImage = photo.objectKey
+    ? await inputImageService.fetchActionRunInputImage({
+        objectKey: photo.objectKey,
+      })
+    : null;
+
+  logInfo("tableau.photo_post.inputImageFetchStarted", {
+    inputImageObjectKeyPresent: Boolean(photo.objectKey),
+    inputImageObjectKey: photo.objectKey ?? undefined,
+  });
+
+  if (fetchedImage) {
+    logInfo("tableau.photo_post.inputImageFetchCompleted", {
+      inputImageObjectKeyPresent: true,
+      inputImageBytes: fetchedImage.byteLength,
+      inputImageContentType: fetchedImage.contentType,
+    });
+  }
+
+  const imageBytes =
+    fetchedImage?.bytes ??
+    (photo.dataUrl ? parseDataUrl(photo.dataUrl)?.bytes : undefined);
+  const imageContentType =
+    fetchedImage?.contentType ?? photo.contentType ?? photo.mimeType ?? undefined;
+
+  if (!imageBytes || !imageContentType) {
+    logInfo("tableau.photo_post.imageAnalysisCompleted", {
+      imageAnalysisProvider: "bedrock",
+      imageAnalysisModel: getConfig().model.bedrock.modelId,
+      imageAnalysisSuccess: false,
+      photoContextSource: "fallback",
+      photoContextSkippedReason: fetchedImage
+        ? "input image could not be decoded"
+        : "input image was not available",
+    });
+    return {
+      photoContext: buildHeuristicPhotoContext(request, "fallback"),
+      generated: false,
+      skippedReason: fetchedImage
+        ? "input image could not be decoded"
+        : "input image was not available",
+    };
+  }
+
+  logInfo("tableau.photo_post.imageAnalysisStarted", {
+    imageAnalysisProvider: "bedrock",
+    imageAnalysisModel: getConfig().model.bedrock.modelId,
+    inputImageBytes: imageBytes.length,
+    inputImageContentType: imageContentType,
+    inputImageObjectKeyPresent: Boolean(photo.objectKey),
+  });
 
   const vision = await visionAnalyzer.analyze({
     currentSituation: request.currentSituation,
     fileName: photo.fileName,
-    mimeType: photo.mimeType,
-    dataUrl: photo.dataUrl,
+    contentType: imageContentType,
+    bytes: imageBytes,
   });
 
   if (!vision) {
-    return heuristic;
+    logInfo("tableau.photo_post.imageAnalysisCompleted", {
+      imageAnalysisProvider: "bedrock",
+      imageAnalysisModel: getConfig().model.bedrock.modelId,
+      imageAnalysisSuccess: false,
+      photoContextSource: "fallback",
+      photoContextSkippedReason: "vision analysis returned no usable output",
+    });
+    return {
+      photoContext: buildHeuristicPhotoContext(request, "fallback"),
+      generated: false,
+      skippedReason: "vision analysis returned no usable output",
+    };
   }
 
+  const heuristic = buildHeuristicPhotoContext(request, 'actual_image');
   const detectedTopics = uniqueStrings([
     ...(vision.detectedTopics ?? []),
     ...heuristic.detectedTopics,
@@ -665,26 +804,40 @@ async function buildPhotoContext(
     ...heuristic.suggestedPostAngles,
   ]).slice(0, 6);
 
+  logInfo("tableau.photo_post.imageAnalysisCompleted", {
+    imageAnalysisProvider: "bedrock",
+    imageAnalysisModel: getConfig().model.bedrock.modelId,
+    imageAnalysisSuccess: true,
+    photoContextSource: "actual_image",
+    photoTopicCount: detectedTopics.length,
+  });
+
   return {
-    ...heuristic,
-    ...vision,
-    summary: buildVisionSummary({
-      currentSituation: request.currentSituation,
-      vision,
-      heuristic,
-      fileName: photo.fileName,
-      sizeLabel: photo.sizeLabel,
-    }),
-    detectedTopics,
-    suggestedPostAngles,
+    photoContext: {
+      ...heuristic,
+      ...vision,
+      source: "actual_image",
+      summary: buildVisionSummary({
+        currentSituation: request.currentSituation,
+        vision,
+        heuristic,
+        fileName: photo.fileName,
+        sizeLabel: photo.sizeLabel,
+      }),
+      detectedTopics,
+      suggestedPostAngles,
+    },
+    generated: true,
   };
 }
 
 function buildHeuristicPhotoContext(
   request: ActionRunRequest,
+  source: PostGenerationEvidencePack["photoContext"]["source"],
 ): PostGenerationEvidencePack["photoContext"] {
   const photo = request.clientContext?.photo;
   const summary = [
+    source === "missing_image" ? "No input image was available." : undefined,
     request.currentSituation.trim(),
     photo?.fileName ? `image file: ${photo.fileName}` : undefined,
     photo?.sizeLabel ? `size: ${photo.sizeLabel}` : undefined,
@@ -699,14 +852,23 @@ function buildHeuristicPhotoContext(
   );
 
   const suggestedPostAngles = uniqueStrings([
-    "highlight the现场感",
-    "lean into participant expectations",
-    "add one sentence about what the photo shows",
-    "keep the tone light",
+    source === "missing_image"
+      ? "explain that the image evidence is missing"
+      : "highlight the overall atmosphere",
+    source === "missing_image"
+      ? "lean on event metadata instead"
+      : "lean into participant expectations",
+    source === "missing_image"
+      ? "avoid claiming visual details"
+      : "add one sentence about what the photo shows",
+    source === "missing_image"
+      ? "note the missing image explicitly"
+      : "keep the tone light",
     ...detectedTopics.map((topic) => `mention ${topic} naturally`),
   ]).slice(0, 5);
 
   return {
+    source,
     summary,
     detectedTopics,
     suggestedPostAngles,
@@ -714,33 +876,81 @@ function buildHeuristicPhotoContext(
 }
 
 function buildVisionSummary(input: {
-  currentSituation: string;
-  vision: Partial<PostGenerationEvidencePack["photoContext"]>;
+  currentSituation?: string;
+  vision?: Partial<PostGenerationEvidencePack["photoContext"]>;
   heuristic: PostGenerationEvidencePack["photoContext"];
   fileName?: string;
   sizeLabel?: string;
 }): string {
-  const parts = [
-    input.vision.sceneInference?.trim(),
-    input.vision.eventFeel?.trim(),
-    input.vision.observedItems?.length
-      ? `observed: ${input.vision.observedItems.join(" / ")}`
-      : undefined,
-    input.vision.postableElements?.length
-      ? `usable: ${input.vision.postableElements.join(" / ")}`
-      : undefined,
-    input.vision.subjectCandidates?.length
-      ? `subjects: ${input.vision.subjectCandidates.join(" / ")}`
-      : undefined,
-    input.vision.ocrText?.trim()
-      ? `ocr: ${input.vision.ocrText.trim()}`
-      : undefined,
-    input.currentSituation.trim(),
-    input.fileName ? `image file: ${input.fileName}` : undefined,
-    input.sizeLabel ? `size: ${input.sizeLabel}` : undefined,
-  ].filter((value): value is string => Boolean(value));
+  const segments: string[] = [];
+  const currentSituation = input.currentSituation?.trim();
+  const fileName = input.fileName?.trim();
+  const sizeLabel = input.sizeLabel?.trim();
+  const sceneInference = input.vision?.sceneInference?.trim();
+  const eventFeel = input.vision?.eventFeel?.trim();
+  const heuristicSummary = input.heuristic.summary?.trim();
 
-  return uniqueStrings(parts).join(" / ") || input.heuristic.summary;
+  if (currentSituation) {
+    segments.push(currentSituation);
+  }
+  if (fileName) {
+    segments.push(`Image: ${fileName}`);
+  }
+  if (sizeLabel) {
+    segments.push(`Size: ${sizeLabel}`);
+  }
+  if (sceneInference) {
+    segments.push(sceneInference);
+  }
+  if (eventFeel) {
+    segments.push(eventFeel);
+  }
+  if (heuristicSummary) {
+    segments.push(heuristicSummary);
+  }
+
+  return uniqueStrings(segments).join(" / ");
+}
+
+function parseJsonObject(text: string): Record<string, unknown> | undefined {
+  const parsed = tryParseJson(text);
+  return isRecord(parsed) ? parsed : undefined;
+}
+
+function readString(value: unknown): string | undefined {
+  return typeof value === "string" ? value.trim() || undefined : undefined;
+}
+
+function readStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const result = value
+    .map((item) => readString(item))
+    .filter((item): item is string => Boolean(item))
+    .slice(0, 8);
+
+  return result.length ? result : undefined;
+}
+
+function parseDataUrl(
+  dataUrl: string,
+): { contentType: string; bytes: Uint8Array } | undefined {
+  const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/i);
+  if (!match) {
+    return undefined;
+  }
+
+  const contentType = match[1].trim().toLowerCase();
+  if (!contentType.startsWith("image/")) {
+    return undefined;
+  }
+
+  return {
+    contentType,
+    bytes: Uint8Array.from(Buffer.from(match[2], "base64")),
+  };
 }
 
 function createPhotoVisionAnalyzer(): PhotoVisionAnalyzer {
@@ -761,13 +971,11 @@ function createPhotoVisionAnalyzer(): PhotoVisionAnalyzer {
     async analyze(input: {
       currentSituation: string;
       fileName?: string;
-      mimeType?: string;
-      dataUrl: string;
-    }): Promise<
-      Partial<PostGenerationEvidencePack["photoContext"]> | undefined
-    > {
-      const imageParts = parseDataUrl(input.dataUrl);
-      if (!imageParts) {
+      contentType?: string;
+      bytes: Uint8Array;
+    }): Promise<Partial<PostGenerationEvidencePack["photoContext"]> | undefined> {
+      const format = resolveBedrockImageFormat(input.contentType);
+      if (!format) {
         return undefined;
       }
 
@@ -784,9 +992,9 @@ function createPhotoVisionAnalyzer(): PhotoVisionAnalyzer {
                   },
                   {
                     image: {
-                      format: imageParts.format,
+                      format,
                       source: {
-                        bytes: imageParts.bytes,
+                        bytes: input.bytes,
                       },
                     },
                   },
@@ -835,71 +1043,32 @@ function createPhotoVisionAnalyzer(): PhotoVisionAnalyzer {
   };
 }
 
-function parseDataUrl(
-  dataUrl: string,
-): { format: "png" | "jpeg" | "webp" | "gif"; bytes: Uint8Array } | undefined {
-  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
-  if (!match) {
+function resolveBedrockImageFormat(
+  contentType?: string,
+): "png" | "jpeg" | "webp" | "gif" | undefined {
+  const normalized = contentType?.trim().toLowerCase();
+  if (!normalized) {
     return undefined;
   }
 
-  const mimeType = match[1].toLowerCase();
-  const base64 = match[2];
-  const format =
-    mimeType === "image/png"
-      ? "png"
-      : mimeType === "image/jpeg" || mimeType === "image/jpg"
-        ? "jpeg"
-        : mimeType === "image/webp"
-          ? "webp"
-          : mimeType === "image/gif"
-            ? "gif"
-            : undefined;
-  if (!format) {
-    return undefined;
+  if (normalized === "image/png") {
+    return "png";
   }
 
-  return {
-    format,
-    bytes: Uint8Array.from(Buffer.from(base64, "base64")),
-  };
-}
-
-function parseJsonObject(text: string): Record<string, unknown> | undefined {
-  const trimmed = text.trim();
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1]?.trim();
-  const candidate = fenced ?? trimmed;
-  const first = candidate.indexOf("{");
-  const last = candidate.lastIndexOf("}");
-  const jsonText =
-    first >= 0 && last > first ? candidate.slice(first, last + 1) : candidate;
-
-  try {
-    const parsed = JSON.parse(jsonText) as unknown;
-    return isRecord(parsed) ? parsed : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-function readString(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim() ? value.trim() : undefined;
-}
-
-function readStringArray(value: unknown): string[] | undefined {
-  if (!Array.isArray(value)) {
-    return undefined;
+  if (normalized === "image/jpeg" || normalized === "image/jpg") {
+    return "jpeg";
   }
 
-  const items = value
-    .filter((item): item is string => typeof item === "string")
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .slice(0, 8);
+  if (normalized === "image/webp") {
+    return "webp";
+  }
 
-  return items.length ? items : undefined;
+  if (normalized === "image/gif") {
+    return "gif";
+  }
+
+  return undefined;
 }
-
 function buildScopedDashboardContext(
   request: ActionRunRequest,
   datasource: ResolvedAllowedDatasource,
@@ -1181,10 +1350,10 @@ function sliceOrFallback(
 
 function extractKeywords(value: string): string[] {
   return value
-    .split(/[\s\u3000、。・,.;:\/()［］\[\]{}]+/u)
+    .split(/[\s\u3000縲√ゅ・,.;:\/()・ｻ・ｽ\[\]{}]+/u)
     .map((token) => token.trim())
     .filter((token) => token.length >= 2)
-    .map((token) => token.replace(/[^\p{L}\p{N}ぁ-んァ-ヶー]/gu, ""))
+    .map((token) => token.replace(/[^\p{L}\p{N}縺・繧薙ぃ-繝ｶ繝ｼ]/gu, ""))
     .filter((token) => token.length >= 2);
 }
 
@@ -1203,3 +1372,6 @@ function normalize(value?: string): string {
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+
+
+
