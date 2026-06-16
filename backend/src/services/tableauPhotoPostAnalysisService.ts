@@ -891,6 +891,7 @@ function buildVisionSummary(input: {
   const sizeLabel = input.sizeLabel?.trim();
   const sceneInference = input.vision?.sceneInference?.trim();
   const eventFeel = input.vision?.eventFeel?.trim();
+  const ocrText = input.vision?.ocrText?.trim();
   const heuristicSummary = input.heuristic.summary?.trim();
 
   if (currentSituation) {
@@ -907,6 +908,9 @@ function buildVisionSummary(input: {
   }
   if (eventFeel) {
     segments.push(eventFeel);
+  }
+  if (ocrText) {
+    segments.push(`ocr: ${ocrText}`);
   }
   if (heuristicSummary) {
     segments.push(heuristicSummary);
