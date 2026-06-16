@@ -24,7 +24,6 @@ describe("CalendarService google provider", () => {
     GOOGLE_CALENDAR_CALENDAR_ID: process.env.GOOGLE_CALENDAR_CALENDAR_ID,
     GOOGLE_CALENDAR_CLIENT_ID: process.env.GOOGLE_CALENDAR_CLIENT_ID,
     GOOGLE_CALENDAR_CLIENT_SECRET: process.env.GOOGLE_CALENDAR_CLIENT_SECRET,
-    GOOGLE_CALENDAR_REFRESH_TOKEN: process.env.GOOGLE_CALENDAR_REFRESH_TOKEN,
   };
 
   beforeEach(() => {
@@ -32,7 +31,6 @@ describe("CalendarService google provider", () => {
     process.env.GOOGLE_CALENDAR_CALENDAR_ID = "primary@example.com";
     process.env.GOOGLE_CALENDAR_CLIENT_ID = "client-id";
     process.env.GOOGLE_CALENDAR_CLIENT_SECRET = "client-secret";
-    process.env.GOOGLE_CALENDAR_REFRESH_TOKEN = "refresh-token";
     googleMocks.searchCalendarEvents.mockReset();
     techPlayMocks.previewTechPlayEvent.mockReset();
   });
@@ -45,8 +43,6 @@ describe("CalendarService google provider", () => {
       originalEnv.GOOGLE_CALENDAR_CLIENT_ID;
     process.env.GOOGLE_CALENDAR_CLIENT_SECRET =
       originalEnv.GOOGLE_CALENDAR_CLIENT_SECRET;
-    process.env.GOOGLE_CALENDAR_REFRESH_TOKEN =
-      originalEnv.GOOGLE_CALENDAR_REFRESH_TOKEN;
   });
 
   it("routes calendar resolution through the Google provider", async () => {

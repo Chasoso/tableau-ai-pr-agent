@@ -82,7 +82,7 @@ async function getGoogleAccessToken(input: {
         iv: connection.refreshTokenIv,
         authTag: connection.refreshTokenAuthTag,
       })
-    : input.googleConfig.refreshToken;
+    : null;
 
   if (!input.googleConfig.clientId || !input.googleConfig.clientSecret) {
     throw new Error(
@@ -92,7 +92,7 @@ async function getGoogleAccessToken(input: {
 
   if (!refreshToken) {
     throw new Error(
-      "Google Calendar refresh token is not configured. Connect Google first.",
+      "Google Calendar is not connected for this user. Connect Google first.",
     );
   }
 

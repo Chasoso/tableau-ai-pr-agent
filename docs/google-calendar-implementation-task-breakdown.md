@@ -93,7 +93,7 @@ Google API の生レスポンスをそのまま UI に流さず、既存の `Cal
 - `GOOGLE_CALENDAR_PROVIDER`
 - `GOOGLE_CALENDAR_CLIENT_ID`
 - `GOOGLE_CALENDAR_CLIENT_SECRET`
-- `GOOGLE_CALENDAR_REFRESH_TOKEN`
+- Google Calendar is connected per user through the popup OAuth flow
 - `GOOGLE_CALENDAR_CALENDAR_ID`
 - 必要であれば `GOOGLE_CALENDAR_SCOPES`
 

@@ -42,87 +42,86 @@ This avoids depending on fragile popup-to-iframe `postMessage` timing inside Tab
 
 Store these as GitHub Secrets:
 
-| Name | Purpose |
-| --- | --- |
-| `AWS_CFN_STACK_NAME` | CloudFormation stack name. |
-| `AWS_GHA_DEPLOY_ROLE_ARN` | GitHub OIDC deploy role ARN. |
-| `AWS_CFN_EXECUTION_ROLE_ARN` | CloudFormation execution role ARN. |
-| `AWS_ARTIFACT_BUCKET` | Private S3 bucket for Lambda artifacts. |
-| `FRONTEND_BUCKET_NAME` | Private S3 bucket for frontend hosting. |
-| `VITE_API_BASE_URL` | Usually `/api` when using the CloudFront proxy behavior. |
-| `TABLEAU_AI_PR_AGENT_EXTENSION_SOURCE_URL` | Deployed HTTPS frontend URL for `.trex`. Preferred app-specific env var. |
-| `EXTENSION_SOURCE_URL` | Backward-compatible fallback HTTPS frontend URL for `.trex`. |
-| `CORS_ALLOWED_ORIGIN` | Allowed frontend origin. |
-| `TABLEAU_SERVER_URL` | Tableau Cloud / Server URL. |
-| `TABLEAU_SITE_CONTENT_URL` | Tableau site content URL. |
-| `TABLEAU_CONNECTED_APP_CLIENT_ID` | Connected App client ID. |
-| `TABLEAU_CONNECTED_APP_SECRET_ID` | Connected App secret ID. |
-| `TABLEAU_CONNECTED_APP_SECRET_VALUE` | Connected App secret value. |
-| `TABLEAU_DEFAULT_SUBJECT` | PoC fallback Tableau subject. |
-| `COGNITO_USER_POOL_ID` | Required when auth is enabled. |
-| `COGNITO_CLIENT_ID` | Required when auth is enabled. |
-| `VITE_COGNITO_DOMAIN` | Cognito Hosted UI domain. |
-| `VITE_COGNITO_REDIRECT_URI` | Optional full-page fallback callback URL. |
-| `VITE_COGNITO_LOGOUT_URI` | Exact sign-out URL. |
-| `COGNITO_POPUP_REDIRECT_URI` | Backend popup callback URL, for example `https://<cloudfront-domain>/api/auth/cognito/callback`. |
-| `TABLEAU_MCP_SERVER_URL` | Optional only for HTTP MCP mode. |
-| `TABLEAU_MCP_COMMAND` | Optional override for MCP command. Usually empty. |
-| `TABLEAU_MCP_ARGS` | Optional override for MCP args. Usually empty. |
-| `GOOGLE_CALENDAR_CLIENT_ID` | Google Calendar OAuth client ID for live mode. |
-| `GOOGLE_CALENDAR_CLIENT_SECRET` | Google Calendar OAuth client secret for live mode. |
-| `GOOGLE_CALENDAR_REFRESH_TOKEN` | Google Calendar refresh token for live mode. |
-| `CHAT_JOBS_TABLE_NAME` | DynamoDB table for shared job state and progress. |
-| `ACTION_RUN_WORKER_FUNCTION_NAME` | Async worker Lambda name invoked by the action-run starter. `CHAT_JOB_WORKER_FUNCTION_NAME` remains a compatibility fallback. |
-| `TABLEAU_MCP_METADATA_CACHE_TABLE_NAME` | Optional DynamoDB table for Tableau MCP metadata cache. |
-| `NOTION_REDIRECT_URI` | Notion OAuth callback URL (`/notion/callback`). |
-| `NOTION_DEFAULT_TARGET_PARENT_PAGE_ID` | Optional default Notion parent page for page creation. |
-| `NOTION_DEFAULT_TARGET_DATABASE_ID` | Optional default Notion database/data source ID. |
-| `NOTION_OAUTH_CLIENT_ID` | Optional static Notion OAuth client ID fallback when Dynamic Client Registration is unavailable. |
-| `NOTION_OAUTH_CLIENT_SECRET` | Optional static Notion OAuth client secret fallback. |
+| Name                                       | Purpose                                                                                                                       |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `AWS_CFN_STACK_NAME`                       | CloudFormation stack name.                                                                                                    |
+| `AWS_GHA_DEPLOY_ROLE_ARN`                  | GitHub OIDC deploy role ARN.                                                                                                  |
+| `AWS_CFN_EXECUTION_ROLE_ARN`               | CloudFormation execution role ARN.                                                                                            |
+| `AWS_ARTIFACT_BUCKET`                      | Private S3 bucket for Lambda artifacts.                                                                                       |
+| `FRONTEND_BUCKET_NAME`                     | Private S3 bucket for frontend hosting.                                                                                       |
+| `VITE_API_BASE_URL`                        | Usually `/api` when using the CloudFront proxy behavior.                                                                      |
+| `TABLEAU_AI_PR_AGENT_EXTENSION_SOURCE_URL` | Deployed HTTPS frontend URL for `.trex`. Preferred app-specific env var.                                                      |
+| `EXTENSION_SOURCE_URL`                     | Backward-compatible fallback HTTPS frontend URL for `.trex`.                                                                  |
+| `CORS_ALLOWED_ORIGIN`                      | Allowed frontend origin.                                                                                                      |
+| `TABLEAU_SERVER_URL`                       | Tableau Cloud / Server URL.                                                                                                   |
+| `TABLEAU_SITE_CONTENT_URL`                 | Tableau site content URL.                                                                                                     |
+| `TABLEAU_CONNECTED_APP_CLIENT_ID`          | Connected App client ID.                                                                                                      |
+| `TABLEAU_CONNECTED_APP_SECRET_ID`          | Connected App secret ID.                                                                                                      |
+| `TABLEAU_CONNECTED_APP_SECRET_VALUE`       | Connected App secret value.                                                                                                   |
+| `TABLEAU_DEFAULT_SUBJECT`                  | PoC fallback Tableau subject.                                                                                                 |
+| `COGNITO_USER_POOL_ID`                     | Required when auth is enabled.                                                                                                |
+| `COGNITO_CLIENT_ID`                        | Required when auth is enabled.                                                                                                |
+| `VITE_COGNITO_DOMAIN`                      | Cognito Hosted UI domain.                                                                                                     |
+| `VITE_COGNITO_REDIRECT_URI`                | Optional full-page fallback callback URL.                                                                                     |
+| `VITE_COGNITO_LOGOUT_URI`                  | Exact sign-out URL.                                                                                                           |
+| `COGNITO_POPUP_REDIRECT_URI`               | Backend popup callback URL, for example `https://<cloudfront-domain>/api/auth/cognito/callback`.                              |
+| `TABLEAU_MCP_SERVER_URL`                   | Optional only for HTTP MCP mode.                                                                                              |
+| `TABLEAU_MCP_COMMAND`                      | Optional override for MCP command. Usually empty.                                                                             |
+| `TABLEAU_MCP_ARGS`                         | Optional override for MCP args. Usually empty.                                                                                |
+| `GOOGLE_CALENDAR_CLIENT_ID`                | Google Calendar OAuth client ID for live mode.                                                                                |
+| `GOOGLE_CALENDAR_CLIENT_SECRET`            | Google Calendar OAuth client secret for live mode.                                                                            |
+| `CHAT_JOBS_TABLE_NAME`                     | DynamoDB table for shared job state and progress.                                                                             |
+| `ACTION_RUN_WORKER_FUNCTION_NAME`          | Async worker Lambda name invoked by the action-run starter. `CHAT_JOB_WORKER_FUNCTION_NAME` remains a compatibility fallback. |
+| `TABLEAU_MCP_METADATA_CACHE_TABLE_NAME`    | Optional DynamoDB table for Tableau MCP metadata cache.                                                                       |
+| `NOTION_REDIRECT_URI`                      | Notion OAuth callback URL (`/notion/callback`).                                                                               |
+| `NOTION_DEFAULT_TARGET_PARENT_PAGE_ID`     | Optional default Notion parent page for page creation.                                                                        |
+| `NOTION_DEFAULT_TARGET_DATABASE_ID`        | Optional default Notion database/data source ID.                                                                              |
+| `NOTION_OAUTH_CLIENT_ID`                   | Optional static Notion OAuth client ID fallback when Dynamic Client Registration is unavailable.                              |
+| `NOTION_OAUTH_CLIENT_SECRET`               | Optional static Notion OAuth client secret fallback.                                                                          |
 
 ### GitHub Variables
 
 These can be repository Variables if acceptable:
 
-| Name | Default | Purpose |
-| --- | --- | --- |
-| `AWS_REGION` | none | Main AWS deployment region. |
-| `TABLEAU_API_VERSION` | `3.25` | Tableau REST API version. |
-| `TABLEAU_SCOPES` | `tableau:content:read` | Connected App scopes. |
-| `TABLEAU_CONTEXT_PROVIDER` | `mock` | `mock`, `direct-api`, or `mcp`. |
-| `GOOGLE_CALENDAR_PROVIDER` | `mock` | Calendar context provider used by the PR Assistant demo flow. |
-| `GOOGLE_CALENDAR_CALENDAR_ID` | none | Calendar ID to query in live Google mode. |
-| `GOOGLE_CALENDAR_SCOPES` | `https://www.googleapis.com/auth/calendar.readonly` | Optional override for the Google Calendar scope list. |
-| `AUTH_REQUIRED` | `false` | Enables Cognito JWT verification. |
-| `COGNITO_REGION` | none | Cognito region. |
-| `COGNITO_AUTH_TRANSACTION_KEY_PARAM` | `/tableau-ai-pr-agent/cognito/popup-auth-key` | SSM SecureString parameter name for popup auth AES key. |
-| `COGNITO_AUTH_TRANSACTION_TTL_SECONDS` | `600` | Popup auth transaction TTL in seconds. |
-| `TABLEAU_MCP_TRANSPORT` | `stdio` | Recommended MCP transport for low-cost Lambda PoC. |
-| `TABLEAU_MCP_AUTH_MODE` | `direct-trust` | MCP authentication mode. |
-| `TABLEAU_MCP_TIMEOUT_MS` | `5000` | MCP timeout. |
-| `TABLEAU_MCP_ALLOWED_TOOLS` | empty | Optional comma-separated MCP tool allowlist. |
-| `TABLEAU_MCP_MAX_TOOL_CALLS` | `3` | Maximum MCP tool calls per request. |
-| `TABLEAU_MCP_DEBUG_LOG_RESULTS` | `false` | Temporarily set to `true` to log sanitized MCP tool result shapes and short snippets to CloudWatch. Disable after diagnosis. |
-| `TABLEAU_MCP_TOOL_PLANNING_ENABLED` | `false` | Enables Bedrock-based JSON planning for MCP tool calls. |
-| `TABLEAU_MCP_PLANNER_MAX_OUTPUT_TOKENS` | `600` | Max output tokens for the planning call. |
-| `ACTION_RUN_TTL_SECONDS` | `86400` | TTL for completed/failed action runs. `CHAT_JOB_TTL_SECONDS` remains a compatibility fallback. |
-| `ACTION_RUN_LEASE_SECONDS` | `120` | Worker lease duration for action-run claiming. `CHAT_JOB_LEASE_SECONDS` remains a compatibility fallback. |
-| `ACTION_RUN_PROGRESS_MESSAGE_LIMIT` | `12` | Maximum number of progress messages retained per action-run record. `CHAT_JOB_PROGRESS_MESSAGE_LIMIT` remains a compatibility fallback. |
-| `ACTION_RUN_OWNER_TOKEN_HEADER_NAME` | `x-action-run-owner-token` | Anonymous owner boundary header used for polling. `CHAT_JOB_OWNER_TOKEN_HEADER_NAME` remains a compatibility fallback. |
-| `MODEL_PROVIDER` | `mock` | `mock` or `bedrock`. |
-| `BEDROCK_REGION` | `us-east-1` | Bedrock model region. |
-| `BEDROCK_MODEL_ID` | `us.amazon.nova-2-lite-v1:0` | Bedrock model ID or inference profile ID. |
-| `BEDROCK_FOUNDATION_MODEL_ID` | `amazon.nova-2-lite-v1:0` | Foundation model ID that backs the inference profile. |
-| `BEDROCK_MAX_OUTPUT_TOKENS` | `2400` | Max generated tokens. |
-| `BEDROCK_TEMPERATURE` | `0.2` | Generation temperature. |
-| `CHAT_MEMORY_MESSAGE_LIMIT` | `10` | Number of recent same-session messages injected into the prompt for the same authenticated user. |
-| `LOG_LEVEL` | `info` | Backend log threshold (`debug`, `info`, `warn`, `error`). |
-| `CHAT_DEBUG_MAX_CHARS` | `12000` | Max characters for debug-level chat input/output logs. |
-| `NOTION_MCP_ENABLED` | `false` | Enable backend Notion MCP integration routes. |
-| `NOTION_MCP_URL` | `https://mcp.notion.com/mcp` | Notion MCP endpoint. |
-| `NOTION_TOKEN_ENCRYPTION_KEY_PARAM` | `/tableau-ai-pr-agent/notion/token-encryption-key` | SSM SecureString parameter name for AES key. |
-| `NOTION_MCP_ALLOWED_TOOLS` | `notion-create-pages,notion-fetch` | Allowed Notion MCP tools. |
-| `NOTION_LOCAL_DEV_USER_ID` | `local-dev-user` | Local fallback user id when auth is disabled. |
+| Name                                    | Default                                             | Purpose                                                                                                                                 |
+| --------------------------------------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `AWS_REGION`                            | none                                                | Main AWS deployment region.                                                                                                             |
+| `TABLEAU_API_VERSION`                   | `3.25`                                              | Tableau REST API version.                                                                                                               |
+| `TABLEAU_SCOPES`                        | `tableau:content:read`                              | Connected App scopes.                                                                                                                   |
+| `TABLEAU_CONTEXT_PROVIDER`              | `mock`                                              | `mock`, `direct-api`, or `mcp`.                                                                                                         |
+| `GOOGLE_CALENDAR_PROVIDER`              | `mock`                                              | Calendar context provider used by the PR Assistant demo flow.                                                                           |
+| `GOOGLE_CALENDAR_CALENDAR_ID`           | none                                                | Calendar ID to query in live Google mode.                                                                                               |
+| `GOOGLE_CALENDAR_SCOPES`                | `https://www.googleapis.com/auth/calendar.readonly` | Optional override for the Google Calendar scope list.                                                                                   |
+| `AUTH_REQUIRED`                         | `false`                                             | Enables Cognito JWT verification.                                                                                                       |
+| `COGNITO_REGION`                        | none                                                | Cognito region.                                                                                                                         |
+| `COGNITO_AUTH_TRANSACTION_KEY_PARAM`    | `/tableau-ai-pr-agent/cognito/popup-auth-key`       | SSM SecureString parameter name for popup auth AES key.                                                                                 |
+| `COGNITO_AUTH_TRANSACTION_TTL_SECONDS`  | `600`                                               | Popup auth transaction TTL in seconds.                                                                                                  |
+| `TABLEAU_MCP_TRANSPORT`                 | `stdio`                                             | Recommended MCP transport for low-cost Lambda PoC.                                                                                      |
+| `TABLEAU_MCP_AUTH_MODE`                 | `direct-trust`                                      | MCP authentication mode.                                                                                                                |
+| `TABLEAU_MCP_TIMEOUT_MS`                | `5000`                                              | MCP timeout.                                                                                                                            |
+| `TABLEAU_MCP_ALLOWED_TOOLS`             | empty                                               | Optional comma-separated MCP tool allowlist.                                                                                            |
+| `TABLEAU_MCP_MAX_TOOL_CALLS`            | `3`                                                 | Maximum MCP tool calls per request.                                                                                                     |
+| `TABLEAU_MCP_DEBUG_LOG_RESULTS`         | `false`                                             | Temporarily set to `true` to log sanitized MCP tool result shapes and short snippets to CloudWatch. Disable after diagnosis.            |
+| `TABLEAU_MCP_TOOL_PLANNING_ENABLED`     | `false`                                             | Enables Bedrock-based JSON planning for MCP tool calls.                                                                                 |
+| `TABLEAU_MCP_PLANNER_MAX_OUTPUT_TOKENS` | `600`                                               | Max output tokens for the planning call.                                                                                                |
+| `ACTION_RUN_TTL_SECONDS`                | `86400`                                             | TTL for completed/failed action runs. `CHAT_JOB_TTL_SECONDS` remains a compatibility fallback.                                          |
+| `ACTION_RUN_LEASE_SECONDS`              | `120`                                               | Worker lease duration for action-run claiming. `CHAT_JOB_LEASE_SECONDS` remains a compatibility fallback.                               |
+| `ACTION_RUN_PROGRESS_MESSAGE_LIMIT`     | `12`                                                | Maximum number of progress messages retained per action-run record. `CHAT_JOB_PROGRESS_MESSAGE_LIMIT` remains a compatibility fallback. |
+| `ACTION_RUN_OWNER_TOKEN_HEADER_NAME`    | `x-action-run-owner-token`                          | Anonymous owner boundary header used for polling. `CHAT_JOB_OWNER_TOKEN_HEADER_NAME` remains a compatibility fallback.                  |
+| `MODEL_PROVIDER`                        | `mock`                                              | `mock` or `bedrock`.                                                                                                                    |
+| `BEDROCK_REGION`                        | `us-east-1`                                         | Bedrock model region.                                                                                                                   |
+| `BEDROCK_MODEL_ID`                      | `us.amazon.nova-2-lite-v1:0`                        | Bedrock model ID or inference profile ID.                                                                                               |
+| `BEDROCK_FOUNDATION_MODEL_ID`           | `amazon.nova-2-lite-v1:0`                           | Foundation model ID that backs the inference profile.                                                                                   |
+| `BEDROCK_MAX_OUTPUT_TOKENS`             | `2400`                                              | Max generated tokens.                                                                                                                   |
+| `BEDROCK_TEMPERATURE`                   | `0.2`                                               | Generation temperature.                                                                                                                 |
+| `CHAT_MEMORY_MESSAGE_LIMIT`             | `10`                                                | Number of recent same-session messages injected into the prompt for the same authenticated user.                                        |
+| `LOG_LEVEL`                             | `info`                                              | Backend log threshold (`debug`, `info`, `warn`, `error`).                                                                               |
+| `CHAT_DEBUG_MAX_CHARS`                  | `12000`                                             | Max characters for debug-level chat input/output logs.                                                                                  |
+| `NOTION_MCP_ENABLED`                    | `false`                                             | Enable backend Notion MCP integration routes.                                                                                           |
+| `NOTION_MCP_URL`                        | `https://mcp.notion.com/mcp`                        | Notion MCP endpoint.                                                                                                                    |
+| `NOTION_TOKEN_ENCRYPTION_KEY_PARAM`     | `/tableau-ai-pr-agent/notion/token-encryption-key`  | SSM SecureString parameter name for AES key.                                                                                            |
+| `NOTION_MCP_ALLOWED_TOOLS`              | `notion-create-pages,notion-fetch`                  | Allowed Notion MCP tools.                                                                                                               |
+| `NOTION_LOCAL_DEV_USER_ID`              | `local-dev-user`                                    | Local fallback user id when auth is disabled.                                                                                           |
 
 ### CloudFormation Execution Role Additions
 
@@ -134,10 +133,7 @@ For Bedrock, add:
 {
   "Sid": "AllowBackendRoleToInvokeConfiguredBedrockModel",
   "Effect": "Allow",
-  "Action": [
-    "bedrock:InvokeModel",
-    "bedrock:InvokeModelWithResponseStream"
-  ],
+  "Action": ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"],
   "Resource": [
     "arn:aws:bedrock:<bedrock-region>::foundation-model/<foundation-model-id>",
     "arn:aws:bedrock:us-east-1::foundation-model/<foundation-model-id>",
@@ -157,12 +153,12 @@ Connected App values are still stored as GitHub Secrets and passed as `NoEcho` C
 
 Google Calendar live-mode credentials follow the same pattern:
 
-- Keep `GOOGLE_CALENDAR_CLIENT_ID`, `GOOGLE_CALENDAR_CLIENT_SECRET`, and `GOOGLE_CALENDAR_REFRESH_TOKEN` in GitHub Secrets.
+- Keep `GOOGLE_CALENDAR_CLIENT_ID` and `GOOGLE_CALENDAR_CLIENT_SECRET` in GitHub Secrets.
 - Pass `GOOGLE_CALENDAR_PROVIDER=mock` for demo deployments that should not call Google.
 - Switch to `GOOGLE_CALENDAR_PROVIDER=google` only for the environment that is meant to query the live calendar.
 - The Google Calendar connection and OAuth state tables are created automatically from the stack name, so no table-name setting is needed in GitHub Variables or Secrets.
-- If `google` is selected but one of the required Google settings is missing, the deploy workflow falls back to `mock` instead of failing.
-- Do not expose the Google refresh token in frontend code, logs, or artifact output.
+- If `google` is selected but one of the required Google settings is missing, the deploy workflow fails fast and lists the missing settings instead of silently switching to `mock`.
+- Do not expose Google OAuth credentials in frontend code, logs, or artifact output.
 
 One-time migration note: if the stack was previously deployed with the managed `TableauConnectedAppSecret` resource, the CloudFormation execution role may need temporary `secretsmanager:DeleteSecret` and `secretsmanager:DescribeSecret` permissions for `arn:aws:secretsmanager:<region>:<account-id>:secret:<stack-name>/tableau-connected-app-*` so CloudFormation can remove the old secret. Remove those permissions after the update succeeds.
 
@@ -211,62 +207,62 @@ Actionsログには AWSアカウントID、ARN、バケット名、CloudFront/AP
 
 以下は Secrets に保存してください。
 
-| Name | 用途 |
-| --- | --- |
-| `AWS_CFN_STACK_NAME` | CloudFormation stack名 |
-| `AWS_GHA_DEPLOY_ROLE_ARN` | GitHub OIDC deploy role ARN |
-| `AWS_CFN_EXECUTION_ROLE_ARN` | CloudFormation execution role ARN |
-| `AWS_ARTIFACT_BUCKET` | Lambda artifact用private S3 bucket |
-| `FRONTEND_BUCKET_NAME` | frontend hosting用private S3 bucket |
-| `VITE_API_BASE_URL` | 通常は CloudFront proxy を使うため `/api` |
-| `TABLEAU_AI_PR_AGENT_EXTENSION_SOURCE_URL` | `.trex` に埋め込む HTTPS frontend URL |
-| `EXTENSION_SOURCE_URL` | 互換用の HTTPS frontend URL |
-| `CORS_ALLOWED_ORIGIN` | 許可するfrontend origin |
-| `TABLEAU_SERVER_URL` | Tableau Cloud / Server URL |
-| `TABLEAU_SITE_CONTENT_URL` | Tableau site content URL |
-| `TABLEAU_CONNECTED_APP_CLIENT_ID` | Connected App client ID |
-| `TABLEAU_CONNECTED_APP_SECRET_ID` | Connected App secret ID |
-| `TABLEAU_CONNECTED_APP_SECRET_VALUE` | Connected App secret value |
-| `TABLEAU_DEFAULT_SUBJECT` | PoC用 fallback Tableau subject |
-| `COGNITO_USER_POOL_ID` | 認証有効時に必要 |
-| `COGNITO_CLIENT_ID` | 認証有効時に必要 |
-| `VITE_COGNITO_DOMAIN` | Cognito Hosted UI domain |
-| `VITE_COGNITO_REDIRECT_URI` | Cognito callback URL |
-| `VITE_COGNITO_LOGOUT_URI` | Cognito sign-out URL |
-| `TABLEAU_MCP_SERVER_URL` | HTTP MCP mode の場合のみ任意 |
-| `TABLEAU_MCP_COMMAND` | MCP command override。通常は空 |
-| `TABLEAU_MCP_ARGS` | MCP args override。通常は空 |
+| Name                                       | 用途                                      |
+| ------------------------------------------ | ----------------------------------------- |
+| `AWS_CFN_STACK_NAME`                       | CloudFormation stack名                    |
+| `AWS_GHA_DEPLOY_ROLE_ARN`                  | GitHub OIDC deploy role ARN               |
+| `AWS_CFN_EXECUTION_ROLE_ARN`               | CloudFormation execution role ARN         |
+| `AWS_ARTIFACT_BUCKET`                      | Lambda artifact用private S3 bucket        |
+| `FRONTEND_BUCKET_NAME`                     | frontend hosting用private S3 bucket       |
+| `VITE_API_BASE_URL`                        | 通常は CloudFront proxy を使うため `/api` |
+| `TABLEAU_AI_PR_AGENT_EXTENSION_SOURCE_URL` | `.trex` に埋め込む HTTPS frontend URL     |
+| `EXTENSION_SOURCE_URL`                     | 互換用の HTTPS frontend URL               |
+| `CORS_ALLOWED_ORIGIN`                      | 許可するfrontend origin                   |
+| `TABLEAU_SERVER_URL`                       | Tableau Cloud / Server URL                |
+| `TABLEAU_SITE_CONTENT_URL`                 | Tableau site content URL                  |
+| `TABLEAU_CONNECTED_APP_CLIENT_ID`          | Connected App client ID                   |
+| `TABLEAU_CONNECTED_APP_SECRET_ID`          | Connected App secret ID                   |
+| `TABLEAU_CONNECTED_APP_SECRET_VALUE`       | Connected App secret value                |
+| `TABLEAU_DEFAULT_SUBJECT`                  | PoC用 fallback Tableau subject            |
+| `COGNITO_USER_POOL_ID`                     | 認証有効時に必要                          |
+| `COGNITO_CLIENT_ID`                        | 認証有効時に必要                          |
+| `VITE_COGNITO_DOMAIN`                      | Cognito Hosted UI domain                  |
+| `VITE_COGNITO_REDIRECT_URI`                | Cognito callback URL                      |
+| `VITE_COGNITO_LOGOUT_URI`                  | Cognito sign-out URL                      |
+| `TABLEAU_MCP_SERVER_URL`                   | HTTP MCP mode の場合のみ任意              |
+| `TABLEAU_MCP_COMMAND`                      | MCP command override。通常は空            |
+| `TABLEAU_MCP_ARGS`                         | MCP args override。通常は空               |
 
 ### GitHub Variables
 
 以下は組織上問題なければ Variables に保存できます。
 
-| Name | Default | 用途 |
-| --- | --- | --- |
-| `AWS_REGION` | なし | メインAWSリージョン |
-| `TABLEAU_API_VERSION` | `3.25` | Tableau REST API version |
-| `TABLEAU_SCOPES` | `tableau:content:read` | Connected App scopes |
-| `TABLEAU_CONTEXT_PROVIDER` | `mock` | `mock`, `direct-api`, `mcp` |
-| `GOOGLE_CALENDAR_PROVIDER` | `mock` | PR Assistant demo calendar provider |
-| `AUTH_REQUIRED` | `false` | Cognito JWT検証を有効化 |
-| `COGNITO_REGION` | なし | Cognito region |
-| `TABLEAU_MCP_TRANSPORT` | `stdio` | 低コストPoCの推奨MCP transport |
-| `TABLEAU_MCP_AUTH_MODE` | `direct-trust` | MCP認証方式 |
-| `TABLEAU_MCP_TIMEOUT_MS` | `5000` | MCP timeout |
-| `TABLEAU_MCP_ALLOWED_TOOLS` | 空 | MCP tool allowlist |
-| `TABLEAU_MCP_MAX_TOOL_CALLS` | `3` | 1リクエストあたりの最大MCP tool呼び出し数 |
-| `TABLEAU_MCP_DEBUG_LOG_RESULTS` | `false` | 一時的に `true` にすると、MCP tool の返却構造と短いスニペットを CloudWatch に出します。調査後は `false` に戻してください。 |
-| `TABLEAU_MCP_TOOL_PLANNING_ENABLED` | `false` | Bedrock による MCP tool 実行計画 JSON を有効化します。 |
-| `TABLEAU_MCP_PLANNER_MAX_OUTPUT_TOKENS` | `600` | planning 呼び出しの最大出力 token 数 |
-| `MODEL_PROVIDER` | `mock` | `mock` または `bedrock` |
-| `BEDROCK_REGION` | `us-east-1` | Bedrock model region |
-| `BEDROCK_MODEL_ID` | `us.amazon.nova-2-lite-v1:0` | Bedrock model ID または inference profile ID |
-| `BEDROCK_FOUNDATION_MODEL_ID` | `amazon.nova-2-lite-v1:0` | inference profile の背後にある foundation model ID |
-| `BEDROCK_MAX_OUTPUT_TOKENS` | `2400` | 最大生成token数 |
-| `BEDROCK_TEMPERATURE` | `0.2` | temperature |
-| `CHAT_MEMORY_MESSAGE_LIMIT` | `10` | 同一認証ユーザーの同一セッションからプロンプトへ注入する直近会話件数 |
-| `LOG_LEVEL` | `info` | バックエンドログレベル（`debug` / `info` / `warn` / `error`） |
-| `CHAT_DEBUG_MAX_CHARS` | `12000` | debugログで出すチャット本文の最大文字数 |
+| Name                                    | Default                      | 用途                                                                                                                       |
+| --------------------------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `AWS_REGION`                            | なし                         | メインAWSリージョン                                                                                                        |
+| `TABLEAU_API_VERSION`                   | `3.25`                       | Tableau REST API version                                                                                                   |
+| `TABLEAU_SCOPES`                        | `tableau:content:read`       | Connected App scopes                                                                                                       |
+| `TABLEAU_CONTEXT_PROVIDER`              | `mock`                       | `mock`, `direct-api`, `mcp`                                                                                                |
+| `GOOGLE_CALENDAR_PROVIDER`              | `mock`                       | PR Assistant demo calendar provider                                                                                        |
+| `AUTH_REQUIRED`                         | `false`                      | Cognito JWT検証を有効化                                                                                                    |
+| `COGNITO_REGION`                        | なし                         | Cognito region                                                                                                             |
+| `TABLEAU_MCP_TRANSPORT`                 | `stdio`                      | 低コストPoCの推奨MCP transport                                                                                             |
+| `TABLEAU_MCP_AUTH_MODE`                 | `direct-trust`               | MCP認証方式                                                                                                                |
+| `TABLEAU_MCP_TIMEOUT_MS`                | `5000`                       | MCP timeout                                                                                                                |
+| `TABLEAU_MCP_ALLOWED_TOOLS`             | 空                           | MCP tool allowlist                                                                                                         |
+| `TABLEAU_MCP_MAX_TOOL_CALLS`            | `3`                          | 1リクエストあたりの最大MCP tool呼び出し数                                                                                  |
+| `TABLEAU_MCP_DEBUG_LOG_RESULTS`         | `false`                      | 一時的に `true` にすると、MCP tool の返却構造と短いスニペットを CloudWatch に出します。調査後は `false` に戻してください。 |
+| `TABLEAU_MCP_TOOL_PLANNING_ENABLED`     | `false`                      | Bedrock による MCP tool 実行計画 JSON を有効化します。                                                                     |
+| `TABLEAU_MCP_PLANNER_MAX_OUTPUT_TOKENS` | `600`                        | planning 呼び出しの最大出力 token 数                                                                                       |
+| `MODEL_PROVIDER`                        | `mock`                       | `mock` または `bedrock`                                                                                                    |
+| `BEDROCK_REGION`                        | `us-east-1`                  | Bedrock model region                                                                                                       |
+| `BEDROCK_MODEL_ID`                      | `us.amazon.nova-2-lite-v1:0` | Bedrock model ID または inference profile ID                                                                               |
+| `BEDROCK_FOUNDATION_MODEL_ID`           | `amazon.nova-2-lite-v1:0`    | inference profile の背後にある foundation model ID                                                                         |
+| `BEDROCK_MAX_OUTPUT_TOKENS`             | `2400`                       | 最大生成token数                                                                                                            |
+| `BEDROCK_TEMPERATURE`                   | `0.2`                        | temperature                                                                                                                |
+| `CHAT_MEMORY_MESSAGE_LIMIT`             | `10`                         | 同一認証ユーザーの同一セッションからプロンプトへ注入する直近会話件数                                                       |
+| `LOG_LEVEL`                             | `info`                       | バックエンドログレベル（`debug` / `info` / `warn` / `error`）                                                              |
+| `CHAT_DEBUG_MAX_CHARS`                  | `12000`                      | debugログで出すチャット本文の最大文字数                                                                                    |
 
 ### CloudFormation Execution Role の追加権限
 

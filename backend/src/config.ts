@@ -122,7 +122,6 @@ export type AppConfig = {
       connectionsTableName?: string;
       oauthStatesTableName?: string;
       tokenEncryptionKeyParam?: string;
-      refreshToken: string;
       scopes: string[];
     };
   };
@@ -345,7 +344,6 @@ export function getConfig(): AppConfig {
         oauthStatesTableName: process.env.GOOGLE_CALENDAR_OAUTH_STATES_TABLE,
         tokenEncryptionKeyParam:
           process.env.GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY_PARAM,
-        refreshToken: process.env.GOOGLE_CALENDAR_REFRESH_TOKEN ?? "",
         scopes: parseCsv(process.env.GOOGLE_CALENDAR_SCOPES),
       },
     },

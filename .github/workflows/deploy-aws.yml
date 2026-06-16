@@ -125,7 +125,6 @@ jobs:
       GOOGLE_CALENDAR_CLIENT_SECRET: ${{ vars.GOOGLE_CALENDAR_CLIENT_SECRET || secrets.GOOGLE_CALENDAR_CLIENT_SECRET }}
       GOOGLE_CALENDAR_REDIRECT_URI: ${{ vars.GOOGLE_CALENDAR_REDIRECT_URI || secrets.GOOGLE_CALENDAR_REDIRECT_URI }}
       GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY_PARAM: ${{ vars.GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY_PARAM || '/tableau-ai-pr-agent/google-calendar/token-encryption-key' }}
-      GOOGLE_CALENDAR_REFRESH_TOKEN: ${{ vars.GOOGLE_CALENDAR_REFRESH_TOKEN || secrets.GOOGLE_CALENDAR_REFRESH_TOKEN }}
       GOOGLE_CALENDAR_SCOPES: ${{ vars.GOOGLE_CALENDAR_SCOPES || 'https://www.googleapis.com/auth/calendar.readonly' }}
       VITE_COGNITO_USER_POOL_ID: ${{ vars.VITE_COGNITO_USER_POOL_ID || vars.COGNITO_USER_POOL_ID || secrets.COGNITO_USER_POOL_ID }}
       VITE_COGNITO_CLIENT_ID: ${{ vars.VITE_COGNITO_CLIENT_ID || vars.COGNITO_CLIENT_ID || secrets.COGNITO_CLIENT_ID }}
@@ -210,7 +209,6 @@ jobs:
             "$GOOGLE_CALENDAR_CLIENT_SECRET" \
             "$GOOGLE_CALENDAR_REDIRECT_URI" \
             "$GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY_PARAM" \
-            "$GOOGLE_CALENDAR_REFRESH_TOKEN" \
             "$GOOGLE_CALENDAR_SCOPES" \
             "$VITE_COGNITO_DOMAIN" \
             "$VITE_COGNITO_REDIRECT_URI" \
@@ -304,7 +302,6 @@ jobs:
               GOOGLE_CALENDAR_CLIENT_SECRET
               GOOGLE_CALENDAR_REDIRECT_URI
               GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY_PARAM
-              GOOGLE_CALENDAR_REFRESH_TOKEN
             )
             missing_google_settings=()
             for name in "${google_required_settings[@]}"; do
@@ -313,8 +310,9 @@ jobs:
               fi
             done
             if [ "${#missing_google_settings[@]}" -gt 0 ]; then
-              echo "Google Calendar live mode is incomplete (${missing_google_settings[*]}). Falling back to GOOGLE_CALENDAR_PROVIDER=mock for this deployment."
-              echo "GOOGLE_CALENDAR_PROVIDER=mock" >> "$GITHUB_ENV"
+              echo "Google Calendar live mode is incomplete (${missing_google_settings[*]})."
+              echo "Refusing to deploy with GOOGLE_CALENDAR_PROVIDER=google because the Lambda would otherwise run with an incomplete configuration."
+              exit 1
             fi
           fi
 
@@ -451,7 +449,6 @@ jobs:
               GoogleCalendarClientSecret="$GOOGLE_CALENDAR_CLIENT_SECRET" \
               GoogleCalendarRedirectUri="$GOOGLE_CALENDAR_REDIRECT_URI" \
               GoogleCalendarTokenEncryptionKeyParam="$GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY_PARAM" \
-              GoogleCalendarRefreshToken="$GOOGLE_CALENDAR_REFRESH_TOKEN" \
               GoogleCalendarScopes="$GOOGLE_CALENDAR_SCOPES" \
               TableauMcpServerUrl="$TABLEAU_MCP_SERVER_URL" \
               TableauMcpTransport="$TABLEAU_MCP_TRANSPORT" \

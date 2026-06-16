@@ -73,7 +73,7 @@ Required backend environment variables for live Google Calendar mode:
 - `GOOGLE_CALENDAR_CALENDAR_ID`
 - `GOOGLE_CALENDAR_CLIENT_ID`
 - `GOOGLE_CALENDAR_CLIENT_SECRET`
-- `GOOGLE_CALENDAR_REFRESH_TOKEN`
+- Google Calendar is connected per user through the in-app OAuth popup flow.
 - `GOOGLE_CALENDAR_SCOPES` if you need to override the default scope list
 
 The Google Calendar connection and OAuth state tables are created automatically by CloudFormation using the stack name, so you do not need to set table-name environment variables manually.
@@ -313,6 +313,7 @@ Use `query-datasource` only with the safety guardrails enabled. The backend bloc
 The MCP child process receives Connected App credentials only through backend environment variables. These values are not logged.
 
 When MCP tool planning is enabled, the backend runs as a limited agent:
+
 - It first classifies the user question intent.
 - It sets intent-specific tool-call limits.
 - It plans only allowlisted tools.

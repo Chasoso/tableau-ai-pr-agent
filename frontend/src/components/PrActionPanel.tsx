@@ -2,6 +2,8 @@
 import type { ChangeEvent } from "react";
 import { createActionRun } from "../api/actionRunApi";
 import { resolveCalendarEventContext } from "../api/calendarApi";
+import { loadGoogleCalendarConnectionStatus } from "../services/googleCalendarConnection";
+import { startGoogleCalendarConnection } from "../services/googleCalendarConnection";
 import {
   ensureChatJobOwnerToken,
   loadChatJobOwnerToken,
@@ -106,6 +108,10 @@ export default function PrActionPanel({
   const [chatJobOwnerToken, setChatJobOwnerToken] = useState<string | null>(
     () => loadChatJobOwnerToken(),
   );
+  const [isGoogleConnected, setIsGoogleConnected] = useState<boolean | null>(
+    null,
+  );
+  const [isGoogleConnecting, setIsGoogleConnecting] = useState(false);
   const [postType, setPostType] =
     useState<ActionRunPostType>(INITIAL_POST_TYPE);
   const [venuePhoto, setVenuePhoto] = useState<VenuePhotoDraft | null>(null);
@@ -155,6 +161,30 @@ export default function PrActionPanel({
     },
     [venuePhoto?.objectUrl],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const status = await loadGoogleCalendarConnectionStatus(
+          authToken,
+          chatJobOwnerToken ?? undefined,
+        );
+        if (!cancelled) {
+          setIsGoogleConnected(status.connected);
+        }
+      } catch {
+        if (!cancelled) {
+          setIsGoogleConnected(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authToken, chatJobOwnerToken]);
 
   const selectedEvent =
     calendarResult?.selectedEvent ??
@@ -476,6 +506,33 @@ export default function PrActionPanel({
     });
   }
 
+  async function handleConnectGoogle() {
+    try {
+      setIsGoogleConnecting(true);
+      setCalendarError(null);
+      await startGoogleCalendarConnection(
+        authToken,
+        window.location.pathname + window.location.search,
+        chatJobOwnerToken ?? undefined,
+      );
+      setIsGoogleConnected(true);
+      if (venuePhoto) {
+        void resolveCalendar({
+          preferredEventId: selectedEventId,
+          reason: "manual",
+        });
+      }
+    } catch (error) {
+      setCalendarError(
+        error instanceof Error
+          ? error.message
+          : "Google Calendar の接続に失敗しました。",
+      );
+    } finally {
+      setIsGoogleConnecting(false);
+    }
+  }
+
   async function handleCreateDraft() {
     const request: ActionRunRequest = {
       postType,
@@ -739,6 +796,27 @@ export default function PrActionPanel({
             <div className="pr-agent-field-group">
               <div className="pr-agent-field-label">イベント情報</div>
 
+              <div className="pr-agent-inline-actions">
+                <span className="pr-agent-inline-note">
+                  Google接続:{" "}
+                  {isGoogleConnected === null
+                    ? "確認中"
+                    : isGoogleConnected
+                      ? "接続済み"
+                      : "未接続"}
+                </span>
+                {isGoogleConnected !== true ? (
+                  <button
+                    type="button"
+                    className="pr-agent-secondary-button"
+                    onClick={() => void handleConnectGoogle()}
+                    disabled={isGoogleConnecting}
+                  >
+                    {isGoogleConnecting ? "Googleに接続中..." : "Googleに接続"}
+                  </button>
+                ) : null}
+              </div>
+
               <div className="pr-agent-event-status">
                 <div className="pr-agent-event-status-line">
                   <span>
@@ -752,6 +830,11 @@ export default function PrActionPanel({
                 {isResolving ? (
                   <p className="pr-agent-inline-note">
                     Googleカレンダーを確認しています...
+                  </p>
+                ) : null}
+                {isGoogleConnected === false ? (
+                  <p className="pr-agent-inline-note">
+                    Googleカレンダー未接続です。上のボタンから接続してください。
                   </p>
                 ) : null}
 
