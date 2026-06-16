@@ -9,6 +9,13 @@ import type {
 export type ClientContext = {
   source?: string;
   appVersion?: string;
+  photo?: {
+    fileName?: string;
+    sizeLabel?: string;
+    mode?: "image" | "none";
+    mimeType?: string;
+    dataUrl?: string;
+  };
 };
 
 export type ChatRequest = {

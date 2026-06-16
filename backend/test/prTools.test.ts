@@ -11,6 +11,7 @@ describe("prTools", () => {
     const output = buildPrDraftOutput({
       request: buildRequest(),
       analysisSections: buildAnalysisSections(),
+      evidencePack: buildEvidencePack(),
     });
 
     expect(output.summary).toContain("Tableau User Group Tokyo 2026");
@@ -21,6 +22,12 @@ describe("prTools", () => {
     expect(output.drafts.x).toContain("Tableau User Group Tokyo 2026");
     expect(output.drafts.email).toContain("Subject:");
     expect(output.drafts.notion).toContain("# Tableau User Group Tokyo 2026");
+    expect(output.sourceInfo.analysisHighlights).toEqual(
+      expect.arrayContaining([
+        "Photo context: The venue is filling up. / 画像ファイル: venue.jpg / サイズ感: 1.2 MB",
+        "Survey insight: Participants want practical examples.",
+      ]),
+    );
   });
 
   it("flags publish language in review", () => {
@@ -91,6 +98,7 @@ function buildCollectInput() {
   return {
     request: buildRequest(),
     analysisSections: buildAnalysisSections(),
+    evidencePack: buildEvidencePack(),
   };
 }
 
@@ -121,6 +129,49 @@ function buildAnalysisSections() {
       rows: [{ label: "A", value: 12 }],
     },
   ];
+}
+
+function buildEvidencePack() {
+  return {
+    photoContext: {
+      summary:
+        "The venue is filling up. / 画像ファイル: venue.jpg / サイズ感: 1.2 MB",
+      detectedTopics: ["venue", "tableau"],
+      suggestedPostAngles: ["現場感を短く伝える", "参加者の期待に寄せる"],
+    },
+    surveyInsight: {
+      available: true,
+      keyExpectations: ["practical examples"],
+      keyInterests: ["Tableau tips"],
+      concernsOrQuestions: ["setup details"],
+      suggestedAngles: ["参加者の期待に寄せる"],
+      evidenceSummary: "Participants want practical examples.",
+    },
+    postPerformanceInsight: {
+      available: true,
+      highPerformingThemes: ["写真付き投稿"],
+      highPerformingPatterns: ["短く要点を先に出す"],
+      recommendedTone: ["自然体"],
+      recommendedStructure: ["1文目で現場感を出す"],
+      avoidPatterns: ["過剰な煽り"],
+      evidenceSummary:
+        "Photo posts perform well when the opening line is concise.",
+    },
+    accountOverviewInsight: {
+      available: true,
+      recentTrendSummary:
+        "Recent posts are doing well when they feel conversational.",
+      notableChanges: ["Engagement is rising on photo posts."],
+      timingHints: ["Post while the venue is active."],
+      accountContextForPost: "Photo posts are currently strong.",
+      evidenceSummary: "Photo posts are currently strong.",
+    },
+    constraints: {
+      doNotInventMetrics: true,
+      useEvidenceOnlyWhenAvailable: true,
+      keepNaturalJapanese: true,
+    },
+  };
 }
 
 function buildSourceInfo() {

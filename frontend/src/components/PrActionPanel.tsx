@@ -15,6 +15,7 @@ import type {
 } from "../types/actionRun";
 import type { CalendarResolveResponse } from "../types/calendar";
 import type { DashboardContext } from "../types/tableau";
+import { prepareImageAnalysisPayload } from "../utils/prepareImageAnalysisPayload";
 
 type Props = {
   dashboardContext: DashboardContext;
@@ -26,6 +27,10 @@ type VenuePhotoDraft = {
   fileName: string;
   objectUrl: string;
   sizeLabel: string;
+  mimeType?: string;
+  originalDataUrl?: string;
+  analysisDataUrl?: string;
+  analysisCompressionLabel?: string;
 };
 
 type DriveReferenceMode = "sample_markdown" | "pasted_markdown" | "none";
@@ -320,29 +325,42 @@ export default function PrActionPanel({
     }
   }
 
-  function handleVenuePhotoChange(event: ChangeEvent<HTMLInputElement>) {
+  async function handleVenuePhotoChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.currentTarget.files?.[0];
     if (!file) {
       return;
     }
 
-    if (venuePhoto?.objectUrl) {
-      URL.revokeObjectURL(venuePhoto.objectUrl);
-    }
+    try {
+      if (venuePhoto?.objectUrl) {
+        URL.revokeObjectURL(venuePhoto.objectUrl);
+      }
 
-    const nextPhoto = {
-      fileName: file.name,
-      objectUrl: URL.createObjectURL(file),
-      sizeLabel: formatFileSize(file.size),
-    };
-    setVenuePhoto(nextPhoto);
-    setVenuePhotoExpanded(true);
-    setGenerated(false);
-    console.debug("[pr-agent] venue.photo.added", {
-      fileName: nextPhoto.fileName,
-      sizeLabel: nextPhoto.sizeLabel,
-      postType,
-    });
+      const analysisPayload = await prepareImageAnalysisPayload(file);
+      const nextPhoto = {
+        fileName: file.name,
+        objectUrl: URL.createObjectURL(file),
+        sizeLabel: formatFileSize(file.size),
+        mimeType: file.type || undefined,
+        originalDataUrl: analysisPayload.originalDataUrl,
+        analysisDataUrl: analysisPayload.analysisDataUrl,
+        analysisCompressionLabel: analysisPayload.compressionLabel,
+      };
+      setVenuePhoto(nextPhoto);
+      setVenuePhotoExpanded(true);
+      setGenerated(false);
+      console.debug("[pr-agent] venue.photo.added", {
+        fileName: nextPhoto.fileName,
+        sizeLabel: nextPhoto.sizeLabel,
+        postType,
+      });
+    } catch (error) {
+      setSubmissionError(
+        error instanceof Error
+          ? error.message
+          : "画像の読み込みに失敗しました。",
+      );
+    }
   }
 
   function handleVenuePhotoClear() {
@@ -412,6 +430,17 @@ export default function PrActionPanel({
       clientContext: {
         source: "tableau-extension",
         appVersion: env.appVersion,
+        photo: venuePhoto
+          ? {
+              fileName: venuePhoto.fileName,
+              sizeLabel: venuePhoto.sizeLabel,
+              mode: "image",
+              mimeType: venuePhoto.mimeType,
+              dataUrl: venuePhoto.analysisDataUrl ?? venuePhoto.originalDataUrl,
+            }
+          : {
+              mode: "none",
+            },
       },
     };
 
@@ -588,6 +617,9 @@ export default function PrActionPanel({
                   <div className="pr-agent-photo-preview-copy">
                     <strong>{venuePhoto.fileName}</strong>
                     <span>{venuePhoto.sizeLabel}</span>
+                    {venuePhoto.analysisCompressionLabel ? (
+                      <span>{venuePhoto.analysisCompressionLabel}</span>
+                    ) : null}
                     <button
                       type="button"
                       className="pr-agent-link-button"

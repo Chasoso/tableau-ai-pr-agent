@@ -5,6 +5,7 @@ import type {
   ActionRunAnalysisSection,
   ActionRunRequest,
 } from "../types/actionRun";
+import type { PostGenerationEvidencePack } from "../services/tableauPhotoPostAnalysisService";
 import type { TechPlayPreviewResponse } from "../types/techplay";
 import { PR_SYSTEM_PROMPT } from "./prompts/prSystemPrompt";
 import {
@@ -99,6 +100,8 @@ export async function runPrDraftAgent(input: {
   request: ActionRunRequest;
   techplayPreview?: TechPlayPreviewResponse;
   analysisSections: ActionRunAnalysisSection[];
+  evidencePack?: PostGenerationEvidencePack;
+  photoContext?: PostGenerationEvidencePack["photoContext"];
 }): Promise<PrDraftOutput> {
   const config = getConfig();
   if (!config.prAgent.useStrandsAgent) {
@@ -138,12 +141,15 @@ export function buildPrAgentPrompt(input: {
   request: ActionRunRequest;
   techplayPreview?: TechPlayPreviewResponse;
   analysisSections: ActionRunAnalysisSection[];
+  evidencePack?: PostGenerationEvidencePack;
+  photoContext?: PostGenerationEvidencePack["photoContext"];
 }): string {
   return [
     "Create a draft-only PR package from the JSON input below.",
     "Use the tools in this order: collectPrSourceInfo, summarizePrSourceInfo, generateAnnouncementDraft, generateSocialPostDraft for x, generateSocialPostDraft for linkedin, reviewPrDraft, createDraftOutput.",
     "Never publish, send, post, schedule, or mutate anything external.",
     "If any information is missing, surface it in missingFields and do not invent it.",
+    "Use the provided evidencePack to keep the X draft natural, photo-aware, and evidence-based.",
     "Return the final structured output only.",
     "",
     JSON.stringify(
@@ -151,6 +157,8 @@ export function buildPrAgentPrompt(input: {
         request: input.request,
         techplayPreview: input.techplayPreview,
         analysisSections: input.analysisSections,
+        evidencePack: input.evidencePack,
+        photoContext: input.photoContext,
         constraints: {
           draftOnly: true,
           allowedOutputs: ["x", "linkedin", "email", "notion"],

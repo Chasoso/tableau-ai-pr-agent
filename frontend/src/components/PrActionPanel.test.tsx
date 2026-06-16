@@ -1,4 +1,4 @@
-﻿import { render, screen } from "@testing-library/react";
+﻿import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import PrActionPanel from "./PrActionPanel";
@@ -147,7 +147,9 @@ describe("PrActionPanel", () => {
 
     await user.upload(fileInput, photo);
 
-    expect(mocks.resolveCalendarEventContext).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(mocks.resolveCalendarEventContext).toHaveBeenCalled();
+    });
     expect(mocks.resolveCalendarEventContext.mock.calls[0]?.[0]).toEqual(
       expect.objectContaining({
         postType: "開催中の実況",

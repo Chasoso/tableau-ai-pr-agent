@@ -30,6 +30,10 @@ export type UploadedImage = {
   fileName: string;
   objectUrl: string;
   sizeLabel: string;
+  mimeType?: string;
+  originalDataUrl?: string;
+  analysisDataUrl?: string;
+  analysisCompressionLabel?: string;
 };
 
 export type TableauAnalysisResult = {
@@ -128,6 +132,13 @@ export async function analyzePastPostsWithTableau(
     clientContext: {
       source: "tableau-extension",
       appVersion: env.appVersion,
+      photo: {
+        fileName: input.image?.fileName,
+        sizeLabel: input.image?.sizeLabel,
+        mode: input.image ? "image" : "none",
+        mimeType: input.image?.mimeType,
+        dataUrl: input.image?.analysisDataUrl ?? input.image?.originalDataUrl,
+      },
     },
   };
 

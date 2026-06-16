@@ -27,6 +27,7 @@ import {
   loadGoogleCalendarConnectionStatus,
   startGoogleCalendarConnection,
 } from "../services/googleCalendarConnection";
+import { prepareImageAnalysisPayload } from "../utils/prepareImageAnalysisPayload";
 
 type Props = {
   dashboardContext: DashboardContext;
@@ -174,6 +175,13 @@ export default function PrPostAgentPanel({
     !detectedTechPlayUrl &&
     workflow.techPlayFetchStatus !== "fetching" &&
     workflow.techPlayFetchStatus !== "fetched";
+  const photoAnalysisSection = useMemo(
+    () =>
+      analysisResult?.result.analysisSections?.find(
+        (section) => section.key === "photo_context",
+      ),
+    [analysisResult?.result.analysisSections],
+  );
 
   const canGenerate = useMemo(() => {
     if (!selectedPostType || generationStatus !== "idle") {
@@ -619,37 +627,50 @@ export default function PrPostAgentPanel({
     fileInputRef.current?.click();
   }
 
-  function handleUploadImage(event: ChangeEvent<HTMLInputElement>) {
+  async function handleUploadImage(event: ChangeEvent<HTMLInputElement>) {
     const file = event.currentTarget.files?.[0];
     if (!file) {
       return;
     }
 
-    if (uploadedImage?.objectUrl) {
-      URL.revokeObjectURL(uploadedImage.objectUrl);
+    try {
+      if (uploadedImage?.objectUrl) {
+        URL.revokeObjectURL(uploadedImage.objectUrl);
+      }
+
+      const analysisPayload = await prepareImageAnalysisPayload(file);
+      const nextImage: UploadedImage = {
+        fileName: file.name,
+        objectUrl: URL.createObjectURL(file),
+        sizeLabel: formatFileSize(file.size),
+        mimeType: file.type || undefined,
+        originalDataUrl: analysisPayload.originalDataUrl,
+        analysisDataUrl: analysisPayload.analysisDataUrl,
+        analysisCompressionLabel: analysisPayload.compressionLabel,
+      };
+
+      setUploadedImage(nextImage);
+      setImagePreviewExpanded(false);
+      setMessages((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          role: "user",
+          lines: ["画像をアップロードしました。"],
+        },
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          lines: ["画像を確認しました。会場情報と投稿案をまとめます。"],
+        },
+      ]);
+    } catch (uploadError) {
+      setError(
+        uploadError instanceof Error
+          ? uploadError.message
+          : "画像の読み込みに失敗しました。",
+      );
     }
-
-    const nextImage: UploadedImage = {
-      fileName: file.name,
-      objectUrl: URL.createObjectURL(file),
-      sizeLabel: formatFileSize(file.size),
-    };
-
-    setUploadedImage(nextImage);
-    setImagePreviewExpanded(false);
-    setMessages((current) => [
-      ...current,
-      {
-        id: crypto.randomUUID(),
-        role: "user",
-        lines: ["画像をアップロードしました。"],
-      },
-      {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        lines: ["画像を確認しました。会場情報と投稿案をまとめます。"],
-      },
-    ]);
   }
 
   async function handleManualTechPlaySubmit(event: FormEvent) {
@@ -1054,9 +1075,77 @@ export default function PrPostAgentPanel({
                 <div>
                   <strong>{uploadedImage.fileName}</strong>
                   <span>{uploadedImage.sizeLabel}</span>
+                  {uploadedImage.analysisCompressionLabel ? (
+                    <span>{uploadedImage.analysisCompressionLabel}</span>
+                  ) : null}
                 </div>
               </div>
             </details>
+          </ChatBubble>
+        ) : null}
+
+        {photoAnalysisSection ? (
+          <ChatBubble role="assistant">
+            <section className="pr-post-agent-photo-analysis">
+              <h3>画像解析結果</h3>
+              <p>{photoAnalysisSection.summary}</p>
+              <div className="pr-post-agent-photo-analysis-grid">
+                <div>
+                  <strong>見えている要素</strong>
+                  <ul>
+                    {photoAnalysisSection.details?.observedItems?.length ? (
+                      photoAnalysisSection.details.observedItems.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))
+                    ) : (
+                      <li>未取得</li>
+                    )}
+                  </ul>
+                </div>
+                <div>
+                  <strong>読み取れた文字</strong>
+                  <p>
+                    {photoAnalysisSection.details?.ocrText?.trim() || "未取得"}
+                  </p>
+                </div>
+                {photoAnalysisSection.details?.postableElements?.length ? (
+                  <div>
+                    <strong>投稿に使えそうな要素</strong>
+                    <ul>
+                      {photoAnalysisSection.details.postableElements.map(
+                        (item) => (
+                          <li key={item}>{item}</li>
+                        ),
+                      )}
+                    </ul>
+                  </div>
+                ) : null}
+                {photoAnalysisSection.details?.subjectCandidates?.length ? (
+                  <div>
+                    <strong>主題候補</strong>
+                    <ul>
+                      {photoAnalysisSection.details.subjectCandidates.map(
+                        (item) => (
+                          <li key={item}>{item}</li>
+                        ),
+                      )}
+                    </ul>
+                  </div>
+                ) : null}
+                {photoAnalysisSection.details?.sceneInference ? (
+                  <div>
+                    <strong>状況推定</strong>
+                    <p>{photoAnalysisSection.details.sceneInference}</p>
+                  </div>
+                ) : null}
+                {photoAnalysisSection.details?.eventFeel ? (
+                  <div>
+                    <strong>現場感</strong>
+                    <p>{photoAnalysisSection.details.eventFeel}</p>
+                  </div>
+                ) : null}
+              </div>
+            </section>
           </ChatBubble>
         ) : null}
 

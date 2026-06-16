@@ -10,6 +10,7 @@ import type {
   ActionRunRequest,
 } from "../../types/actionRun";
 import type { TechPlayPreviewResponse } from "../../types/techplay";
+import type { PostGenerationEvidencePack } from "../../services/tableauPhotoPostAnalysisService";
 
 export type PrDraftPlatform = "x" | "linkedin" | "email" | "notion";
 
@@ -146,6 +147,7 @@ export const collectPrSourceInfoSchema = z.object({
       }),
     )
     .default([]),
+  evidencePack: z.custom<PostGenerationEvidencePack>().optional(),
 });
 
 export const summarizePrSourceInfoSchema = z.object({
@@ -318,10 +320,12 @@ export function collectPrSourceInfo(
       ];
     })
     .filter((line): line is string => Boolean(line));
+  const evidenceHighlights = buildEvidencePackHighlights(parsed.evidencePack);
   const missingFields = getMissingSourceFields({
     request,
     techplayPreview: parsed.techplayPreview,
     analysisSections: parsed.analysisSections,
+    evidencePack: parsed.evidencePack,
   });
 
   return {
@@ -337,7 +341,10 @@ export function collectPrSourceInfo(
     techplayEventDateText:
       parsed.techplayPreview?.eventDateText?.trim() || undefined,
     techplaySummary: parsed.techplayPreview?.summary?.trim() || undefined,
-    analysisHighlights: analysisHighlights.slice(0, 10),
+    analysisHighlights: uniqueStrings([
+      ...analysisHighlights,
+      ...evidenceHighlights,
+    ]).slice(0, 10),
     missingFields,
   };
 }
@@ -555,11 +562,19 @@ export function buildPrDraftOutput(input: {
   request: ActionRunRequest;
   techplayPreview?: TechPlayPreviewResponse;
   analysisSections: ActionRunAnalysisSection[];
+  evidencePack?: PostGenerationEvidencePack;
 }): PrDraftOutput {
+  const analysisSections = input.evidencePack
+    ? mergeEvidencePackIntoAnalysisSections(
+        input.analysisSections,
+        input.evidencePack,
+      )
+    : input.analysisSections;
   const sourceInfo = collectPrSourceInfo({
     request: input.request,
     techplayPreview: input.techplayPreview,
-    analysisSections: input.analysisSections,
+    analysisSections,
+    evidencePack: input.evidencePack,
   });
   const summary = summarizePrSourceInfo(sourceInfo);
   const announcementDraft = generateAnnouncementDraft(sourceInfo, summary);
@@ -629,6 +644,7 @@ function getMissingSourceFields(input: {
   analysisSections: z.infer<
     typeof collectPrSourceInfoSchema
   >["analysisSections"];
+  evidencePack?: PostGenerationEvidencePack;
 }): string[] {
   const missing: string[] = [];
 
@@ -654,6 +670,10 @@ function getMissingSourceFields(input: {
 
   if (!input.analysisSections.length) {
     missing.push("Tableau analysis sections");
+  }
+
+  if (!input.evidencePack) {
+    missing.push("evidence pack");
   }
 
   return [...new Set(missing)];
@@ -750,4 +770,79 @@ function summarizeToolOutput(output: unknown): Record<string, unknown> {
           ? (record.review as Record<string, unknown>).status
           : undefined,
   };
+}
+
+function buildEvidencePackHighlights(
+  evidencePack?: PostGenerationEvidencePack,
+): string[] {
+  if (!evidencePack) {
+    return [];
+  }
+
+  return uniqueStrings([
+    `Photo context: ${evidencePack.photoContext.summary}`,
+    ...(evidencePack.photoContext.detectedTopics.length
+      ? [
+          `Photo topics: ${evidencePack.photoContext.detectedTopics.join(" / ")}`,
+        ]
+      : []),
+    ...(evidencePack.photoContext.observedItems?.length
+      ? [
+          `Observed items: ${evidencePack.photoContext.observedItems.join(
+            " / ",
+          )}`,
+        ]
+      : []),
+    ...(evidencePack.photoContext.subjectCandidates?.length
+      ? [
+          `Subject candidates: ${evidencePack.photoContext.subjectCandidates.join(
+            " / ",
+          )}`,
+        ]
+      : []),
+    ...(evidencePack.photoContext.ocrText
+      ? [`OCR text: ${evidencePack.photoContext.ocrText}`]
+      : []),
+    ...(evidencePack.surveyInsight?.available
+      ? [
+          `Survey insight: ${evidencePack.surveyInsight.evidenceSummary}`,
+          ...(evidencePack.surveyInsight.suggestedAngles.length
+            ? [
+                `Survey angles: ${evidencePack.surveyInsight.suggestedAngles.join(
+                  " / ",
+                )}`,
+              ]
+            : []),
+        ]
+      : []),
+    ...(evidencePack.postPerformanceInsight?.available
+      ? [
+          `Post performance: ${evidencePack.postPerformanceInsight.evidenceSummary}`,
+        ]
+      : []),
+    ...(evidencePack.accountOverviewInsight?.available
+      ? [
+          `Account overview: ${evidencePack.accountOverviewInsight.evidenceSummary}`,
+        ]
+      : []),
+  ]);
+}
+
+function mergeEvidencePackIntoAnalysisSections(
+  analysisSections: ActionRunAnalysisSection[],
+  evidencePack: PostGenerationEvidencePack,
+): ActionRunAnalysisSection[] {
+  const evidenceSection: ActionRunAnalysisSection = {
+    key: "evidence_pack",
+    title: "Evidence pack",
+    question: "Summarize the evidence pack for draft generation.",
+    summary: buildEvidencePackHighlights(evidencePack).join(" / "),
+    rows: [],
+  };
+
+  return [...analysisSections, evidenceSection];
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
 }

@@ -94,6 +94,13 @@ export type ChatRequest = {
   clientContext: {
     source: "tableau-extension";
     appVersion: string;
+    photo?: {
+      fileName?: string;
+      sizeLabel?: string;
+      mode?: "image" | "none";
+      mimeType?: string;
+      dataUrl?: string;
+    };
   };
   sessionId?: string;
 };
@@ -103,6 +110,13 @@ export type ContextRequest = {
   clientContext: {
     source: "tableau-extension";
     appVersion: string;
+    photo?: {
+      fileName?: string;
+      sizeLabel?: string;
+      mode?: "image" | "none";
+      mimeType?: string;
+      dataUrl?: string;
+    };
   };
 };
 

@@ -90,7 +90,12 @@ export type ActionRunAnalysisSection = {
     | "post_type_distribution"
     | "keyword_tendency"
     | "weekday_time_tendency"
-    | "image_presence_tendency";
+    | "image_presence_tendency"
+    | "photo_context"
+    | "survey_insight"
+    | "post_performance_insight"
+    | "account_overview_insight"
+    | "evidence_pack";
   title: string;
   question: string;
   summary: string;
@@ -98,6 +103,14 @@ export type ActionRunAnalysisSection = {
     label: string;
     value: number | null;
   }>;
+  details?: {
+    observedItems?: string[];
+    ocrText?: string;
+    sceneInference?: string;
+    eventFeel?: string;
+    postableElements?: string[];
+    subjectCandidates?: string[];
+  };
   datasourceName?: string;
   dimensionField?: string;
   metricField?: string;

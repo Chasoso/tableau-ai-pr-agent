@@ -8,6 +8,13 @@ import type { DashboardContext } from "./tableau";
 export type ClientContext = {
   source?: string;
   appVersion?: string;
+  photo?: {
+    fileName?: string;
+    sizeLabel?: string;
+    mode?: "image" | "none";
+    mimeType?: string;
+    dataUrl?: string;
+  };
 };
 
 export type ActionRunPostType =
@@ -33,6 +40,7 @@ export type ActionRunResult = {
   evidence: string[];
   checks: string[];
   imageCaption?: string;
+  analysisSections?: ActionRunAnalysisSection[];
   debug?: {
     source?: "stub";
     requestEcho?: Pick<
@@ -40,6 +48,38 @@ export type ActionRunResult = {
       "postType" | "eventName" | "techplayUrl" | "currentSituation"
     >;
   };
+};
+
+export type ActionRunAnalysisSection = {
+  key:
+    | "post_type_distribution"
+    | "keyword_tendency"
+    | "weekday_time_tendency"
+    | "image_presence_tendency"
+    | "photo_context"
+    | "survey_insight"
+    | "post_performance_insight"
+    | "account_overview_insight"
+    | "evidence_pack";
+  title: string;
+  question: string;
+  summary: string;
+  rows: Array<{
+    label: string;
+    value: number | null;
+  }>;
+  details?: {
+    observedItems?: string[];
+    ocrText?: string;
+    sceneInference?: string;
+    eventFeel?: string;
+    postableElements?: string[];
+    subjectCandidates?: string[];
+  };
+  datasourceName?: string;
+  dimensionField?: string;
+  metricField?: string;
+  warnings?: string[];
 };
 
 export type ActionRunApprovalRequest = {
