@@ -82,7 +82,9 @@ test.describe("PR投稿エージェント", () => {
     await expect(page.locator(".suggestion-carousel")).toBeVisible();
 
     const firstSuggestion = page.locator(".suggestion-card").first();
-    await expect(firstSuggestion.getByRole("button", { name: "この案を採用" })).toBeVisible();
+    await expect(
+      firstSuggestion.getByRole("button", { name: "この案を採用" }),
+    ).toBeVisible();
 
     await firstSuggestion.getByRole("button", { name: "この案を採用" }).click();
     await expect(
@@ -94,7 +96,10 @@ test.describe("PR投稿エージェント", () => {
         .locator(".pr-post-agent-modal-destination"),
     ).toContainText("Slack Incoming Webhook");
 
-    await page.getByRole("dialog").getByRole("button", { name: "Slackに投稿" }).click();
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Slackに投稿" })
+      .click();
 
     await expect(page.locator(".pr-post-agent-posted").first()).toContainText(
       "Slackに投稿しました。",
