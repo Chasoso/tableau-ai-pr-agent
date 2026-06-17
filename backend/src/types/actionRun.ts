@@ -108,6 +108,14 @@ export type ActionRunResult = {
   primaryOutputType?: "generated_post_suggestions" | "analysis_summary";
   generatedPostSuggestions?: GeneratedPostSuggestion[];
   imageUrl?: string;
+  attachedImage?: {
+    source: "original_input_image";
+    objectKey: string;
+    contentType: string;
+    byteLength?: number;
+    width?: number;
+    height?: number;
+  };
   generatedPostSuggestion?: GeneratedPostSuggestion;
   evidencePack?: PostGenerationEvidencePack;
   canGeneratePost?: boolean;
@@ -165,6 +173,13 @@ export type PostGenerationEvidencePack = {
     summary?: string;
     detectedTopics?: string[];
     visibleText?: string[];
+    observedItems?: string[];
+    sceneInference?: string;
+    eventFeel?: string;
+    postableElements?: string[];
+    subjectCandidates?: string[];
+    ocrText?: string;
+    suggestedPostAngles?: string[];
     skippedReason?: string;
   };
   eventContext: {

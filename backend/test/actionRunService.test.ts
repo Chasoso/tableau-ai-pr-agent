@@ -21,10 +21,6 @@ const slackMock = vi.hoisted(() => ({
   postActionRun: vi.fn(),
 }));
 
-const imageMock = vi.hoisted(() => ({
-  generateActionRunPoster: vi.fn(),
-}));
-
 const tableauDiagnosticsMock = vi.hoisted(() => ({
   runTableauConnectivityDiagnostics: vi.fn(),
   runTableauConnectivityDiagnosticsWithAuthContext: vi.fn(),
@@ -48,12 +44,6 @@ vi.mock("../src/services/slackWebhookService", () => ({
   }),
 }));
 
-vi.mock("../src/services/actionRunImageService", () => ({
-  ActionRunImageService: vi.fn(function () {
-    return imageMock;
-  }),
-}));
-
 vi.mock("../src/services/tableauConnectivityDiagnostics", () => ({
   runTableauConnectivityDiagnostics:
     tableauDiagnosticsMock.runTableauConnectivityDiagnostics,
@@ -69,8 +59,6 @@ describe("ActionRunService", () => {
   const originalProgressLimit = process.env.ACTION_RUN_PROGRESS_MESSAGE_LIMIT;
   const originalWorkerFunctionName =
     process.env.ACTION_RUN_WORKER_FUNCTION_NAME;
-  const originalImageBaseUrl = process.env.PR_ACTION_IMAGE_PUBLIC_BASE_URL;
-  const originalImagePrefix = process.env.PR_ACTION_IMAGE_OBJECT_KEY_PREFIX;
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -81,8 +69,6 @@ describe("ActionRunService", () => {
     process.env.ACTION_RUN_LEASE_SECONDS = "120";
     process.env.ACTION_RUN_PROGRESS_MESSAGE_LIMIT = "12";
     process.env.ACTION_RUN_WORKER_FUNCTION_NAME = "";
-    process.env.PR_ACTION_IMAGE_PUBLIC_BASE_URL = "https://images.example.com";
-    process.env.PR_ACTION_IMAGE_OBJECT_KEY_PREFIX = "pr-action-images";
 
     repositoryMock.create.mockReset();
     repositoryMock.get.mockReset();
@@ -94,7 +80,6 @@ describe("ActionRunService", () => {
     repositoryMock.updateResult.mockReset();
     analysisMock.analyzeActionRun.mockReset();
     slackMock.postActionRun.mockReset();
-    imageMock.generateActionRunPoster.mockReset();
     tableauDiagnosticsMock.runTableauConnectivityDiagnostics.mockReset();
     tableauDiagnosticsMock.runTableauConnectivityDiagnosticsWithAuthContext.mockReset();
   });
@@ -137,17 +122,6 @@ describe("ActionRunService", () => {
       process.env.ACTION_RUN_WORKER_FUNCTION_NAME = originalWorkerFunctionName;
     }
 
-    if (originalImageBaseUrl === undefined) {
-      delete process.env.PR_ACTION_IMAGE_PUBLIC_BASE_URL;
-    } else {
-      process.env.PR_ACTION_IMAGE_PUBLIC_BASE_URL = originalImageBaseUrl;
-    }
-
-    if (originalImagePrefix === undefined) {
-      delete process.env.PR_ACTION_IMAGE_OBJECT_KEY_PREFIX;
-    } else {
-      process.env.PR_ACTION_IMAGE_OBJECT_KEY_PREFIX = originalImagePrefix;
-    }
   });
 
   it("returns a queued action run immediately", async () => {
@@ -246,12 +220,6 @@ describe("ActionRunService", () => {
     );
     repositoryMock.updateProgress.mockResolvedValue(buildActionRunRecord());
     repositoryMock.markCompleted.mockResolvedValue(buildActionRunRecord());
-    imageMock.generateActionRunPoster.mockResolvedValue({
-      imageUrl:
-        "https://images.example.com/pr-action-images/action-run-1/poster.svg",
-      objectKey: "pr-action-images/action-run-1/poster.svg",
-      contentType: "image/svg+xml",
-    });
     analysisMock.analyzeActionRun.mockResolvedValue({
       summary: "analysis summary",
       suggestedSlackPostText: "draft text",
@@ -291,14 +259,16 @@ describe("ActionRunService", () => {
         }),
       }),
     );
-    expect(imageMock.generateActionRunPoster).toHaveBeenCalledTimes(1);
     expect(slackMock.postActionRun).not.toHaveBeenCalled();
     expect(repositoryMock.markCompleted).toHaveBeenCalledWith({
       actionRunId: "action-run-1",
       result: expect.objectContaining({
         summary: "analysis summary",
-        imageUrl:
-          "https://images.example.com/pr-action-images/action-run-1/poster.svg",
+        attachedImage: expect.objectContaining({
+          source: "original_input_image",
+          objectKey: "client-input-images/upload-1/venue.jpg",
+          contentType: "image/jpeg",
+        }),
         safetyReview: expect.objectContaining({
           status: "pending_manual_review",
         }),
@@ -511,6 +481,16 @@ function buildRequest() {
     eventName: "Tableau User Group Tokyo 2026",
     techplayUrl: "https://techplay.jp/event/123",
     currentSituation: "The venue is filling up.",
+    inputImage: {
+      source: "upload",
+      objectKey: "client-input-images/upload-1/venue.jpg",
+      contentType: "image/jpeg",
+      bytes: 1024,
+      width: 1200,
+      height: 630,
+      originalFileName: "venue.jpg",
+      fileId: "file-1",
+    },
     dashboardContext: {
       dashboardName: "Overview",
       workbookName: "Analytics",

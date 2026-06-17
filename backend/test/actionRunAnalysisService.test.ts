@@ -76,15 +76,71 @@ describe("ActionRunAnalysisService", () => {
     expect(result.suggestedSlackPostText).toBe(
       result.generatedPostSuggestions?.[0]?.text,
     );
+    expect(result.generatedPostSuggestions?.[0]?.usedEvidence.photo).toBe(true);
+    expect(result.generatedPostSuggestions?.[0]?.warnings).not.toContain(
+      "photo_context_missing",
+    );
+    expect(result.generatedPostSuggestions?.[0]?.rationale).toContain(
+      "画像情報を使用しています。",
+    );
     expect(
       result.analysisSections?.some(
         (section) => section.key === "evidence_pack",
       ),
     ).toBe(true);
   });
+
+  it("keeps photo_context_missing only when photo context is not actually available", async () => {
+    prDraftMock.mockResolvedValue({
+      summary: "Generated summary",
+      drafts: {
+        x: "Generated X post",
+        linkedin: "LinkedIn",
+        email: "Email",
+        notion: "Notion",
+      },
+      review: {
+        status: "pass",
+        riskLevel: "low",
+        missingFields: [],
+        issues: [],
+        checklist: ["check"],
+        notes: ["note"],
+      },
+      hashtags: ["#Tableau"],
+      evidence: ["evidence"],
+      checks: ["check"],
+      imageCaption: "caption",
+      missingFields: [],
+    });
+
+    const fixedWorkflowService = {
+      analyze: vi.fn(async () => buildFixedAnalysis({ photoAvailable: false })),
+    };
+
+    const service = new ActionRunAnalysisService(
+      {
+        name: "tableau-mcp" as const,
+      } as never,
+      fixedWorkflowService as never,
+    );
+
+    const result = await service.analyzeActionRun({
+      request: buildRequest(),
+    });
+
+    expect(result.generatedPostSuggestions?.[0]?.usedEvidence.photo).toBe(false);
+    expect(result.generatedPostSuggestions?.[0]?.warnings).toContain(
+      "photo_context_missing",
+    );
+    expect(result.generatedPostSuggestions?.[0]?.rationale).toContain(
+      "画像情報は使っていません。",
+    );
+  });
 });
 
-function buildFixedAnalysis() {
+function buildFixedAnalysis(input?: { photoAvailable?: boolean }) {
+  const photoAvailable = input?.photoAvailable ?? true;
   const analysisSections = [
     {
       key: "photo_context" as const,
@@ -104,9 +160,13 @@ function buildFixedAnalysis() {
   ];
 
   const photoContext = {
-    available: true,
-    source: "actual_image" as const,
-    summary: "The venue is filling up. / image file: venue.jpg",
+    available: photoAvailable,
+    source: photoAvailable
+      ? ("actual_image" as const)
+      : ("missing_image" as const),
+    summary: photoAvailable
+      ? "The venue is filling up. / image file: venue.jpg"
+      : undefined,
     detectedTopics: ["venue"],
     suggestedPostAngles: ["highlight the event atmosphere"],
   };

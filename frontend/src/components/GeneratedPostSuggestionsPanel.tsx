@@ -23,13 +23,11 @@ export default function GeneratedPostSuggestionsPanel({
           <h3 className="pr-post-agent-field-label">生成済み投稿案</h3>
           <p className="pr-post-agent-inline-note">
             {primaryOutputType === "generated_post_suggestions"
-              ? "最優先で表示しています。"
-              : "補助出力として表示しています。"}
+              ? "画像分析とイベント文脈を踏まえて、投稿案を優先表示しています。"
+              : "下書き候補として表示しています。"}
           </p>
         </div>
-        <span className="pr-post-agent-status-pill">
-          {suggestions.length}案
-        </span>
+        <span className="pr-post-agent-status-pill">{suggestions.length}案</span>
       </div>
 
       <div className="pr-post-agent-suggestions-list">
@@ -39,9 +37,9 @@ export default function GeneratedPostSuggestionsPanel({
             className={`pr-post-agent-suggestion${index === 0 ? " is-primary" : ""}`}
           >
             <div className="pr-post-agent-suggestion-head">
-              <strong>{index === 0 ? "最優先案" : `案 ${index + 1}`}</strong>
+              <strong>{index === 0 ? "案1" : `案${index + 1}`}</strong>
               {index === 0 ? (
-                <span className="pr-post-agent-suggestion-badge">主表示</span>
+                <span className="pr-post-agent-suggestion-badge">優先表示</span>
               ) : null}
             </div>
 
@@ -62,11 +60,7 @@ export default function GeneratedPostSuggestionsPanel({
               </div>
               <div>
                 <dt>注意</dt>
-                <dd>
-                  {suggestion.warnings.length
-                    ? suggestion.warnings.join(" / ")
-                    : "なし"}
-                </dd>
+                <dd>{suggestion.warnings.length ? suggestion.warnings.join(" / ") : "なし"}</dd>
               </div>
             </dl>
           </article>

@@ -57,6 +57,11 @@ export class ActionRunInputImageService {
       return null;
     }
 
+    const normalizedObjectKey = normalizeObjectKeyForContentType(
+      objectKey,
+      parsed.contentType,
+    );
+
     const bucketName = getConfig().s3.actionImageBucketName.trim();
     if (!bucketName) {
       return null;
@@ -65,7 +70,7 @@ export class ActionRunInputImageService {
     await this.s3Client.send(
       new PutObjectCommand({
         Bucket: bucketName,
-        Key: objectKey,
+        Key: normalizedObjectKey,
         Body: Buffer.from(parsed.bytes),
         ContentType: parsed.contentType,
         CacheControl: "private, max-age=31536000, immutable",
@@ -74,13 +79,13 @@ export class ActionRunInputImageService {
 
     logInfo("action_run.input_image.stored", {
       actionRunId: input.actionRunId,
-      objectKey,
+      objectKey: normalizedObjectKey,
       contentType: parsed.contentType,
       byteLength: parsed.bytes.length,
     });
 
     return {
-      objectKey,
+      objectKey: normalizedObjectKey,
       contentType: parsed.contentType,
       byteLength: parsed.bytes.length,
       source: "uploaded_image",
@@ -138,4 +143,42 @@ function parseDataUrl(
     contentType,
     bytes: Uint8Array.from(Buffer.from(base64, "base64")),
   };
+}
+
+function normalizeObjectKeyForContentType(
+  objectKey: string,
+  contentType: string,
+): string {
+  const extension = getPreferredExtensionForContentType(contentType);
+  if (!extension) {
+    return objectKey;
+  }
+
+  const normalizedKey = objectKey.trim();
+  const lastSlashIndex = normalizedKey.lastIndexOf("/");
+  const directory =
+    lastSlashIndex >= 0 ? normalizedKey.slice(0, lastSlashIndex + 1) : "";
+  const fileName =
+    lastSlashIndex >= 0 ? normalizedKey.slice(lastSlashIndex + 1) : normalizedKey;
+  const dotIndex = fileName.lastIndexOf(".");
+  const stem = dotIndex >= 0 ? fileName.slice(0, dotIndex) : fileName;
+  return `${directory}${stem}.${extension}`;
+}
+
+function getPreferredExtensionForContentType(
+  contentType: string,
+): string | undefined {
+  switch (contentType.trim().toLowerCase()) {
+    case "image/jpeg":
+    case "image/jpg":
+      return "jpg";
+    case "image/png":
+      return "png";
+    case "image/webp":
+      return "webp";
+    case "image/gif":
+      return "gif";
+    default:
+      return undefined;
+  }
 }

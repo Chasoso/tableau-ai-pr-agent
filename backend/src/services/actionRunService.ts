@@ -10,10 +10,8 @@ import {
   safeHash,
 } from "../logging";
 import { ActionRunAnalysisService } from "./actionRunAnalysisService";
-import { ActionRunImageService } from "./actionRunImageService";
 import { ActionRunInputImageService } from "./actionRunInputImageService";
 import { runTableauConnectivityDiagnosticsWithAuthContext } from "./tableauConnectivityDiagnostics";
-import { buildActionRunImageUrl } from "./actionRunImageUrlService";
 import { ActionRunRepository } from "../repositories/actionRunRepository";
 import { SlackWebhookService } from "./slackWebhookService";
 import type { AuthenticatedUser } from "../types/auth";
@@ -36,7 +34,6 @@ export type ActionRunApprovalResponse = ActionRunGetResponse & {
 
 const repository = new ActionRunRepository();
 const analysisService = new ActionRunAnalysisService();
-const imageService = new ActionRunImageService();
 const inputImageService = new ActionRunInputImageService();
 const slackWebhookService = new SlackWebhookService();
 
@@ -413,20 +410,10 @@ export class ActionRunService {
           `Required analysis was not completed: ${generationBlockers.join(", ") || "unknown blockers"}`,
         );
       }
-      const generatedImage = await imageService.generateActionRunPoster({
-        actionRunId: input.actionRunId,
-        runId: input.actionRunId,
-        request: claimed.request,
-        result: response,
-      });
-      const imageUrl =
-        generatedImage?.imageUrl ??
-        buildActionRunImageUrl({
-          actionRunId: input.actionRunId,
-        });
+      const attachedImage = response.attachedImage ?? buildAttachedInputImage(claimed.request);
       const completedResult = {
         ...response,
-        ...(imageUrl ? { imageUrl } : {}),
+        ...(attachedImage ? { attachedImage } : {}),
       };
 
       logInfo("actionRunResponseBuilt", {
@@ -438,11 +425,14 @@ export class ActionRunService {
         generatedPostSuggestionCount:
           completedResult.generatedPostSuggestions?.length ?? 0,
         primaryOutputTextLength:
-          completedResult.generatedPostSuggestions?.[0]?.text?.length ??
+          completedResult.generatedPostSuggestions?.[0]?.text?.length ?? 
           completedResult.suggestedSlackPostText.length,
         hasPhotoAnalysisSections:
           (completedResult.analysisSections?.length ?? 0) > 0,
-        hasPosterImage: Boolean(imageUrl),
+        hasAttachedInputImage: Boolean(attachedImage),
+        attachedInputImageObjectKeyPresent: Boolean(attachedImage?.objectKey),
+        hasPosterImage: false,
+        posterGenerationSkipped: true,
       });
 
       await repository.markCompleted({
@@ -458,22 +448,18 @@ export class ActionRunService {
         debug: {
           summaryLength: completedResult.summary.length,
           sectionCount: completedResult.analysisSections?.length ?? 0,
-          hasImageUrl: Boolean(imageUrl),
+          hasImageUrl: false,
           safetyReviewStatus:
             completedResult.safetyReview?.status ?? "pending_manual_review",
-          imageGeneration: generatedImage
-            ? {
-                contentType: generatedImage.contentType,
-                objectKey: generatedImage.objectKey,
-              }
-            : { skipped: true },
+          imageGeneration: { skipped: true },
         },
       });
       logInfo("action_run.completed", {
         runId: input.actionRunId,
         actionRunId: input.actionRunId,
         sectionCount: completedResult.analysisSections?.length ?? 0,
-        hasImageUrl: Boolean(imageUrl),
+        hasImageUrl: false,
+        hasAttachedInputImage: Boolean(attachedImage),
         humanApprovalRequired: true,
       });
     } catch (error) {
@@ -822,4 +808,34 @@ function buildInputImageObjectKey(uploadId: string, fileName?: string): string {
 
 function sanitizeFileName(value: string): string {
   return value.replace(/[^A-Za-z0-9._-]+/g, "_");
+}
+
+function buildAttachedInputImage(
+  request: ActionRunRequest,
+): ActionRunResult["attachedImage"] | undefined {
+  const inputImage = request.inputImage;
+  const objectKey =
+    inputImage?.objectKey?.trim() ??
+    request.clientContext?.photo?.objectKey?.trim();
+  if (!objectKey) {
+    return undefined;
+  }
+
+  const contentType =
+    inputImage?.contentType?.trim().toLowerCase() ||
+    request.clientContext?.photo?.contentType?.trim().toLowerCase() ||
+    request.clientContext?.photo?.mimeType?.trim().toLowerCase();
+
+  if (!contentType) {
+    return undefined;
+  }
+
+  return {
+    source: "original_input_image",
+    objectKey,
+    contentType,
+    ...(inputImage?.bytes ? { byteLength: inputImage.bytes } : {}),
+    ...(inputImage?.width ? { width: inputImage.width } : {}),
+    ...(inputImage?.height ? { height: inputImage.height } : {}),
+  };
 }

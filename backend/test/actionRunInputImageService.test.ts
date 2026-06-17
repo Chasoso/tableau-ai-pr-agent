@@ -71,4 +71,42 @@ describe("ActionRunInputImageService", () => {
     expect(command.input.ContentType).toBe("image/jpeg");
     expect(command.input.ContentDisposition).toBeUndefined();
   });
+
+  it("normalizes the stored object key extension to match the uploaded content type", async () => {
+    const send = vi.fn().mockResolvedValue({});
+    const service = new ActionRunInputImageService({ send } as never);
+
+    const result = await service.storeActionRunInputImage({
+      actionRunId: "action-run-2",
+      photo: {
+        fileName: "ChatGPT_Image_2026_6_16_19_35_36.png",
+        dataUrl: "data:image/jpeg;base64,cGhvdG8=",
+        objectKey:
+          "client-input-images/upload-2/ChatGPT_Image_2026_6_16_19_35_36.png",
+        contentType: "image/jpeg",
+        byteLength: 11,
+        source: "uploaded_image",
+      },
+    });
+
+    expect(result).toEqual({
+      objectKey:
+        "client-input-images/upload-2/ChatGPT_Image_2026_6_16_19_35_36.jpg",
+      contentType: "image/jpeg",
+      byteLength: 5,
+      source: "uploaded_image",
+    });
+
+    expect(send).toHaveBeenCalledTimes(1);
+    const command = send.mock.calls[0]?.[0] as PutObjectCommand & {
+      input: {
+        Key?: string;
+        ContentType?: string;
+      };
+    };
+    expect(command.input.Key).toBe(
+      "client-input-images/upload-2/ChatGPT_Image_2026_6_16_19_35_36.jpg",
+    );
+    expect(command.input.ContentType).toBe("image/jpeg");
+  });
 });

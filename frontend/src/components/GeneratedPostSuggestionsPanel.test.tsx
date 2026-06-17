@@ -1,18 +1,18 @@
 // @vitest-environment jsdom
 
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import GeneratedPostSuggestionsPanel from "./GeneratedPostSuggestionsPanel";
 
 describe("GeneratedPostSuggestionsPanel", () => {
-  it("shows the primary suggestion first and marks it as the main output", () => {
+  it("shows the primary suggestion first and surfaces the evidence summary", () => {
     render(
       <GeneratedPostSuggestionsPanel
         primaryOutputType="generated_post_suggestions"
         suggestions={[
           {
-            text: "北陸Tableauユーザー会、まもなくスタートです！",
-            rationale: "画像とイベント情報の両方を使った短めの導入。",
+            text: "案1の本文",
+            rationale: "画像情報を使用しています。イベント情報を使用しています。",
             usedEvidence: {
               photo: true,
               event: true,
@@ -23,8 +23,8 @@ describe("GeneratedPostSuggestionsPanel", () => {
             warnings: [],
           },
           {
-            text: "会場の熱気が少しずつ高まってきました。",
-            rationale: "現場感を少し強めた変化案。",
+            text: "案2の本文",
+            rationale: "画像情報を使用しています。",
             usedEvidence: {
               photo: true,
               event: true,
@@ -32,7 +32,7 @@ describe("GeneratedPostSuggestionsPanel", () => {
               postPerformance: false,
               accountOverview: false,
             },
-            warnings: ["ハッシュタグは最小限推奨"],
+            warnings: ["note"],
           },
         ]}
       />,
@@ -41,13 +41,16 @@ describe("GeneratedPostSuggestionsPanel", () => {
     expect(
       screen.getByRole("heading", { name: "生成済み投稿案" }),
     ).toBeVisible();
-    expect(screen.getByText("最優先案")).toBeVisible();
-    expect(screen.getByText("主表示")).toBeVisible();
+    expect(screen.getByText("案1")).toBeVisible();
+    expect(screen.getByText("優先表示")).toBeVisible();
+    expect(screen.getByText("案1の本文")).toBeVisible();
+    const primarySuggestion = screen.getAllByRole("article")[0];
+    expect(within(primarySuggestion).getByText("根拠")).toBeVisible();
     expect(
-      screen.getByText("北陸Tableauユーザー会、まもなくスタートです！"),
+      within(primarySuggestion).getByText("画像 / イベント / 過去投稿"),
     ).toBeVisible();
-    expect(screen.getByText("画像 / イベント / 過去投稿")).toBeVisible();
-    expect(screen.getByText("ハッシュタグは最小限推奨")).toBeVisible();
+    expect(within(primarySuggestion).getByText("注意")).toBeVisible();
+    expect(within(primarySuggestion).getByText("なし")).toBeVisible();
     expect(screen.getByText("2案")).toBeVisible();
   });
 });
