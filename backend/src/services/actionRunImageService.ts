@@ -106,6 +106,11 @@ function renderActionRunPosterSvg(input: {
 }): string {
   const title = escapeXml(input.request.eventName);
   const postType = escapeXml(input.request.postType);
+  const primaryPostText = escapeXml(
+    input.result.generatedPostSuggestions?.[0]?.text?.trim() ||
+      input.result.suggestedSlackPostText ||
+      input.result.summary,
+  );
   const summary = escapeXml(input.result.summary);
   const imageCaption = escapeXml(input.result.imageCaption ?? "");
   const currentSituation = escapeXml(input.request.currentSituation);
@@ -137,7 +142,7 @@ function renderActionRunPosterSvg(input: {
 
   <text x="84" y="180" fill="#0a2941" font-size="50" font-weight="800" font-family="Aptos, Segoe UI, sans-serif">${title}</text>
   <text x="84" y="232" fill="#0d4167" font-size="25" font-weight="700" font-family="Aptos, Segoe UI, sans-serif">${postType}</text>
-  <text x="84" y="280" fill="#4b5f72" font-size="22" font-weight="500" font-family="Aptos, Segoe UI, sans-serif">${truncateText(summary, 72)}</text>
+  <text x="84" y="280" fill="#4b5f72" font-size="22" font-weight="500" font-family="Aptos, Segoe UI, sans-serif">${truncateText(primaryPostText || summary, 72)}</text>
   <text x="84" y="325" fill="#4b5f72" font-size="18" font-weight="500" font-family="Aptos, Segoe UI, sans-serif">${truncateText(imageCaption || currentSituation, 86)}</text>
 
   <rect x="84" y="360" width="1032" height="2" fill="#c9dff1"/>

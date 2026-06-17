@@ -338,7 +338,8 @@ export function buildSlackPost(input: {
 }): string {
   const baseLines = [
     input.hashtags.join(" "),
-    input.analysis.suggestedSlackPostText.trim(),
+    input.analysis.generatedPostSuggestions?.[0]?.text?.trim() ||
+      input.analysis.suggestedSlackPostText.trim(),
     input.techplayUrl,
   ].filter(Boolean);
 
@@ -365,7 +366,8 @@ export function buildXPost(input: {
 }): string {
   const parts = [
     input.hashtags.slice(0, 3).join(" "),
-    input.analysis.suggestedSlackPostText.trim(),
+    input.analysis.generatedPostSuggestions?.[0]?.text?.trim() ||
+      input.analysis.suggestedSlackPostText.trim(),
     input.techplayUrl,
   ].filter(Boolean);
 

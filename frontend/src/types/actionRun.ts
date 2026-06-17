@@ -101,6 +101,8 @@ export type ActionRunResult = {
   evidence: string[];
   checks: string[];
   imageCaption?: string;
+  primaryOutputType?: "generated_post_suggestions" | "analysis_summary";
+  generatedPostSuggestions?: GeneratedPostSuggestion[];
   generatedPostSuggestion?: GeneratedPostSuggestion;
   evidencePack?: PostGenerationEvidencePack;
   canGeneratePost?: boolean;
@@ -168,6 +170,7 @@ export type GeneratedPostSuggestion = {
   rationale: string;
   usedEvidence: {
     photo: boolean;
+    event: boolean;
     survey: boolean;
     postPerformance: boolean;
     accountOverview: boolean;

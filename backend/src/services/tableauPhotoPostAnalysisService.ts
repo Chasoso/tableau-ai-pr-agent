@@ -369,6 +369,15 @@ export class TableauPhotoPostAnalysisService {
       canGeneratePost: analysis.canGeneratePost,
       generationBlockers: analysis.generationBlockers,
     });
+    logInfo("tableau.photo_post.evidencePackSummary", {
+      photoContextAvailable: photoContext.available,
+      eventContextAvailable: eventContext.available,
+      surveyInsightAvailable: surveyInsight.available,
+      postPerformanceInsightAvailable: postPerformanceInsight.available,
+      accountOverviewInsightAvailable: accountOverviewInsight.available,
+      canGeneratePost: analysis.canGeneratePost,
+      generationBlockers: analysis.generationBlockers,
+    });
 
     return {
       photoContext,
@@ -475,14 +484,8 @@ async function runPhotoPostTableauAnalysis(input: {
     tableauContextProvider: input.tableauContextProvider,
   });
 
-  const availableInsightCount = [
-    surveyInsight.available,
-    postPerformanceInsight.available,
-    accountOverviewInsight.available,
-  ].filter(Boolean).length;
   const generationBlockers = uniqueStrings([
     ...resolvePhotoContextGenerationBlockers(input.photoContext),
-    ...(availableInsightCount === 0 ? ["tableau_analysis_unavailable"] : []),
   ]) as GenerationBlocker[];
 
   return {
@@ -646,6 +649,19 @@ function buildPurposeInsight(
     summary ||
     topLabels.join(" / ") ||
     "Tableau analysis results were not available.";
+
+  if (!rows.length) {
+    return buildUnavailableInsight(
+      purpose,
+      purpose === "survey_insight"
+        ? "mcp_session_survey_responses"
+        : purpose === "post_performance"
+          ? "x_account_analytics_contents"
+          : "x_account_overview_analytics",
+      "Tableau query returned no rows.",
+      "skipped",
+    );
+  }
 
   if (purpose === "survey_insight") {
     const keywordLabels = labels.filter((label) =>

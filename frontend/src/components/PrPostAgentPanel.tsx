@@ -23,6 +23,7 @@ import {
   postToX,
   resolveCalendarEventContext,
 } from "../services/prPostAgent";
+import GeneratedPostSuggestionsPanel from "./GeneratedPostSuggestionsPanel";
 import {
   loadGoogleCalendarConnectionStatus,
   startGoogleCalendarConnection,
@@ -183,6 +184,18 @@ export default function PrPostAgentPanel({
         (section) => section.key === "photo_context",
       ),
     [analysisResult?.result.analysisSections],
+  );
+  const generatedPostSuggestions = useMemo(
+    () =>
+      analysisResult?.result.generatedPostSuggestions?.length
+        ? analysisResult.result.generatedPostSuggestions
+        : analysisResult?.result.generatedPostSuggestion
+          ? [analysisResult.result.generatedPostSuggestion]
+          : [],
+    [
+      analysisResult?.result.generatedPostSuggestions,
+      analysisResult?.result.generatedPostSuggestion,
+    ],
   );
 
   const canGenerate = useMemo(() => {
@@ -1297,6 +1310,15 @@ export default function PrPostAgentPanel({
                 </div>
               </div>
             </details>
+          </ChatBubble>
+        ) : null}
+
+        {generatedPostSuggestions.length ? (
+          <ChatBubble role="assistant">
+            <GeneratedPostSuggestionsPanel
+              suggestions={generatedPostSuggestions}
+              primaryOutputType={analysisResult?.result.primaryOutputType}
+            />
           </ChatBubble>
         ) : null}
 

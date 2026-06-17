@@ -195,11 +195,9 @@ export default function PrActionPanel({
       : undefined);
 
   const resolvedEventName =
-    calendarResult?.eventSource === "fallback"
-      ? ""
-      : calendarResult?.resolvedEventName?.trim() ||
-        selectedEvent?.summary?.trim() ||
-        "";
+    calendarResult?.resolvedEventName?.trim() ||
+    selectedEvent?.summary?.trim() ||
+    "";
 
   const resolvedTechPlayUrl =
     calendarResult?.detectedTechPlayUrl?.trim() ||

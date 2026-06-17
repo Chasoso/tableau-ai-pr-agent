@@ -115,6 +115,82 @@ describe("TableauPhotoPostAnalysisService", () => {
     }
   });
 
+  it("treats zero-row Tableau analysis as unavailable without blocking post generation", async () => {
+    const provider = {
+      name: "tableau-mcp" as const,
+      getAdditionalContext: vi.fn(async () =>
+        buildAdditionalContext("survey", "No rows returned.", []),
+      ),
+    };
+
+    const gateway = {
+      listDatasources: vi.fn(async () => [
+        { name: "MCP_Session_Survey_Responses", luid: "survey-luid" },
+        { name: "X Account Analytics Contents", luid: "performance-luid" },
+        { name: "X Account Overview Analytics", luid: "overview-luid" },
+      ]),
+    };
+
+    const visionAnalyzer = {
+      analyze: vi.fn(async () => ({
+        status: "success" as const,
+        source: "actual_image" as const,
+        rawText: "Tableau User Group Tokyo",
+        photoContext: {
+          sceneInference: "A crowded workshop room.",
+          eventFeel: "Busy and energetic.",
+          observedItems: ["projector", "attendees", "stage"],
+          postableElements: ["crowd", "projector screen"],
+          subjectCandidates: ["speaker", "audience"],
+          detectedTopics: ["workshop", "tableau"],
+          suggestedPostAngles: ["lead with the crowded atmosphere"],
+          ocrText: "Tableau User Group Tokyo",
+        },
+      })),
+    };
+
+    const inputImageService = {
+      fetchActionRunInputImage: vi.fn(async () => ({
+        objectKey: "client-input-images/example.png",
+        contentType: "image/png",
+        byteLength: 4,
+        source: "existing_object",
+        bytes: new Uint8Array([1, 2, 3, 4]),
+      })),
+    };
+
+    const service = new TableauPhotoPostAnalysisService(
+      provider as never,
+      gateway as never,
+      visionAnalyzer as never,
+      inputImageService as never,
+    );
+    const request = buildRequest();
+    const result = await service.analyze({
+      request: {
+        ...request,
+        clientContext: {
+          ...request.clientContext!,
+          photo: {
+            ...request.clientContext!.photo!,
+            objectKey: "client-input-images/example.png",
+            contentType: "image/png",
+            mimeType: "image/png",
+          },
+        },
+      },
+      authenticatedUser: {
+        userId: "user-1",
+        tableauSubject: "user@example.com",
+      },
+    });
+
+    expect(result.surveyInsight?.available).toBe(false);
+    expect(result.surveyInsight?.sourceStatus).toBe("skipped");
+    expect(result.evidencePack.canGeneratePost).toBe(true);
+    expect(result.evidencePack.generationBlockers).toEqual([]);
+  });
+
   it("prefers exact LUID matches when configured", async () => {
     ALLOWED_TABLEAU_DATASOURCES[0].luid = "preferred-survey-luid";
 
@@ -431,16 +507,22 @@ function buildRequest(): ActionRunRequest {
   };
 }
 
-function buildAdditionalContext(kind: string, summary: string) {
+function buildAdditionalContext(
+  kind: string,
+  summary: string,
+  rows: Array<{ label: string; value: number }> = [
+    { label: summary, value: 1 },
+  ],
+) {
   return {
     provider: "tableau-mcp" as const,
     queryInsights: [
       {
         datasourceName: kind,
         metricField: "count",
-        rowCount: 1,
-        actualRowCount: 1,
-        rows: [{ label: summary, value: 1 }],
+        rowCount: rows.length,
+        actualRowCount: rows.length,
+        rows,
       },
     ],
     warnings: [],

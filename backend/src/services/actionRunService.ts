@@ -429,6 +429,22 @@ export class ActionRunService {
         ...(imageUrl ? { imageUrl } : {}),
       };
 
+      logInfo("actionRunResponseBuilt", {
+        actionRunId: input.actionRunId,
+        primaryOutputType:
+          completedResult.primaryOutputType ?? "analysis_summary",
+        hasGeneratedPostSuggestions:
+          (completedResult.generatedPostSuggestions?.length ?? 0) > 0,
+        generatedPostSuggestionCount:
+          completedResult.generatedPostSuggestions?.length ?? 0,
+        primaryOutputTextLength:
+          completedResult.generatedPostSuggestions?.[0]?.text?.length ??
+          completedResult.suggestedSlackPostText.length,
+        hasPhotoAnalysisSections:
+          (completedResult.analysisSections?.length ?? 0) > 0,
+        hasPosterImage: Boolean(imageUrl),
+      });
+
       await repository.markCompleted({
         actionRunId: input.actionRunId,
         result: completedResult,

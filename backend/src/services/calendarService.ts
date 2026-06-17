@@ -252,7 +252,8 @@ export class CalendarService {
     const resolvedVenue = selectedEvent?.location?.trim() || undefined;
     const resolvedEventDateText =
       techplayPreview?.eventDateText?.trim() || undefined;
-    const eventSource = preferredEventId ? "resolved" : "fallback";
+    const eventSource =
+      selectedEvent || selectedTechPlayUrl ? "resolved" : "fallback";
 
     logInfo("calendar.resolve.completed", {
       postType: input.postType,

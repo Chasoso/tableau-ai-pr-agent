@@ -74,6 +74,7 @@ describe("CalendarService", () => {
 
     expect(response.calendarLookupStatus).toBe("found");
     expect(response.techPlayFetchStatus).toBe("fetched");
+    expect(response.eventSource).toBe("resolved");
     expect(response.selectedEvent?.summary).toBe(
       "Tableau User Group Tokyo 2026",
     );

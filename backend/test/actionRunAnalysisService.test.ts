@@ -68,7 +68,14 @@ describe("ActionRunAnalysisService", () => {
       }),
     );
     expect(result.summary).toBe("Generated summary");
-    expect(result.suggestedSlackPostText).toBe("Generated X post");
+    expect(result.primaryOutputType).toBe("generated_post_suggestions");
+    expect(result.generatedPostSuggestions).toHaveLength(3);
+    expect(result.generatedPostSuggestion).toEqual(
+      result.generatedPostSuggestions?.[0],
+    );
+    expect(result.suggestedSlackPostText).toBe(
+      result.generatedPostSuggestions?.[0]?.text,
+    );
     expect(
       result.analysisSections?.some(
         (section) => section.key === "evidence_pack",
