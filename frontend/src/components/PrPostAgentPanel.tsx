@@ -628,45 +628,12 @@ export default function PrPostAgentPanel({
 
     setCalendarResult(nextCalendar);
     setWorkflow((current) => ({ ...current, techPlayFetchStatus: "fetched" }));
-    void runTableauAnalysisIfReady({
+    await runTableauAnalysisIfReady({
       workflowId: input.workflowId,
       postType: input.postType,
       calendar: nextCalendar,
       image: uploadedImage,
     });
-    return;
-    setWorkflow((current) => ({
-      ...current,
-      tableauAnalysisStatus: "fetching",
-    }));
-
-    const analysis = await analyzePastPostsWithTableau({
-      postType: input.postType,
-      dashboardContext,
-      calendarResult: nextCalendar,
-      authToken: input.authToken,
-      ownerToken: resolvedConnectionOwnerToken ?? undefined,
-    });
-
-    if (input.workflowId !== workflowIdRef.current) {
-      return;
-    }
-
-    setAnalysisResult(analysis);
-    setWorkflow((current) => ({
-      ...current,
-      tableauAnalysisStatus: "completed",
-    }));
-    setMessages((current) => [
-      ...current,
-      {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        lines: analysis.result.canGeneratePost
-          ? ["画像を確認しました。会場情報と投稿案をまとめます。"]
-          : ["画像が見つかりませんでした。もう一度アップロードしてください"],
-      },
-    ]);
   }
 
   function clearWorkflowState() {
@@ -1113,7 +1080,7 @@ export default function PrPostAgentPanel({
   }
 
   async function handleSlackApprovalSubmit() {
-    if (!generatedDraft || !selectedSuggestion) {
+    if (!analysisResult || !selectedSuggestion) {
       return;
     }
 
@@ -1125,9 +1092,9 @@ export default function PrPostAgentPanel({
 
     try {
       const response = await postToSlack({
-        draft: generatedDraft,
+        actionRunId: analysisResult.actionRunId,
         accessToken: authToken,
-        ownerToken: generatedDraft.analysis.ownerToken,
+        ownerToken: analysisResult.ownerToken,
         selectedSuggestionText: selectedSuggestion.suggestion.text,
       });
       setSlackPostStatus("posted");

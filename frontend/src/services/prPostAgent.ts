@@ -380,13 +380,19 @@ export function buildXPost(input: {
 }
 
 export async function postToSlack(input: {
-  draft: GeneratedPrPostDraft;
+  draft?: GeneratedPrPostDraft;
+  actionRunId?: string;
   accessToken?: string;
   ownerToken?: string;
   selectedSuggestionText?: string;
 }): Promise<ActionRunApprovalResponse> {
+  const actionRunId = input.actionRunId ?? input.draft?.analysis.actionRunId;
+  if (!actionRunId) {
+    throw new Error("Slack投稿に必要なアクションが見つかりませんでした。");
+  }
+
   return approveActionRun(
-    input.draft.analysis.actionRunId,
+    actionRunId,
     {
       approved: true,
       selectedSuggestionText: input.selectedSuggestionText?.trim() || undefined,
