@@ -242,7 +242,16 @@ export class CalendarService {
     }
 
     const resolvedEventName =
-      selectedEvent?.summary ?? techplayPreview?.eventName ?? undefined;
+      techplayPreview?.eventName?.trim() ||
+      selectedEvent?.summary?.trim() ||
+      undefined;
+    const resolvedEventDescription =
+      techplayPreview?.summary?.trim() ||
+      selectedEvent?.description?.trim() ||
+      undefined;
+    const resolvedVenue = selectedEvent?.location?.trim() || undefined;
+    const resolvedEventDateText =
+      techplayPreview?.eventDateText?.trim() || undefined;
     const eventSource = preferredEventId ? "resolved" : "fallback";
 
     logInfo("calendar.resolve.completed", {
@@ -251,6 +260,9 @@ export class CalendarService {
       techPlayFetchStatus,
       selectedEventId: selectedEvent?.eventId,
       resolvedEventName,
+      resolvedEventDescription,
+      resolvedVenue,
+      resolvedEventDateText,
       hasManualTechPlayUrl: Boolean(manualTechPlayUrl),
       candidateCount: candidates.length,
       provider: config.calendar.provider,
@@ -270,6 +282,9 @@ export class CalendarService {
       detectedTechPlayUrl: selectedTechPlayUrl,
       techplayPreview,
       resolvedEventName,
+      resolvedEventDescription,
+      resolvedVenue,
+      resolvedEventDateText,
       warnings: Array.from(new Set(warnings)),
       notes: [
         `Search window: ${searchWindowLabel}`,

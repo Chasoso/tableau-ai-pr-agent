@@ -8,6 +8,7 @@ import { previewTechPlayEvent } from "../api/techplayApi";
 import { env } from "../env";
 import type {
   ActionRunApprovalResponse,
+  ActionRunEventContext,
   ActionRunPostType,
   ActionRunRequest,
   ActionRunResult,
@@ -148,6 +149,16 @@ export async function analyzePastPostsWithTableau(
       manualTechPlayUrl: input.manualTechPlayUrl,
     }),
     dashboardContext: input.dashboardContext,
+    eventContext: buildEventContext({
+      calendarResult: input.calendarResult,
+      manualTechPlayUrl: input.manualTechPlayUrl,
+      eventName,
+      eventUrl:
+        input.calendarResult.selectedEvent?.htmlLink?.trim() ||
+        input.manualTechPlayUrl?.trim() ||
+        input.calendarResult.detectedTechPlayUrl?.trim() ||
+        undefined,
+    }),
     inputImage: input.image
       ? {
           source: input.image.source,
@@ -411,6 +422,84 @@ export function buildCurrentSituation(input: {
   ];
 
   return parts.join(" / ");
+}
+
+function buildEventContext(input: {
+  calendarResult: CalendarResolveResponse;
+  manualTechPlayUrl?: string;
+  eventName: string;
+  eventUrl?: string;
+}): ActionRunEventContext {
+  const techplayPreview = input.calendarResult.techplayPreview;
+  const techplayEventName = normalizeMeaningfulText(techplayPreview?.eventName);
+  const techplayEventDateText = techplayPreview?.eventDateText?.trim();
+  const eventDescription =
+    normalizeMeaningfulText(techplayPreview?.summary) ||
+    normalizeMeaningfulText(input.calendarResult.selectedEvent?.description) ||
+    undefined;
+  const venue = normalizeMeaningfulText(
+    input.calendarResult.selectedEvent?.location,
+  );
+
+  if (techplayEventName) {
+    return {
+      source: "techplay",
+      eventName: techplayEventName,
+      ...(input.eventUrl ? { eventUrl: input.eventUrl } : {}),
+      ...(eventDescription ? { eventDescription } : {}),
+      ...(venue ? { venue } : {}),
+      ...(techplayEventDateText
+        ? { eventDateText: techplayEventDateText }
+        : {}),
+    };
+  }
+
+  const calendarEventName = normalizeMeaningfulText(
+    input.calendarResult.selectedEvent?.summary,
+  );
+  if (calendarEventName) {
+    return {
+      source: "google_calendar",
+      eventName: calendarEventName,
+      ...(input.eventUrl ? { eventUrl: input.eventUrl } : {}),
+      ...(eventDescription ? { eventDescription } : {}),
+      ...(venue ? { venue } : {}),
+      ...(input.calendarResult.resolvedEventDateText?.trim()
+        ? { eventDateText: input.calendarResult.resolvedEventDateText.trim() }
+        : {}),
+    };
+  }
+
+  if (input.manualTechPlayUrl?.trim()) {
+    return {
+      source: "manual",
+      eventName: normalizeMeaningfulText(input.eventName) || input.eventName,
+      eventUrl: input.manualTechPlayUrl.trim(),
+      ...(eventDescription ? { eventDescription } : {}),
+      ...(venue ? { venue } : {}),
+    };
+  }
+
+  return {
+    source: "fallback",
+    eventName: normalizeMeaningfulText(input.eventName) || input.eventName,
+    ...(input.eventUrl ? { eventUrl: input.eventUrl } : {}),
+    ...(eventDescription ? { eventDescription } : {}),
+    ...(venue ? { venue } : {}),
+  };
+}
+
+function normalizeMeaningfulText(value?: string): string | undefined {
+  const text = value?.trim();
+  if (!text) {
+    return undefined;
+  }
+
+  if (/未取得|未設定|未入力|不明|なし|イベント情報は未取得です/i.test(text)) {
+    return undefined;
+  }
+
+  return text;
 }
 
 function buildHashtags(input: {

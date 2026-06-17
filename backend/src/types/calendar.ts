@@ -80,6 +80,9 @@ export type CalendarResolveResponse = {
   detectedTechPlayUrl?: string;
   techplayPreview?: TechPlayPreviewResponse;
   resolvedEventName?: string;
+  resolvedEventDescription?: string;
+  resolvedVenue?: string;
+  resolvedEventDateText?: string;
   warnings: string[];
   notes: string[];
 };

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+﻿import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CalendarService } from "../src/services/calendarService";
 
 const fetchMock = vi.fn();
@@ -35,12 +35,12 @@ describe("CalendarService", () => {
              <meta property="og:description" content="Live event summary.">
              <script type="application/ld+json">
                {
-                 "@context": "https://schema.org",
-                 "@type": "Event",
-                 "name": "Tableau User Group Tokyo 2026",
-                 "description": "Live event summary.",
-                 "startDate": "2026-06-14T08:00:00+09:00",
-                 "endDate": "2026-06-14T10:30:00+09:00"
+                "@context": "https://schema.org",
+                "@type": "Event",
+                "name": "Tableau User Group Tokyo 2026",
+                "description": "Live event summary.",
+                "startDate": "2026-06-14T08:00:00+09:00",
+                "endDate": "2026-06-14T10:30:00+09:00"
                }
              </script>
            </head>
@@ -81,6 +81,10 @@ describe("CalendarService", () => {
       "https://techplay.jp/event/example",
     );
     expect(response.resolvedEventName).toBe("Tableau User Group Tokyo 2026");
+    expect(response.resolvedEventDescription).toBe("Live event summary.");
+    expect(response.resolvedEventDateText).toBe(
+      "2026/06/14 8:00 - 2026/06/14 10:30",
+    );
     expect(response.techplayPreview?.eventName).toBe(
       "Tableau User Group Tokyo 2026",
     );
@@ -94,7 +98,7 @@ describe("CalendarService", () => {
   it("honors a preferred calendar candidate when one is provided", async () => {
     const service = new CalendarService();
     const response = await service.resolveEventContextFromCalendar({
-      postType: "事前告知",
+      postType: "開催中の実況",
       dashboardContext: {
         dashboardName: "Mock Executive Sales Dashboard",
         workbookName: "Sales Workbook",

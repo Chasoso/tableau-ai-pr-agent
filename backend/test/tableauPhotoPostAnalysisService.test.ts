@@ -2,6 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ALLOWED_TABLEAU_DATASOURCES,
   TableauPhotoPostAnalysisService,
+  buildVisionSummaryFromText,
+  extractVisionStructuredOutput,
+  normalizeVisionText,
 } from "../src/services/tableauPhotoPostAnalysisService";
 import type { ActionRunRequest } from "../src/types/actionRun";
 import type { TableauContextProvider } from "../src/tableau/contextProvider";
@@ -169,14 +172,19 @@ describe("TableauPhotoPostAnalysisService", () => {
 
     const visionAnalyzer = {
       analyze: vi.fn(async () => ({
-        sceneInference: "A crowded workshop room.",
-        eventFeel: "Busy and energetic.",
-        observedItems: ["projector", "attendees", "stage"],
-        postableElements: ["crowd", "projector screen"],
-        subjectCandidates: ["speaker", "audience"],
-        detectedTopics: ["workshop", "tableau"],
-        suggestedPostAngles: ["lead with the crowded atmosphere"],
-        ocrText: "Tableau User Group Tokyo",
+        status: "success" as const,
+        source: "actual_image" as const,
+        rawText: "Tableau User Group Tokyo",
+        photoContext: {
+          sceneInference: "A crowded workshop room.",
+          eventFeel: "Busy and energetic.",
+          observedItems: ["projector", "attendees", "stage"],
+          postableElements: ["crowd", "projector screen"],
+          subjectCandidates: ["speaker", "audience"],
+          detectedTopics: ["workshop", "tableau"],
+          suggestedPostAngles: ["lead with the crowded atmosphere"],
+          ocrText: "Tableau User Group Tokyo",
+        },
       })),
     };
 
@@ -184,6 +192,15 @@ describe("TableauPhotoPostAnalysisService", () => {
       provider as never,
       gateway as never,
       visionAnalyzer as never,
+      {
+        fetchActionRunInputImage: vi.fn(async () => ({
+          objectKey: "client-input-images/example.png",
+          contentType: "image/png",
+          byteLength: 4,
+          source: "existing_object",
+          bytes: new Uint8Array([1, 2, 3, 4]),
+        })),
+      } as never,
     );
     const request = buildRequest();
     const clientContext = request.clientContext!;
@@ -194,8 +211,9 @@ describe("TableauPhotoPostAnalysisService", () => {
           ...clientContext,
           photo: {
             ...clientContext.photo,
-            dataUrl: "data:image/png;base64,AAAA",
+            objectKey: "client-input-images/example.png",
             mimeType: "image/png",
+            contentType: "image/png",
           },
         },
       },
@@ -267,6 +285,123 @@ describe("TableauPhotoPostAnalysisService", () => {
         (section) => section.key === "post_performance_insight",
       )?.summary,
     ).toContain("failed for this purpose");
+  });
+
+  it("parses structured and unstructured vision text into usable summaries", () => {
+    const jsonText = `\`\`\`json
+    {
+      "sceneInference": "A lively meetup hall.",
+      "eventFeel": "Energetic",
+      "observedItems": ["screen", "attendees"],
+      "detectedTopics": ["tableau", "community"],
+      "ocrText": "Tableau Meetup"
+    }
+    \`\`\``;
+
+    const structured = extractVisionStructuredOutput(jsonText);
+    expect(structured.sceneInference).toBe("A lively meetup hall.");
+    expect(structured.detectedTopics).toContain("tableau");
+    expect(structured.ocrText).toBe("Tableau Meetup");
+
+    const plainText =
+      "The photo shows a crowded workshop room with attendees around a projector.";
+    const plainStructured = extractVisionStructuredOutput(plainText);
+    expect(plainStructured.sceneInference).toContain("crowded workshop room");
+    expect(buildVisionSummaryFromText(plainText, plainStructured)).toContain(
+      "crowded workshop room",
+    );
+    expect(normalizeVisionText('```json\n{"a":1}\n```')).toBe('{"a":1}');
+  });
+
+  it("classifies image fetch and vision analysis failures with granular blockers", async () => {
+    const provider = {
+      name: "tableau-mcp" as const,
+      getAdditionalContext: vi.fn(async () =>
+        buildAdditionalContext("overview", "Recent posts are steady."),
+      ),
+    };
+
+    const gateway = {
+      listDatasources: vi.fn(async () => [
+        { name: "MCP_Session_Survey_Responses", luid: "survey-luid" },
+        { name: "X Account Analytics Contents", luid: "performance-luid" },
+        { name: "X Account Overview Analytics", luid: "overview-luid" },
+      ]),
+    };
+
+    const baseRequest = buildRequest();
+    const imageRequest: ActionRunRequest = {
+      ...baseRequest,
+      clientContext: {
+        ...baseRequest.clientContext!,
+        photo: {
+          ...baseRequest.clientContext!.photo!,
+          objectKey: "client-input-images/example.jpg",
+        },
+      },
+    };
+
+    const fetchFailureService = new TableauPhotoPostAnalysisService(
+      provider as never,
+      gateway as never,
+      {
+        analyze: vi.fn(async () => ({
+          status: "failed" as const,
+          source: "vision_analysis_failed" as const,
+          skippedReason: "vision analysis failed",
+        })),
+      } as never,
+      {
+        fetchActionRunInputImage: vi.fn(async () => null),
+      } as never,
+    );
+    const fetchFailureResult = await fetchFailureService.analyze({
+      request: imageRequest,
+      authenticatedUser: {
+        userId: "user-1",
+        tableauSubject: "user@example.com",
+      },
+    });
+    expect(fetchFailureResult.evidencePack.generationBlockers).toContain(
+      "input_image_fetch_failed",
+    );
+    expect(fetchFailureResult.evidencePack.generationBlockers).not.toContain(
+      "input_image_not_found",
+    );
+
+    const noOutputService = new TableauPhotoPostAnalysisService(
+      provider as never,
+      gateway as never,
+      {
+        analyze: vi.fn(async () => ({
+          status: "no_usable_output" as const,
+          source: "vision_analysis_no_usable_output" as const,
+          skippedReason: "vision response was empty",
+        })),
+      } as never,
+      {
+        fetchActionRunInputImage: vi.fn(async () => ({
+          objectKey: "client-input-images/example.jpg",
+          contentType: "image/jpeg",
+          byteLength: 10,
+          source: "existing_object",
+          bytes: new Uint8Array([1, 2, 3]),
+        })),
+      } as never,
+    );
+    const noOutputResult = await noOutputService.analyze({
+      request: imageRequest,
+      authenticatedUser: {
+        userId: "user-1",
+        tableauSubject: "user@example.com",
+      },
+    });
+    expect(noOutputResult.evidencePack.generationBlockers).toContain(
+      "vision_analysis_no_usable_output",
+    );
+    expect(noOutputResult.evidencePack.generationBlockers).not.toContain(
+      "input_image_not_found",
+    );
   });
 });
 

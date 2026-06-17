@@ -19,8 +19,18 @@ export type ActionRunRequest = {
   techplayUrl: string;
   currentSituation: string;
   dashboardContext: DashboardContext;
+  eventContext?: ActionRunEventContext;
   inputImage?: ActionRunInputImage;
   clientContext?: ClientContext;
+};
+
+export type ActionRunEventContext = {
+  source: "google_calendar" | "techplay" | "manual" | "fallback" | "not_found";
+  eventName?: string;
+  eventUrl?: string;
+  eventDescription?: string;
+  venue?: string;
+  eventDateText?: string;
 };
 
 export type ActionRunInputImage = {
@@ -143,10 +153,31 @@ export type InsightSection = {
 export type PostGenerationEvidencePack = {
   photoContext: {
     available: boolean;
-    source: "actual_image" | "missing_image" | "fallback";
+    source:
+      | "actual_image"
+      | "image_fetch_failed"
+      | "vision_analysis_failed"
+      | "vision_analysis_no_usable_output"
+      | "missing_image"
+      | "fallback";
     summary?: string;
     detectedTopics?: string[];
     visibleText?: string[];
+    skippedReason?: string;
+  };
+  eventContext: {
+    available: boolean;
+    source:
+      | "google_calendar"
+      | "techplay"
+      | "manual"
+      | "fallback"
+      | "not_found";
+    eventName?: string;
+    eventUrl?: string;
+    eventDescription?: string;
+    venue?: string;
+    eventDateText?: string;
     skippedReason?: string;
   };
   surveyInsight: InsightSection;

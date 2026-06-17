@@ -139,6 +139,15 @@ function buildFixedAnalysis() {
     },
     evidencePack: {
       photoContext,
+      eventContext: {
+        available: true,
+        source: "techplay" as const,
+        eventName: "Tableau User Group Tokyo 2026",
+        eventUrl: "https://techplay.jp/event/123",
+        eventDescription: "Live event summary.",
+        venue: "Tokyo",
+        eventDateText: "2026/06/14 11:00",
+      },
       surveyInsight: {
         available: true,
         sourceStatus: "queried" as const,

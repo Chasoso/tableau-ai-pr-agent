@@ -194,8 +194,10 @@ function buildSummary(
   request: ActionRunRequest,
   fixedAnalysis: PhotoPostAnalysisResult,
 ): string {
+  const eventName = getEffectiveEventName(request);
   const insightSummary = [
     fixedAnalysis.photoContext.summary,
+    fixedAnalysis.evidencePack.eventContext.eventName,
     fixedAnalysis.surveyInsight?.evidenceSummary,
     fixedAnalysis.postPerformanceInsight?.evidenceSummary,
     fixedAnalysis.accountOverviewInsight?.evidenceSummary,
@@ -203,17 +205,21 @@ function buildSummary(
     .filter((value): value is string => Boolean(value))
     .join(" / ");
 
-  return `${request.eventName} ${request.postType} draft prepared. ${insightSummary}`.trim();
+  return `${eventName} ${request.postType} draft prepared. ${insightSummary}`.trim();
 }
 
 function buildEvidenceLines(
   request: ActionRunRequest,
   fixedAnalysis: PhotoPostAnalysisResult,
 ): string[] {
+  const eventName = getEffectiveEventName(request);
   return [
-    `Event name: ${request.eventName}`,
+    `Event name: ${eventName}`,
     `Current situation: ${request.currentSituation}`,
     `Photo context: ${fixedAnalysis.photoContext.summary}`,
+    fixedAnalysis.evidencePack.eventContext.eventDescription
+      ? `Event description: ${fixedAnalysis.evidencePack.eventContext.eventDescription}`
+      : "Event description: unavailable",
     fixedAnalysis.surveyInsight
       ? `Survey insight: ${fixedAnalysis.surveyInsight.evidenceSummary}`
       : "Survey insight: unavailable",
@@ -258,12 +264,12 @@ function buildImageCaption(
   analysisSections: ActionRunAnalysisSection[],
 ): string {
   const topLabel = collectTableauSignals(analysisSections)[0] ?? "in progress";
-  return `${request.eventName} ${request.postType} image draft. Emphasize ${topLabel}.`;
+  return `${getEffectiveEventName(request)} ${request.postType} image draft. Emphasize ${topLabel}.`;
 }
 
 function buildHashtags(request: ActionRunRequest): string[] {
   const hashtags = new Set<string>(["#Tableau", "#TechPlay"]);
-  for (const token of request.eventName.split(/\s+/u)) {
+  for (const token of getEffectiveEventName(request).split(/\s+/u)) {
     const cleaned = token.replace(/[^A-Za-z0-9]/g, "").trim();
     if (cleaned.length >= 2) {
       hashtags.add(`#${cleaned}`);
@@ -315,4 +321,33 @@ function computeQualityScore(input: PhotoPostAnalysisResult): number {
     0,
     Math.min(100, 45 + resolvedCount * 10 + availableInsights * 10),
   );
+}
+
+function getEffectiveEventName(request: ActionRunRequest): string {
+  const eventContextName = normalizeMeaningfulText(
+    request.eventContext?.eventName,
+  );
+  if (eventContextName) {
+    return eventContextName;
+  }
+
+  const requestEventName = normalizeMeaningfulText(request.eventName);
+  if (requestEventName) {
+    return requestEventName;
+  }
+
+  return "イベント";
+}
+
+function normalizeMeaningfulText(value?: string): string | undefined {
+  const text = value?.trim();
+  if (!text) {
+    return undefined;
+  }
+
+  if (/未取得|未設定|未入力|不明|なし|イベント情報は未取得です/i.test(text)) {
+    return undefined;
+  }
+
+  return text;
 }

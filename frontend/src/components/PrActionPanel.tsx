@@ -548,6 +548,14 @@ export default function PrActionPanel({
         calendarResult,
       }),
       dashboardContext,
+      eventContext: buildEventContext({
+        calendarResult,
+        eventName: resolvedEventName,
+        eventUrl:
+          calendarResult?.selectedEvent?.htmlLink?.trim() ||
+          resolvedTechPlayUrl ||
+          undefined,
+      }),
       inputImage: venuePhoto
         ? {
             source: venuePhoto.source,
@@ -640,6 +648,74 @@ export default function PrActionPanel({
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  function buildEventContext(input: {
+    calendarResult: CalendarResolveResponse | null;
+    eventName: string;
+    eventUrl?: string;
+  }) {
+    const techplayPreview = input.calendarResult?.techplayPreview;
+    const techplayEventName = normalizeMeaningfulText(
+      techplayPreview?.eventName,
+    );
+    const eventDescription =
+      normalizeMeaningfulText(techplayPreview?.summary) ||
+      normalizeMeaningfulText(
+        input.calendarResult?.selectedEvent?.description,
+      ) ||
+      undefined;
+    const venue = normalizeMeaningfulText(
+      input.calendarResult?.selectedEvent?.location,
+    );
+    const eventDateText = techplayPreview?.eventDateText?.trim() || undefined;
+
+    if (techplayEventName) {
+      return {
+        source: "techplay" as const,
+        eventName: techplayEventName,
+        ...(input.eventUrl ? { eventUrl: input.eventUrl } : {}),
+        ...(eventDescription ? { eventDescription } : {}),
+        ...(venue ? { venue } : {}),
+        ...(eventDateText ? { eventDateText } : {}),
+      };
+    }
+
+    const calendarEventName = normalizeMeaningfulText(
+      input.calendarResult?.selectedEvent?.summary,
+    );
+    if (calendarEventName) {
+      return {
+        source: "google_calendar" as const,
+        eventName: calendarEventName,
+        ...(input.eventUrl ? { eventUrl: input.eventUrl } : {}),
+        ...(eventDescription ? { eventDescription } : {}),
+        ...(venue ? { venue } : {}),
+        ...(eventDateText ? { eventDateText } : {}),
+      };
+    }
+
+    return {
+      source: input.eventUrl ? ("manual" as const) : ("not_found" as const),
+      eventName: normalizeMeaningfulText(input.eventName) || input.eventName,
+      ...(input.eventUrl ? { eventUrl: input.eventUrl } : {}),
+      ...(eventDescription ? { eventDescription } : {}),
+      ...(venue ? { venue } : {}),
+      ...(eventDateText ? { eventDateText } : {}),
+    };
+  }
+
+  function normalizeMeaningfulText(value?: string): string | undefined {
+    const text = value?.trim();
+    if (!text) {
+      return undefined;
+    }
+
+    if (/未取得|未設定|未入力|不明|なし|イベント情報は未取得です/i.test(text)) {
+      return undefined;
+    }
+
+    return text;
   }
 
   function handleCancelDraft() {
