@@ -926,6 +926,13 @@ Resources:
       RouteKey: "GET /auth/google/popup/status"
       Target: !Sub "integrations/${ChatIntegration}"
 
+  GoogleStatusRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "GET /auth/google/status"
+      Target: !Sub "integrations/${ChatIntegration}"
+
   ChatInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -1101,6 +1108,14 @@ Resources:
       FunctionName: !Ref ChatFunction
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/auth/google/popup/status"
+
+  GoogleStatusInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ChatFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/auth/google/status"
 
   HealthInvokePermission:
     Type: AWS::Lambda::Permission
