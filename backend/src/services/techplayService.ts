@@ -370,6 +370,7 @@ function formatDateText(start?: string, end?: string): string | undefined {
   const formatter = new Intl.DateTimeFormat("ja-JP", {
     dateStyle: "medium",
     timeStyle: "short",
+    timeZone: "Asia/Tokyo",
   });
 
   if (end) {
