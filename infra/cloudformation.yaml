@@ -169,6 +169,24 @@ Parameters:
     AllowedValues:
       - mock
       - bedrock
+  VisionProvider:
+    Type: String
+    Default: "mock"
+    AllowedValues:
+      - mock
+      - bedrock
+  ImageAnalysisProvider:
+    Type: String
+    Default: "mock"
+    AllowedValues:
+      - mock
+      - bedrock
+  EnableImageAnalysis:
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
   BedrockRegion:
     Type: String
     Default: "us-east-1"
@@ -572,6 +590,9 @@ Resources:
           TABLEAU_MCP_TOOL_PLANNING_ENABLED: !Ref TableauMcpToolPlanningEnabled
           TABLEAU_MCP_PLANNER_MAX_OUTPUT_TOKENS: !Sub "${TableauMcpPlannerMaxOutputTokens}"
           MODEL_PROVIDER: !Ref ModelProvider
+          VISION_PROVIDER: !Ref VisionProvider
+          IMAGE_ANALYSIS_PROVIDER: !Ref ImageAnalysisProvider
+          ENABLE_IMAGE_ANALYSIS: !Ref EnableImageAnalysis
           BEDROCK_REGION: !Ref BedrockRegion
           BEDROCK_MODEL_ID: !Ref BedrockModelId
           BEDROCK_MAX_OUTPUT_TOKENS: !Sub "${BedrockMaxOutputTokens}"
@@ -659,6 +680,9 @@ Resources:
           TABLEAU_MCP_TOOL_PLANNING_ENABLED: !Ref TableauMcpToolPlanningEnabled
           TABLEAU_MCP_PLANNER_MAX_OUTPUT_TOKENS: !Sub "${TableauMcpPlannerMaxOutputTokens}"
           MODEL_PROVIDER: !Ref ModelProvider
+          VISION_PROVIDER: !Ref VisionProvider
+          IMAGE_ANALYSIS_PROVIDER: !Ref ImageAnalysisProvider
+          ENABLE_IMAGE_ANALYSIS: !Ref EnableImageAnalysis
           BEDROCK_REGION: !Ref BedrockRegion
           BEDROCK_MODEL_ID: !Ref BedrockModelId
           BEDROCK_MAX_OUTPUT_TOKENS: !Sub "${BedrockMaxOutputTokens}"

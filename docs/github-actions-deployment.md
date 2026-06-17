@@ -108,7 +108,10 @@ These can be repository Variables if acceptable:
 | `ACTION_RUN_LEASE_SECONDS`              | `120`                                               | Worker lease duration for action-run claiming. `CHAT_JOB_LEASE_SECONDS` remains a compatibility fallback.                               |
 | `ACTION_RUN_PROGRESS_MESSAGE_LIMIT`     | `12`                                                | Maximum number of progress messages retained per action-run record. `CHAT_JOB_PROGRESS_MESSAGE_LIMIT` remains a compatibility fallback. |
 | `ACTION_RUN_OWNER_TOKEN_HEADER_NAME`    | `x-action-run-owner-token`                          | Anonymous owner boundary header used for polling. `CHAT_JOB_OWNER_TOKEN_HEADER_NAME` remains a compatibility fallback.                  |
-| `MODEL_PROVIDER`                        | `mock`                                              | `mock` or `bedrock`.                                                                                                                    |
+| `MODEL_PROVIDER`                        | `mock`                                              | Canonical model provider switch. Use `bedrock` to enable the Bedrock-backed answer and image-analysis path.                             |
+| `VISION_PROVIDER`                       | `mock`                                              | Vision compatibility alias. Set to `bedrock` when image analysis should use Bedrock.                                                    |
+| `IMAGE_ANALYSIS_PROVIDER`               | `mock`                                              | Additional image-analysis compatibility alias. Set to `bedrock` when image analysis should use Bedrock.                                 |
+| `ENABLE_IMAGE_ANALYSIS`                 | `false`                                             | Legacy boolean alias. Set to `true` when Bedrock image analysis should be enabled.                                                       |
 | `BEDROCK_REGION`                        | `us-east-1`                                         | Bedrock model region.                                                                                                                   |
 | `BEDROCK_MODEL_ID`                      | `us.amazon.nova-2-lite-v1:0`                        | Bedrock model ID or inference profile ID.                                                                                               |
 | `BEDROCK_FOUNDATION_MODEL_ID`           | `amazon.nova-2-lite-v1:0`                           | Foundation model ID that backs the inference profile.                                                                                   |
@@ -150,6 +153,15 @@ When `BEDROCK_MODEL_ID=us.amazon.nova-2-lite-v1:0`, Bedrock can route requests t
 This permission is attached by the CloudFormation template to the Lambda backend role. The CloudFormation execution role must also be allowed to create/update that inline IAM policy.
 
 Connected App values are still stored as GitHub Secrets and passed as `NoEcho` CloudFormation parameters. They are then set as Lambda environment variables. This avoids Secrets Manager monthly fixed cost, but users with permission to read Lambda function configuration may be able to view the values. For production, consider SSM Parameter Store SecureString or Secrets Manager.
+
+The image-analysis compatibility variables are also passed from GitHub Actions into CloudFormation and then into the Lambda environment:
+
+- `MODEL_PROVIDER`
+- `VISION_PROVIDER`
+- `IMAGE_ANALYSIS_PROVIDER`
+- `ENABLE_IMAGE_ANALYSIS`
+
+If you want Bedrock vision enabled, set the first three to `bedrock` and `ENABLE_IMAGE_ANALYSIS` to `true`. The workflow also derives sensible defaults from `MODEL_PROVIDER` when the alias variables are omitted.
 
 Google Calendar live-mode credentials follow the same pattern:
 

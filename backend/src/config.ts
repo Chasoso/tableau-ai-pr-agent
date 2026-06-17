@@ -40,6 +40,13 @@ export type AppConfig = {
   };
   model: {
     provider: "mock" | "bedrock";
+    providerSource:
+      | "MODEL_PROVIDER"
+      | "VISION_PROVIDER"
+      | "IMAGE_ANALYSIS_PROVIDER"
+      | "ENABLE_IMAGE_ANALYSIS"
+      | "default";
+    providerRawValue?: string;
     bedrock: {
       region: string;
       modelId: string;
@@ -218,7 +225,7 @@ export function getConfig(): AppConfig {
       ),
     },
     model: {
-      provider: parseModelProvider(process.env.MODEL_PROVIDER),
+      ...resolveModelProvider(process.env),
       bedrock: {
         region: process.env.BEDROCK_REGION ?? "us-east-1",
         modelId: process.env.BEDROCK_MODEL_ID ?? "us.amazon.nova-2-lite-v1:0",
@@ -350,11 +357,67 @@ export function getConfig(): AppConfig {
   };
 }
 
-function parseModelProvider(
-  value: string | undefined,
+type ModelProviderSource =
+  | "MODEL_PROVIDER"
+  | "VISION_PROVIDER"
+  | "IMAGE_ANALYSIS_PROVIDER"
+  | "ENABLE_IMAGE_ANALYSIS"
+  | "default";
+
+function resolveModelProvider(input: NodeJS.ProcessEnv): {
+  provider: AppConfig["model"]["provider"];
+  providerSource: ModelProviderSource;
+  providerRawValue?: string;
+} {
+  const candidates: Array<
+    [Exclude<ModelProviderSource, "default">, string | undefined]
+  > = [
+    ["MODEL_PROVIDER", input.MODEL_PROVIDER],
+    ["VISION_PROVIDER", input.VISION_PROVIDER],
+    ["IMAGE_ANALYSIS_PROVIDER", input.IMAGE_ANALYSIS_PROVIDER],
+    ["ENABLE_IMAGE_ANALYSIS", input.ENABLE_IMAGE_ANALYSIS],
+  ];
+
+  for (const [providerSource, rawValue] of candidates) {
+    if (rawValue === undefined) {
+      continue;
+    }
+
+    return {
+      provider: parseModelProviderValue(providerSource, rawValue),
+      providerSource,
+      providerRawValue: rawValue,
+    };
+  }
+
+  return {
+    provider: "mock",
+    providerSource: "default",
+  };
+}
+
+function parseModelProviderValue(
+  providerSource: Exclude<ModelProviderSource, "default">,
+  value: string,
 ): AppConfig["model"]["provider"] {
-  if (value === "bedrock") {
+  const normalized = value.trim().toLowerCase();
+
+  if (normalized === "bedrock") {
     return "bedrock";
+  }
+
+  if (normalized === "mock") {
+    return "mock";
+  }
+
+  if (providerSource === "ENABLE_IMAGE_ANALYSIS") {
+    if (["true", "1", "yes", "on"].includes(normalized)) {
+      return "bedrock";
+    }
+
+    if (["false", "0", "no", "off"].includes(normalized)) {
+      return "mock";
+    }
   }
 
   return "mock";

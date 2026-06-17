@@ -8,6 +8,10 @@ describe("config aliases", () => {
     actionRunProgress: process.env.ACTION_RUN_PROGRESS_MESSAGE_LIMIT,
     actionRunWorker: process.env.ACTION_RUN_WORKER_FUNCTION_NAME,
     actionRunHeader: process.env.ACTION_RUN_OWNER_TOKEN_HEADER_NAME,
+    modelProvider: process.env.MODEL_PROVIDER,
+    visionProvider: process.env.VISION_PROVIDER,
+    imageAnalysisProvider: process.env.IMAGE_ANALYSIS_PROVIDER,
+    enableImageAnalysis: process.env.ENABLE_IMAGE_ANALYSIS,
     chatJobTtl: process.env.CHAT_JOB_TTL_SECONDS,
     chatJobLease: process.env.CHAT_JOB_LEASE_SECONDS,
     chatJobProgress: process.env.CHAT_JOB_PROGRESS_MESSAGE_LIMIT,
@@ -25,6 +29,10 @@ describe("config aliases", () => {
     );
     restoreEnv("ACTION_RUN_WORKER_FUNCTION_NAME", originals.actionRunWorker);
     restoreEnv("ACTION_RUN_OWNER_TOKEN_HEADER_NAME", originals.actionRunHeader);
+    restoreEnv("MODEL_PROVIDER", originals.modelProvider);
+    restoreEnv("VISION_PROVIDER", originals.visionProvider);
+    restoreEnv("IMAGE_ANALYSIS_PROVIDER", originals.imageAnalysisProvider);
+    restoreEnv("ENABLE_IMAGE_ANALYSIS", originals.enableImageAnalysis);
     restoreEnv("CHAT_JOB_TTL_SECONDS", originals.chatJobTtl);
     restoreEnv("CHAT_JOB_LEASE_SECONDS", originals.chatJobLease);
     restoreEnv("CHAT_JOB_PROGRESS_MESSAGE_LIMIT", originals.chatJobProgress);
@@ -72,6 +80,36 @@ describe("config aliases", () => {
     const config = getConfig();
 
     expect(config.prAgent.useStrandsAgent).toBe(true);
+  });
+
+  it("resolves the model provider from alias env vars when MODEL_PROVIDER is absent", () => {
+    delete process.env.MODEL_PROVIDER;
+    delete process.env.VISION_PROVIDER;
+    delete process.env.IMAGE_ANALYSIS_PROVIDER;
+    delete process.env.ENABLE_IMAGE_ANALYSIS;
+
+    process.env.VISION_PROVIDER = "bedrock";
+
+    const config = getConfig();
+
+    expect(config.model.provider).toBe("bedrock");
+    expect(config.model.providerSource).toBe("VISION_PROVIDER");
+    expect(config.model.providerRawValue).toBe("bedrock");
+  });
+
+  it("treats ENABLE_IMAGE_ANALYSIS=true as a bedrock enablement signal", () => {
+    delete process.env.MODEL_PROVIDER;
+    delete process.env.VISION_PROVIDER;
+    delete process.env.IMAGE_ANALYSIS_PROVIDER;
+    delete process.env.ENABLE_IMAGE_ANALYSIS;
+
+    process.env.ENABLE_IMAGE_ANALYSIS = "true";
+
+    const config = getConfig();
+
+    expect(config.model.provider).toBe("bedrock");
+    expect(config.model.providerSource).toBe("ENABLE_IMAGE_ANALYSIS");
+    expect(config.model.providerRawValue).toBe("true");
   });
 });
 

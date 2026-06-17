@@ -23,7 +23,10 @@ The template intentionally does not output API Gateway URLs, CloudFront domains,
 ### Key Lambda Environment Variables
 
 - `TABLEAU_CONTEXT_PROVIDER`: `mock`, `direct-api`, or `mcp`
-- `MODEL_PROVIDER`: `mock` or `bedrock`
+- `MODEL_PROVIDER`: canonical model provider switch, `mock` or `bedrock`
+- `VISION_PROVIDER`: vision compatibility alias, `mock` or `bedrock`
+- `IMAGE_ANALYSIS_PROVIDER`: additional image-analysis compatibility alias, `mock` or `bedrock`
+- `ENABLE_IMAGE_ANALYSIS`: legacy boolean alias, `true` or `false`
 - `BEDROCK_REGION`: default `us-east-1`
 - `BEDROCK_MODEL_ID`: default `us.amazon.nova-2-lite-v1:0`
 - `BEDROCK_FOUNDATION_MODEL_ID`: default `amazon.nova-2-lite-v1:0`
@@ -58,6 +61,9 @@ The template intentionally does not output API Gateway URLs, CloudFront domains,
 
 - `TABLEAU_CONTEXT_PROVIDER`: `mock`, `direct-api`, `mcp`
 - `MODEL_PROVIDER`: `mock`, `bedrock`
+- `VISION_PROVIDER`: `mock`, `bedrock`
+- `IMAGE_ANALYSIS_PROVIDER`: `mock`, `bedrock`
+- `ENABLE_IMAGE_ANALYSIS`: `true`, `false`
 - `BEDROCK_REGION`: default `us-east-1`
 - `BEDROCK_MODEL_ID`: default `us.amazon.nova-2-lite-v1:0`
 - `BEDROCK_FOUNDATION_MODEL_ID`: default `amazon.nova-2-lite-v1:0`

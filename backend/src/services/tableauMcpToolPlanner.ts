@@ -192,7 +192,12 @@ export class TableauMcpToolPlanner {
 
     if (config.model.provider !== "bedrock") {
       logWarn("tableau.mcp.tool_planner.skipped", {
-        reason: "MODEL_PROVIDER is not bedrock.",
+        reason: "model provider is not bedrock.",
+        modelProvider: config.model.provider,
+        modelProviderSource: config.model.providerSource,
+        modelProviderRawValue: config.model.providerRawValue,
+        missingEnvVars:
+          config.model.providerSource === "default" ? ["MODEL_PROVIDER"] : [],
       });
       return undefined;
     }

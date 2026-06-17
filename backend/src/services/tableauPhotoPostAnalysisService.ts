@@ -964,6 +964,7 @@ async function buildPhotoContext(
   skippedReason?: string;
 }> {
   const photo = request.clientContext?.photo;
+  const visionProvider = buildVisionProviderDiagnostics();
   if (!photo || photo.mode === "none") {
     return {
       photoContext: buildHeuristicPhotoContext(request, "missing_image", {
@@ -977,6 +978,7 @@ async function buildPhotoContext(
   logInfo("tableau.photo_post.inputImageFetchStarted", {
     inputImageObjectKeyPresent: Boolean(photo.objectKey),
     inputImageObjectKey: photo.objectKey ?? undefined,
+    inputImageObjectKeyExtension: getImageFileExtension(photo.objectKey),
     inputImageContentType: photo.contentType ?? photo.mimeType ?? undefined,
     inputImageBytes: photo.byteLength ?? undefined,
     inputImageWidth: photo.width ?? undefined,
@@ -985,7 +987,10 @@ async function buildPhotoContext(
 
   if (!photo.objectKey?.trim()) {
     logInfo("tableau.photo_post.imageAnalysisCompleted", {
-      imageAnalysisProvider: "bedrock",
+      imageAnalysisProvider: visionProvider.provider,
+      imageAnalysisProviderEnabled: visionProvider.enabled,
+      imageAnalysisProviderSource: visionProvider.providerSource,
+      imageAnalysisProviderMissingEnvVars: visionProvider.missingEnvVars,
       imageAnalysisModel: getConfig().model.bedrock.modelId,
       imageAnalysisSuccess: false,
       photoContextSource: "missing_image",
@@ -1009,7 +1014,9 @@ async function buildPhotoContext(
     });
   } catch (error) {
     logInfo("tableau.photo_post.imageAnalysisCompleted", {
-      imageAnalysisProvider: "bedrock",
+      imageAnalysisProvider: visionProvider.provider,
+      imageAnalysisProviderEnabled: visionProvider.enabled,
+      imageAnalysisProviderSource: visionProvider.providerSource,
       imageAnalysisModel: getConfig().model.bedrock.modelId,
       imageAnalysisSuccess: false,
       photoContextSource: "image_fetch_failed",
@@ -1040,12 +1047,20 @@ async function buildPhotoContext(
       inputImageObjectKeyPresent: true,
       inputImageBytes: resolvedImage.byteLength,
       inputImageContentType: resolvedImage.contentType,
+      inputImageObjectKeyExtension: getImageFileExtension(photo.objectKey),
+      inputImageContentTypeMatchesObjectKey:
+        isImageContentTypeCompatibleWithObjectKey({
+          objectKey: photo.objectKey,
+          contentType: resolvedImage.contentType,
+        }),
       inputImageWidth: photo.width ?? undefined,
       inputImageHeight: photo.height ?? undefined,
     });
   } else {
     logInfo("tableau.photo_post.imageAnalysisCompleted", {
-      imageAnalysisProvider: "bedrock",
+      imageAnalysisProvider: visionProvider.provider,
+      imageAnalysisProviderEnabled: visionProvider.enabled,
+      imageAnalysisProviderSource: visionProvider.providerSource,
       imageAnalysisModel: getConfig().model.bedrock.modelId,
       imageAnalysisSuccess: false,
       photoContextSource: "image_fetch_failed",
@@ -1071,7 +1086,9 @@ async function buildPhotoContext(
 
   if (!imageBytes || !imageContentType) {
     logInfo("tableau.photo_post.imageAnalysisCompleted", {
-      imageAnalysisProvider: "bedrock",
+      imageAnalysisProvider: visionProvider.provider,
+      imageAnalysisProviderEnabled: visionProvider.enabled,
+      imageAnalysisProviderSource: visionProvider.providerSource,
       imageAnalysisModel: getConfig().model.bedrock.modelId,
       imageAnalysisSuccess: false,
       photoContextSource: "image_fetch_failed",
@@ -1086,12 +1103,36 @@ async function buildPhotoContext(
     };
   }
 
+  const inputImageContentTypeMatchesObjectKey =
+    isImageContentTypeCompatibleWithObjectKey({
+      objectKey: photo.objectKey,
+      contentType: imageContentType,
+    });
+  if (inputImageContentTypeMatchesObjectKey === false) {
+    logWarn("tableau.photo_post.inputImageFormatMismatch", {
+      inputImageObjectKeyPresent: true,
+      inputImageObjectKey: photo.objectKey,
+      inputImageObjectKeyExtension: getImageFileExtension(photo.objectKey),
+      inputImageContentType: imageContentType,
+      inputImageBytes: imageBytes.length,
+      inputImageWidth: photo.width ?? undefined,
+      inputImageHeight: photo.height ?? undefined,
+      reason:
+        "object key extension does not match contentType; Bedrock will use contentType",
+    });
+  }
+
   logInfo("tableau.photo_post.imageAnalysisStarted", {
-    imageAnalysisProvider: "bedrock",
+    imageAnalysisProvider: visionProvider.provider,
+    imageAnalysisProviderEnabled: visionProvider.enabled,
+    imageAnalysisProviderSource: visionProvider.providerSource,
+    imageAnalysisProviderMissingEnvVars: visionProvider.missingEnvVars,
     imageAnalysisModel: getConfig().model.bedrock.modelId,
     inputImageBytes: imageBytes.length,
     inputImageContentType: imageContentType,
     inputImageObjectKeyPresent: Boolean(photo.objectKey),
+    inputImageObjectKeyExtension: getImageFileExtension(photo.objectKey),
+    inputImageContentTypeMatchesObjectKey,
     inputImageWidth: photo.width ?? undefined,
     inputImageHeight: photo.height ?? undefined,
   });
@@ -1105,7 +1146,9 @@ async function buildPhotoContext(
 
   if (vision.status === "failed") {
     logInfo("tableau.photo_post.imageAnalysisCompleted", {
-      imageAnalysisProvider: "bedrock",
+      imageAnalysisProvider: visionProvider.provider,
+      imageAnalysisProviderEnabled: visionProvider.enabled,
+      imageAnalysisProviderSource: visionProvider.providerSource,
       imageAnalysisModel: getConfig().model.bedrock.modelId,
       imageAnalysisSuccess: false,
       photoContextSource: vision.source,
@@ -1122,7 +1165,9 @@ async function buildPhotoContext(
 
   if (vision.status === "no_usable_output") {
     logInfo("tableau.photo_post.imageAnalysisCompleted", {
-      imageAnalysisProvider: "bedrock",
+      imageAnalysisProvider: visionProvider.provider,
+      imageAnalysisProviderEnabled: visionProvider.enabled,
+      imageAnalysisProviderSource: visionProvider.providerSource,
       imageAnalysisModel: getConfig().model.bedrock.modelId,
       imageAnalysisSuccess: false,
       photoContextSource: vision.source,
@@ -1149,7 +1194,9 @@ async function buildPhotoContext(
   ]).slice(0, 6);
 
   logInfo("tableau.photo_post.imageAnalysisCompleted", {
-    imageAnalysisProvider: "bedrock",
+    imageAnalysisProvider: visionProvider.provider,
+    imageAnalysisProviderEnabled: visionProvider.enabled,
+    imageAnalysisProviderSource: visionProvider.providerSource,
     imageAnalysisModel: getConfig().model.bedrock.modelId,
     imageAnalysisSuccess: true,
     photoContextSource: "actual_image",
@@ -1523,22 +1570,99 @@ function parseDataUrl(
   };
 }
 
-function createPhotoVisionAnalyzer(): PhotoVisionAnalyzer {
+type VisionProviderSource =
+  | "MODEL_PROVIDER"
+  | "VISION_PROVIDER"
+  | "IMAGE_ANALYSIS_PROVIDER"
+  | "ENABLE_IMAGE_ANALYSIS"
+  | "default";
+
+function buildVisionProviderDiagnostics(): {
+  provider: "mock" | "bedrock";
+  providerSource: VisionProviderSource;
+  providerRawValue?: string;
+  enabled: boolean;
+  disabledReason?: string;
+  missingEnvVars: string[];
+  configuredEnvVars: Record<
+    | "MODEL_PROVIDER"
+    | "VISION_PROVIDER"
+    | "IMAGE_ANALYSIS_PROVIDER"
+    | "ENABLE_IMAGE_ANALYSIS",
+    string | undefined
+  >;
+} {
   const config = getConfig();
-  if (config.model.provider !== "bedrock") {
+  const configuredEnvVars = {
+    MODEL_PROVIDER: process.env.MODEL_PROVIDER,
+    VISION_PROVIDER: process.env.VISION_PROVIDER,
+    IMAGE_ANALYSIS_PROVIDER: process.env.IMAGE_ANALYSIS_PROVIDER,
+    ENABLE_IMAGE_ANALYSIS: process.env.ENABLE_IMAGE_ANALYSIS,
+  };
+  const missingEnvVars: string[] = [];
+  if (config.model.providerSource === "default") {
+    missingEnvVars.push("MODEL_PROVIDER");
+  }
+
+  const enabled = config.model.provider === "bedrock";
+  const disabledReason = enabled
+    ? undefined
+    : config.model.providerSource === "default"
+      ? "MODEL_PROVIDER is not configured"
+      : `${config.model.providerSource}=${config.model.providerRawValue ?? "(empty)"}`;
+
+  return {
+    provider: config.model.provider,
+    providerSource: config.model.providerSource,
+    providerRawValue: config.model.providerRawValue,
+    enabled,
+    disabledReason,
+    missingEnvVars,
+    configuredEnvVars,
+  };
+}
+
+function getImageFileExtension(objectKey?: string): string | undefined {
+  const fileName = objectKey?.split("/").pop();
+  if (!fileName) {
+    return undefined;
+  }
+
+  const match = fileName.match(/\.([A-Za-z0-9]+)$/);
+  return match?.[1]?.trim().toLowerCase() || undefined;
+}
+
+function isImageContentTypeCompatibleWithObjectKey(input: {
+  objectKey?: string;
+  contentType?: string;
+}): boolean | undefined {
+  const extension = getImageFileExtension(input.objectKey);
+  const format = resolveBedrockImageFormat(input.contentType);
+  if (!extension || !format) {
+    return undefined;
+  }
+
+  const expectedExtensions = format === "jpeg" ? ["jpg", "jpeg"] : [format];
+  return expectedExtensions.includes(extension);
+}
+
+function createPhotoVisionAnalyzer(): PhotoVisionAnalyzer {
+  const visionProvider = buildVisionProviderDiagnostics();
+  if (!visionProvider.enabled) {
     return {
       async analyze() {
         return {
           status: "failed",
           source: "vision_analysis_failed",
-          skippedReason: "vision provider is not enabled",
+          skippedReason:
+            visionProvider.disabledReason ?? "vision provider is not enabled",
         };
       },
     };
   }
 
   const client = new BedrockRuntimeClient({
-    region: config.model.bedrock.region,
+    region: getConfig().model.bedrock.region,
   });
 
   return {
@@ -1548,6 +1672,7 @@ function createPhotoVisionAnalyzer(): PhotoVisionAnalyzer {
       contentType?: string;
       bytes: Uint8Array;
     }): Promise<PhotoVisionAnalysisOutcome> {
+      const config = getConfig();
       const format = resolveBedrockImageFormat(input.contentType);
       if (!format) {
         return {
@@ -1586,7 +1711,15 @@ function createPhotoVisionAnalyzer(): PhotoVisionAnalyzer {
       };
 
       logInfo("tableau.photo_post.visionRequestBuilt", {
-        visionProvider: "bedrock",
+        visionProvider: visionProvider.provider,
+        visionProviderEnabled: visionProvider.enabled,
+        visionProviderSource: visionProvider.providerSource,
+        visionProviderMissingEnvVars: visionProvider.missingEnvVars,
+        visionProviderConfiguredEnvVars: Object.fromEntries(
+          Object.entries(visionProvider.configuredEnvVars).map(
+            ([key, value]) => [key, Boolean(value?.trim())],
+          ),
+        ),
         visionModel: config.model.bedrock.modelId,
         visionInputImageIncluded: true,
         visionInputImageBytes: input.bytes.length,
@@ -1600,7 +1733,9 @@ function createPhotoVisionAnalyzer(): PhotoVisionAnalyzer {
         const text = extractVisionResponseText(response);
         const preview = buildVisionRawOutputPreview(text);
         logInfo("tableau.photo_post.visionResponseReceived", {
-          visionProvider: "bedrock",
+          visionProvider: visionProvider.provider,
+          visionProviderEnabled: visionProvider.enabled,
+          visionProviderSource: visionProvider.providerSource,
           visionModel: config.model.bedrock.modelId,
           visionResponseTextPresent: Boolean(text),
           visionResponseTextLength: text.length,
@@ -1689,7 +1824,9 @@ function createPhotoVisionAnalyzer(): PhotoVisionAnalyzer {
         logWarn("tableau.photo_post.vision_failed", {
           failedInsightReason: errorDetails,
           fileName: input.fileName,
-          visionProvider: "bedrock",
+          visionProvider: visionProvider.provider,
+          visionProviderEnabled: visionProvider.enabled,
+          visionProviderSource: visionProvider.providerSource,
           visionModel: config.model.bedrock.modelId,
         });
         return {

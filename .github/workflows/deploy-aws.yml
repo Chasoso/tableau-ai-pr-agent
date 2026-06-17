@@ -144,6 +144,9 @@ jobs:
       TABLEAU_MCP_TOOL_PLANNING_ENABLED: ${{ vars.TABLEAU_MCP_TOOL_PLANNING_ENABLED || 'false' }}
       TABLEAU_MCP_PLANNER_MAX_OUTPUT_TOKENS: ${{ vars.TABLEAU_MCP_PLANNER_MAX_OUTPUT_TOKENS || '600' }}
       MODEL_PROVIDER: ${{ vars.MODEL_PROVIDER || 'mock' }}
+      VISION_PROVIDER: ${{ vars.VISION_PROVIDER || vars.MODEL_PROVIDER || 'mock' }}
+      IMAGE_ANALYSIS_PROVIDER: ${{ vars.IMAGE_ANALYSIS_PROVIDER || vars.VISION_PROVIDER || vars.MODEL_PROVIDER || 'mock' }}
+      ENABLE_IMAGE_ANALYSIS: ${{ vars.ENABLE_IMAGE_ANALYSIS || ((vars.MODEL_PROVIDER == 'bedrock' || vars.VISION_PROVIDER == 'bedrock' || vars.IMAGE_ANALYSIS_PROVIDER == 'bedrock') && 'true' || 'false') }}
       BEDROCK_REGION: ${{ vars.BEDROCK_REGION || 'us-east-1' }}
       BEDROCK_MODEL_ID: ${{ vars.BEDROCK_MODEL_ID || 'us.amazon.nova-2-lite-v1:0' }}
       BEDROCK_FOUNDATION_MODEL_ID: ${{ vars.BEDROCK_FOUNDATION_MODEL_ID || 'amazon.nova-2-lite-v1:0' }}
@@ -225,6 +228,9 @@ jobs:
             "$TABLEAU_MCP_TOOL_PLANNING_ENABLED" \
             "$TABLEAU_MCP_PLANNER_MAX_OUTPUT_TOKENS" \
             "$MODEL_PROVIDER" \
+            "$VISION_PROVIDER" \
+            "$IMAGE_ANALYSIS_PROVIDER" \
+            "$ENABLE_IMAGE_ANALYSIS" \
             "$BEDROCK_REGION" \
             "$BEDROCK_MODEL_ID" \
             "$BEDROCK_FOUNDATION_MODEL_ID" \
@@ -462,6 +468,9 @@ jobs:
               TableauMcpToolPlanningEnabled="$TABLEAU_MCP_TOOL_PLANNING_ENABLED" \
               TableauMcpPlannerMaxOutputTokens="$TABLEAU_MCP_PLANNER_MAX_OUTPUT_TOKENS" \
               ModelProvider="$MODEL_PROVIDER" \
+              VisionProvider="$VISION_PROVIDER" \
+              ImageAnalysisProvider="$IMAGE_ANALYSIS_PROVIDER" \
+              EnableImageAnalysis="$ENABLE_IMAGE_ANALYSIS" \
               BedrockRegion="$BEDROCK_REGION" \
               BedrockModelId="$BEDROCK_MODEL_ID" \
               BedrockFoundationModelId="$BEDROCK_FOUNDATION_MODEL_ID" \
