@@ -72,22 +72,29 @@ test.describe("PR投稿エージェント", () => {
     ).toBeVisible();
 
     await expect(
-      page.getByText("過去投稿の傾向をもとに作成しました"),
+      page.getByRole("heading", { name: "生成済み投稿案" }),
     ).toBeVisible();
-    await expect(page.locator(".pr-post-agent-draft-summary")).toContainText(
-      "開催中投稿では短文 + 写真つきが多いです。",
-    );
+    await expect(page.locator(".suggestion-card")).toHaveCount(3);
+    await expect(page.getByText("詳細を見る")).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "Slackに投稿" }),
+      page.locator(".suggestion-card").first().getByText("venue.jpg"),
     ).toBeVisible();
-    await expect(page.getByRole("button", { name: "Xに投稿" })).toBeVisible();
+    await expect(page.locator(".suggestion-carousel")).toBeVisible();
 
-    await page.getByRole("button", { name: "Slackに投稿" }).click();
-    await expect(page.getByRole("dialog")).toBeVisible();
-    await page
-      .getByRole("dialog")
-      .getByRole("button", { name: "Slackに投稿" })
-      .click();
+    const firstSuggestion = page.locator(".suggestion-card").first();
+    await expect(firstSuggestion.getByRole("button", { name: "この案を採用" })).toBeVisible();
+
+    await firstSuggestion.getByRole("button", { name: "この案を採用" }).click();
+    await expect(
+      page.getByRole("dialog", { name: "Slack投稿の承認" }),
+    ).toBeVisible();
+    await expect(
+      page
+        .getByRole("dialog", { name: "Slack投稿の承認" })
+        .locator(".pr-post-agent-modal-destination"),
+    ).toContainText("Slack Incoming Webhook");
+
+    await page.getByRole("dialog").getByRole("button", { name: "Slackに投稿" }).click();
 
     await expect(page.locator(".pr-post-agent-posted").first()).toContainText(
       "Slackに投稿しました。",
