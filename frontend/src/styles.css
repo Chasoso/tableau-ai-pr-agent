@@ -126,7 +126,7 @@ a {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 20px 18px 136px;
+  padding: 20px 18px 180px;
   background: linear-gradient(180deg, #ffffff 0%, #f4f5f7 100%);
   color: #24282d;
   overflow-x: hidden;
@@ -353,12 +353,48 @@ a {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
   list-style: none;
+  cursor: pointer;
+  color: #4a525c;
+  font-size: 12px;
+  line-height: 1.25;
 }
 
 .pr-post-agent-upload-card summary::-webkit-details-marker {
   display: none;
+}
+
+.pr-post-agent-upload-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  width: 100%;
+}
+
+.pr-post-agent-upload-summary-leading {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pr-post-agent-upload-summary-chevron {
+  flex: 0 0 auto;
+  color: #8a929b;
+  font-size: 14px;
+  line-height: 1;
+  transform: translateY(-1px);
+}
+
+.pr-post-agent-upload-summary-action {
+  flex: 0 0 auto;
+  color: #7d8590;
+  font-size: 11px;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
 }
 
 .pr-post-agent-link-button {
@@ -369,23 +405,34 @@ a {
 
 .pr-post-agent-upload-preview {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding-top: 8px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 10px;
+  min-width: 0;
 }
 
 .pr-post-agent-upload-preview img,
 .pr-post-agent-draft-thumb img {
-  width: 88px;
-  height: 88px;
-  border-radius: 14px;
+  width: 132px;
+  height: 132px;
+  border-radius: 12px;
   object-fit: cover;
   border: 1px solid #d8dde3;
+  flex: 0 0 auto;
 }
 
 .pr-post-agent-upload-preview div {
   display: grid;
   gap: 4px;
+  min-width: 0;
+}
+
+.pr-post-agent-upload-preview-meta {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .pr-post-agent-status strong {
@@ -658,6 +705,49 @@ a {
 
 .pr-post-agent-modal-actions .pr-post-agent-primary-button {
   background: var(--pr-dark-gray);
+}
+
+.pr-post-agent-approval-bar {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: 88px;
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid #d8dde3;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 18px 40px rgba(31, 35, 41, 0.12);
+  z-index: 40;
+  max-width: 760px;
+  margin: 0 auto;
+  overflow: hidden;
+}
+
+.pr-post-agent-approval-bar-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.pr-post-agent-approval-bar-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1f242a;
+}
+
+.pr-post-agent-approval-bar-text {
+  margin: 0;
+  font-size: 12px;
+  color: #5e6670;
+}
+
+.pr-post-agent-approval-bar-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 .pr-post-agent-suggestions,
@@ -949,7 +1039,7 @@ a {
 
 @media (max-width: 720px) {
   .pr-post-agent-shell {
-    padding: 16px 12px 148px;
+    padding: 16px 12px 220px;
   }
 
   .pr-post-agent-header {
@@ -975,6 +1065,36 @@ a {
 
   .pr-post-agent-inline-form-row {
     flex-direction: column;
+  }
+
+  .pr-post-agent-upload-card summary {
+    font-size: 11px;
+  }
+
+  .pr-post-agent-upload-summary-action {
+    font-size: 10px;
+  }
+
+  .pr-post-agent-upload-preview img,
+  .pr-post-agent-draft-thumb img {
+    width: 108px;
+    height: 108px;
+  }
+
+  .pr-post-agent-approval-bar {
+    left: 12px;
+    right: 12px;
+    bottom: 140px;
+    padding: 12px 14px;
+  }
+
+  .pr-post-agent-approval-bar-actions {
+    justify-content: stretch;
+  }
+
+  .pr-post-agent-approval-bar-actions .pr-post-agent-secondary-button,
+  .pr-post-agent-approval-bar-actions .pr-post-agent-primary-button {
+    flex: 1 1 0;
   }
 
   .pr-post-agent-footer {

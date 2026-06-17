@@ -150,6 +150,8 @@ export default function PrPostAgentPanel({
     useState<GeneratedPrPostDraft | null>(null);
   const [selectedSuggestion, setSelectedSuggestion] =
     useState<SelectedSuggestion | null>(null);
+  const [approvedSuggestion, setApprovedSuggestion] =
+    useState<SelectedSuggestion | null>(null);
   const [isApprovalOpen, setIsApprovalOpen] = useState(false);
   const [slackPostStatus, setSlackPostStatus] = useState<
     "idle" | "posting" | "posted" | "failed"
@@ -191,6 +193,10 @@ export default function PrPostAgentPanel({
       analysisResult?.result.generatedPostSuggestion,
     ],
   );
+  const activeSuggestion = selectedSuggestion ?? approvedSuggestion;
+  const visiblePostSuggestions = activeSuggestion
+    ? [activeSuggestion.suggestion]
+    : generatedPostSuggestions;
   const attachedImagePreviewUrl =
     analysisResult?.result.attachedImage?.url ??
     uploadedImage?.objectUrl ??
@@ -200,7 +206,7 @@ export default function PrPostAgentPanel({
     uploadedImage?.fileName ??
     analysisResult?.result.attachedImage?.objectKey?.split("/").pop() ??
     "添付予定画像";
-  const selectedSuggestionId = selectedSuggestion?.id ?? null;
+  const visibleSelectedSuggestionId = activeSuggestion ? "suggestion-0" : null;
   const isSlackPosting = slackPostStatus === "posting";
 
   const canGenerate = useMemo(() => {
@@ -680,6 +686,7 @@ export default function PrPostAgentPanel({
     setGenerationStatus("idle");
     setGeneratedDraft(null);
     setSelectedSuggestion(null);
+    setApprovedSuggestion(null);
     setIsApprovalOpen(false);
     setSlackPostStatus("idle");
     setSlackPostError(null);
@@ -818,19 +825,6 @@ export default function PrPostAgentPanel({
           image: nextImage,
         });
       }
-      setMessages((current) => [
-        ...current,
-        {
-          id: crypto.randomUUID(),
-          role: "user",
-          lines: ["画像を選択しました。"],
-        },
-        {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          lines: ["画像をアップロードしました。"],
-        },
-      ]);
     } catch (uploadError) {
       setError(
         uploadError instanceof Error
@@ -1091,6 +1085,7 @@ export default function PrPostAgentPanel({
       index: input.index,
       suggestion: input.suggestion,
     });
+    setApprovedSuggestion(null);
     setSlackPostError(null);
     setSlackPostStatus("idle");
     setIsApprovalOpen(true);
@@ -1112,6 +1107,7 @@ export default function PrPostAgentPanel({
 
     setIsApprovalOpen(false);
     setSelectedSuggestion(null);
+    setApprovedSuggestion(null);
     setSlackPostError(null);
     setSlackPostStatus("idle");
   }
@@ -1158,6 +1154,7 @@ export default function PrPostAgentPanel({
         },
       ]);
       setIsApprovalOpen(false);
+      setApprovedSuggestion(selectedSuggestion);
       setSelectedSuggestion(null);
     } catch (postError) {
       const message =
@@ -1332,27 +1329,34 @@ export default function PrPostAgentPanel({
                 setImagePreviewExpanded(event.currentTarget.open)
               }
             >
-              <summary>
-                <span>画像をアップロードしました。</span>
-                <button type="button" className="pr-post-agent-link-button">
+              <summary className="pr-post-agent-upload-summary">
+                <span className="pr-post-agent-upload-summary-leading">
+                  <span className="pr-post-agent-upload-summary-chevron">
+                    {imagePreviewExpanded ? "⌃" : "⌄"}
+                  </span>
+                  <span>画像をアップロードしました。</span>
+                </span>
+                <span className="pr-post-agent-upload-summary-action">
                   {imagePreviewExpanded
                     ? "プレビューを非表示"
                     : "プレビューを表示"}
-                </button>
+                </span>
               </summary>
-              <div className="pr-post-agent-upload-preview">
-                <img
-                  src={uploadedImage.objectUrl}
-                  alt={uploadedImage.fileName}
-                />
-                <div>
-                  <strong>{uploadedImage.fileName}</strong>
-                  <span>{uploadedImage.sizeLabel}</span>
-                  {uploadedImage.analysisCompressionLabel ? (
-                    <span>{uploadedImage.analysisCompressionLabel}</span>
-                  ) : null}
+              {imagePreviewExpanded ? (
+                <div className="pr-post-agent-upload-preview">
+                  <img
+                    src={uploadedImage.objectUrl}
+                    alt={uploadedImage.fileName}
+                  />
+                  <div className="pr-post-agent-upload-preview-meta">
+                    <strong>{uploadedImage.fileName}</strong>
+                    <span>{uploadedImage.sizeLabel}</span>
+                    {uploadedImage.analysisCompressionLabel ? (
+                      <span>{uploadedImage.analysisCompressionLabel}</span>
+                    ) : null}
+                  </div>
                 </div>
-              </div>
+              ) : null}
             </details>
           </ChatBubble>
         ) : null}
@@ -1360,7 +1364,7 @@ export default function PrPostAgentPanel({
         {generatedPostSuggestions.length ? (
           <ChatBubble role="assistant">
             <GeneratedPostSuggestionsPanel
-              suggestions={generatedPostSuggestions}
+              suggestions={visiblePostSuggestions}
               primaryOutputType={analysisResult?.result.primaryOutputType}
               attachedImage={
                 attachedImagePreviewUrl
@@ -1373,8 +1377,8 @@ export default function PrPostAgentPanel({
               }
               evidencePack={analysisResult?.result.evidencePack}
               analysisSections={analysisResult?.result.analysisSections}
-              selectedSuggestionId={selectedSuggestionId}
-              isPosting={isSlackPosting}
+              selectedSuggestionId={visibleSelectedSuggestionId}
+              isPosting={isSlackPosting || Boolean(activeSuggestion)}
               onSelectSuggestion={handleSuggestionSelect}
             />
           </ChatBubble>
@@ -1546,83 +1550,46 @@ export default function PrPostAgentPanel({
       />
 
       {isApprovalOpen && selectedSuggestion ? (
-        <div className="pr-post-agent-modal-backdrop" role="presentation">
-          <section
-            className="pr-post-agent-modal"
-            aria-label="Slack投稿の承認"
-            role="dialog"
-            aria-modal="true"
-          >
-            <div className="pr-post-agent-modal-head">
-              <p className="pr-post-agent-draft-eyebrow">
-                Slackへの投稿がリクエストされました
-              </p>
-              <h2>上記の内容で投稿しますか？</h2>
-              <p className="pr-post-agent-modal-destination">
-                投稿先: Slack Incoming Webhook
-              </p>
+        <section
+          className="pr-post-agent-approval-bar"
+          aria-label="Slack投稿の承認"
+          role="dialog"
+          aria-modal="false"
+        >
+          <div className="pr-post-agent-approval-bar-copy">
+            <p className="pr-post-agent-approval-bar-title">
+              Slackへの投稿がリクエストされました
+            </p>
+            <p className="pr-post-agent-approval-bar-text">
+              この投稿案を Slack Incoming Webhook に送信します。
+            </p>
+          </div>
+
+          <div className="pr-post-agent-approval-bar-actions">
+            <button
+              type="button"
+              className="pr-post-agent-secondary-button"
+              disabled={isSlackPosting}
+              onClick={handleApprovalCancel}
+            >
+              キャンセル
+            </button>
+            <button
+              type="button"
+              className="pr-post-agent-primary-button"
+              disabled={isSlackPosting}
+              onClick={() => void handleSlackApprovalSubmit()}
+            >
+              {isSlackPosting ? "投稿中..." : "Slackに投稿"}
+            </button>
+          </div>
+
+          {slackPostError ? (
+            <div className="pr-post-agent-error" role="alert">
+              {slackPostError}
             </div>
-
-            <div className="pr-post-agent-modal-body">
-              <section className="pr-post-agent-modal-copy">
-                <h3>採用した投稿文</h3>
-                <pre className="pr-post-agent-modal-preview long-text">
-                  {selectedSuggestion.suggestion.text}
-                </pre>
-              </section>
-
-              {attachedImagePreviewUrl ? (
-                <figure className="pr-post-agent-modal-image">
-                  <img
-                    src={attachedImagePreviewUrl}
-                    alt={attachedImagePreviewLabel}
-                  />
-                  <figcaption className="long-text">
-                    {attachedImagePreviewLabel}
-                  </figcaption>
-                </figure>
-              ) : null}
-
-              <section className="pr-post-agent-modal-copy">
-                <h3>確認情報</h3>
-                <ul className="pr-post-agent-modal-meta">
-                  <li>投稿案: {selectedSuggestion.index + 1}</li>
-                  <li>投稿先: Slack Incoming Webhook</li>
-                  {selectedSuggestion.suggestion.rationale ? (
-                    <li className="long-text">
-                      根拠: {selectedSuggestion.suggestion.rationale}
-                    </li>
-                  ) : null}
-                </ul>
-              </section>
-            </div>
-
-            {slackPostError ? (
-              <div className="pr-post-agent-error" role="alert">
-                {slackPostError}
-              </div>
-            ) : null}
-
-            <div className="pr-post-agent-modal-actions">
-              <button
-                type="button"
-                className="pr-post-agent-secondary-button"
-                disabled={isSlackPosting}
-                onClick={handleApprovalCancel}
-              >
-                キャンセル
-              </button>
-              <button
-                type="button"
-                className="pr-post-agent-primary-button"
-                disabled={isSlackPosting}
-                onClick={() => void handleSlackApprovalSubmit()}
-              >
-                {isSlackPosting ? "投稿中..." : "Slackに投稿"}
-              </button>
-            </div>
-          </section>
-        </div>
+          ) : null}
+        </section>
       ) : null}
     </section>
   );

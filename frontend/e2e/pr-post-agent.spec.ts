@@ -45,10 +45,10 @@ test.describe("PR post agent", () => {
       .click();
     const dialog = page.getByRole("dialog", { name: "Slack投稿の承認" });
     await expect(dialog).toBeVisible();
+    await expect(page.locator(".suggestion-card")).toHaveCount(1);
     await expect(
       dialog.getByText("Slackへの投稿がリクエストされました"),
     ).toBeVisible();
-    await expect(dialog.getByRole("img")).toBeVisible();
     await expect(
       dialog.getByRole("button", { name: "Slackに投稿" }),
     ).toBeEnabled();
@@ -96,6 +96,7 @@ test.describe("PR post agent", () => {
     await expect(
       page.getByRole("dialog", { name: "Slack投稿の承認" }),
     ).toHaveCount(0);
+    await expect(page.locator(".suggestion-card")).toHaveCount(1);
   });
 
   test("keeps the selected suggestion visible when Slack approval fails", async ({
@@ -117,6 +118,7 @@ test.describe("PR post agent", () => {
       .click();
     const dialog = page.getByRole("dialog", { name: "Slack投稿の承認" });
     await expect(dialog).toBeVisible();
+    await expect(page.locator(".suggestion-card")).toHaveCount(1);
 
     await page.unroute("**/api/action-runs/*/approval").catch(() => undefined);
     await page.route("**/api/action-runs/*/approval", async (route) => {
@@ -136,6 +138,6 @@ test.describe("PR post agent", () => {
       "Slack webhook failed.",
     );
     await expect(dialog).toBeVisible();
-    await expect(page.locator(".suggestion-card")).toHaveCount(3);
+    await expect(page.locator(".suggestion-card")).toHaveCount(1);
   });
 });

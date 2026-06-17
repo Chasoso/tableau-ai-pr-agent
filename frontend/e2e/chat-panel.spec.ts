@@ -70,6 +70,9 @@ test.describe("PR投稿エージェント", () => {
         .getByText("画像をアップロードしました。")
         .first(),
     ).toBeVisible();
+    await expect(page.locator(".pr-post-agent-upload-preview")).toHaveCount(0);
+    await page.locator(".pr-post-agent-upload-card summary").click();
+    await expect(page.locator(".pr-post-agent-upload-preview")).toBeVisible();
 
     await expect(
       page.getByRole("heading", { name: "生成済み投稿案" }),
@@ -90,11 +93,8 @@ test.describe("PR投稿エージェント", () => {
     await expect(
       page.getByRole("dialog", { name: "Slack投稿の承認" }),
     ).toBeVisible();
-    await expect(
-      page
-        .getByRole("dialog", { name: "Slack投稿の承認" })
-        .locator(".pr-post-agent-modal-destination"),
-    ).toContainText("Slack Incoming Webhook");
+    await expect(page.locator(".suggestion-card")).toHaveCount(1);
+    await expect(page.locator(".pr-post-agent-approval-bar")).toBeVisible();
 
     await page
       .getByRole("dialog")
@@ -107,5 +107,6 @@ test.describe("PR投稿エージェント", () => {
     await expect(
       page.locator(".pr-post-agent-posted").first().getByRole("link"),
     ).toBeVisible();
+    await expect(page.locator(".suggestion-card")).toHaveCount(1);
   });
 });
