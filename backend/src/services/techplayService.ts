@@ -1,5 +1,5 @@
 import { getConfig } from "../config";
-import { logWarn } from "../logging";
+import { logInfo, logWarn, safeErrorDetails } from "../logging";
 import type { TechPlayPreviewResponse } from "../types/techplay";
 
 export class TechPlayService {
@@ -7,7 +7,14 @@ export class TechPlayService {
     techplayUrl: string;
   }): Promise<TechPlayPreviewResponse> {
     const url = validateTechPlayUrl(input.techplayUrl);
+    logInfo("techplay.preview.started", {
+      techplayUrl: url.toString(),
+      demoMode: getConfig().demoMode,
+    });
     if (getConfig().demoMode) {
+      logInfo("techplay.preview.demo_fallback", {
+        techplayUrl: url.toString(),
+      });
       return buildFallbackPreview(url.toString());
     }
 
@@ -29,6 +36,11 @@ export class TechPlayService {
 
       const html = await response.text();
       const extracted = extractPreviewFromHtml(html);
+      logInfo("techplay.preview.completed", {
+        techplayUrl: url.toString(),
+        extractedFrom: extracted.extractedFrom,
+        eventName: extracted.eventName,
+      });
 
       return {
         techplayUrl: url.toString(),
@@ -43,7 +55,7 @@ export class TechPlayService {
       logWarn("techplay.preview.fallback", {
         techplayUrl: url.toString(),
         reason: "request_failed",
-        errorName: error instanceof Error ? error.name : undefined,
+        ...safeErrorDetails(error),
       });
       return buildFallbackPreview(url.toString());
     }

@@ -1,5 +1,5 @@
 import { getConfig } from "../config";
-import { logDebug, logInfo, logWarn } from "../logging";
+import { logInfo, logWarn, safeErrorDetails } from "../logging";
 import { TechPlayService } from "./techplayService";
 import { GoogleCalendarService } from "./googleCalendarService";
 import {
@@ -43,10 +43,13 @@ export class CalendarService {
       hasVenuePhoto: Boolean(venuePhoto),
       manualTechPlayMode: Boolean(manualTechPlayUrl),
       provider: config.calendar.provider,
+      preferredEventIdPresent: Boolean(preferredEventId),
+      hasDashboardFilters: input.dashboardContext.filters.length > 0,
+      hasDashboardParameters: input.dashboardContext.parameters.length > 0,
     });
 
     const searchWindowLabel = getSearchWindowLabel(input.postType);
-    logDebug("calendar.search.started", {
+    logInfo("calendar.search.started", {
       postType: input.postType,
       searchWindowLabel,
       now: now.toISOString(),
@@ -63,6 +66,10 @@ export class CalendarService {
               authenticatedUser,
             })
           : createMockCalendarEvents(now);
+      logInfo("calendar.search.raw_events_loaded", {
+        provider: config.calendar.provider,
+        rawEventCount: rawEvents.length,
+      });
     } catch (error) {
       const message =
         error instanceof Error
@@ -72,6 +79,7 @@ export class CalendarService {
         postType: input.postType,
         provider: config.calendar.provider,
         message,
+        ...safeErrorDetails(error),
       });
       return this.buildErrorResponse({
         searchWindowLabel,
@@ -91,6 +99,17 @@ export class CalendarService {
       )
       .sort((left, right) => right.score - left.score);
 
+    logInfo("calendar.search.scored", {
+      searchWindowLabel,
+      candidateCount: candidates.length,
+      topCandidates: candidates.slice(0, 5).map((candidate) => ({
+        eventId: candidate.eventId,
+        summary: candidate.summary,
+        score: candidate.score,
+        techplayUrlCount: candidate.techplayUrls.length,
+      })),
+    });
+
     logInfo("calendar.search.completed", {
       candidateCount: candidates.length,
       searchWindowLabel,
@@ -101,6 +120,10 @@ export class CalendarService {
     });
 
     if (candidates.length === 0 && !manualTechPlayUrl) {
+      logInfo("calendar.search.no_candidates", {
+        searchWindowLabel,
+        provider: config.calendar.provider,
+      });
       return this.buildNotFoundResponse({
         searchWindowLabel,
         manualTechPlayUrl,
@@ -112,6 +135,7 @@ export class CalendarService {
       logWarn("calendar.search.no_candidates_manual_fallback", {
         searchWindowLabel,
         techplayUrlHost: safeHostname(manualTechPlayUrl),
+        provider: config.calendar.provider,
       });
     }
 
@@ -121,6 +145,10 @@ export class CalendarService {
       selectedEvent?.techplayUrls[0] ?? manualTechPlayUrl;
 
     if (!selectedEvent && !selectedTechPlayUrl) {
+      logWarn("calendar.search.no_selected_event_or_url", {
+        searchWindowLabel,
+        provider: config.calendar.provider,
+      });
       return this.buildNotFoundResponse({
         searchWindowLabel,
         manualTechPlayUrl,
@@ -142,12 +170,16 @@ export class CalendarService {
 
     if (!selectedTechPlayUrl) {
       techPlayFetchStatus = "not_found";
+      logWarn("calendar.techplay.url_not_found", {
+        eventId: selectedEvent?.eventId,
+        searchWindowLabel,
+      });
       warnings.push(
         "TechPlay URL could not be detected from the calendar event.",
       );
     } else {
       techPlayFetchStatus = "fetching";
-      logDebug("calendar.techplay.fetch.started", {
+      logInfo("calendar.techplay.fetch.started", {
         eventId: selectedEvent?.eventId,
         techplayUrlHost: safeHostname(selectedTechPlayUrl),
       });
@@ -171,6 +203,7 @@ export class CalendarService {
         logWarn("calendar.techplay.fetch.failed", {
           eventId: selectedEvent?.eventId,
           techplayUrlHost: safeHostname(selectedTechPlayUrl),
+          ...safeErrorDetails(error),
         });
       }
     }
@@ -188,12 +221,21 @@ export class CalendarService {
           : "found";
 
     if (hasCloseCompetition) {
+      logWarn("calendar.search.close_competition", {
+        searchWindowLabel,
+        topScore,
+        runnerUpScore,
+        selectedEventId: selectedEvent?.eventId,
+      });
       warnings.push(
         "Multiple calendar candidates were found; the highest-scoring one was selected.",
       );
     }
 
     if (input.venuePhoto) {
+      logInfo("calendar.search.venue_photo_applied", {
+        searchWindowLabel,
+      });
       warnings.push(
         "Venue photo added; checking calendar context automatically.",
       );
@@ -212,6 +254,7 @@ export class CalendarService {
       hasManualTechPlayUrl: Boolean(manualTechPlayUrl),
       candidateCount: candidates.length,
       provider: config.calendar.provider,
+      selectedTechPlayUrlPresent: Boolean(selectedTechPlayUrl),
     });
 
     return {

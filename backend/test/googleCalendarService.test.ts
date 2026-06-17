@@ -124,9 +124,14 @@ describe("GoogleCalendarService", () => {
         status: "connected",
       }),
     );
-    expect(String(fetchMock.mock.calls[1]?.[0])).toContain(
-      "calendar/v3/calendars/primary%40example.com/events",
+    const requestUrl = decodeURIComponent(String(fetchMock.mock.calls[1]?.[0]));
+    expect(requestUrl).toContain(
+      "calendar/v3/calendars/primary@example.com/events",
     );
+    expect(requestUrl).toContain(
+      "attachments(fileId,fileUrl,title,mimeType,iconLink)",
+    );
+    expect(requestUrl).not.toContain("attachments(fileUrl,title,url)");
   });
 
   it("requires a user connection and does not fall back to a shared refresh token", async () => {

@@ -1,5 +1,5 @@
 import { getConfig } from "../config";
-import { logDebug, logInfo } from "../logging";
+import { logInfo, logWarn, safeHash } from "../logging";
 import { GoogleCalendarRepository } from "../repositories/googleCalendarRepository";
 import { decryptGoogleToken } from "../security/googleCalendarTokenCrypto";
 import type { ActionRunPostType } from "../types/actionRun";
@@ -33,28 +33,42 @@ export class GoogleCalendarService {
       throw new Error("GOOGLE_CALENDAR_CALENDAR_ID is required.");
     }
     const authenticatedUser = requireAuthenticatedUser(input.authenticatedUser);
+    const authenticatedUserHash = safeHash(authenticatedUser.userId);
 
     const searchWindow = buildCalendarSearchWindow(input.postType, input.now);
-    logDebug("calendar.google.search.started", {
+    logInfo("calendar.google.search.started", {
       postType: input.postType,
+      authenticatedUserHash,
       timeMin: searchWindow.timeMin,
       timeMax: searchWindow.timeMax,
       calendarId: safeCalendarId(googleConfig.calendarId),
+      provider: "google",
     });
 
+    logInfo("calendar.google.auth.refresh.start", {
+      authenticatedUserHash,
+      calendarId: safeCalendarId(googleConfig.calendarId),
+    });
     const accessToken = await getGoogleAccessToken({
       googleConfig,
       repository: this.repository,
       authenticatedUser,
     });
+    logInfo("calendar.google.auth.refresh.completed", {
+      authenticatedUserHash,
+      calendarId: safeCalendarId(googleConfig.calendarId),
+    });
+
     const events = await listGoogleCalendarEvents({
       accessToken,
       calendarId: googleConfig.calendarId,
       searchWindow,
+      authenticatedUserHash,
     });
 
     logInfo("calendar.google.search.completed", {
       candidateCount: events.length,
+      authenticatedUserHash,
       calendarId: safeCalendarId(googleConfig.calendarId),
       timeMin: searchWindow.timeMin,
       timeMax: searchWindow.timeMax,
@@ -70,10 +84,22 @@ async function getGoogleAccessToken(input: {
   authenticatedUser?: AuthenticatedUser;
 }): Promise<string> {
   const authenticatedUser = requireAuthenticatedUser(input.authenticatedUser);
+  const authenticatedUserHash = safeHash(authenticatedUser.userId);
   let connection = null;
   try {
+    logInfo("calendar.google.auth.connection_lookup.start", {
+      authenticatedUserHash,
+    });
     connection = await input.repository.getConnection(authenticatedUser.userId);
+    logInfo("calendar.google.auth.connection_lookup.completed", {
+      authenticatedUserHash,
+      hasConnection: Boolean(connection),
+      connectionStatus: connection?.status ?? "missing",
+    });
   } catch {
+    logWarn("calendar.google.auth.connection_lookup.failed", {
+      authenticatedUserHash,
+    });
     connection = null;
   }
   const refreshToken = connection
@@ -91,11 +117,18 @@ async function getGoogleAccessToken(input: {
   }
 
   if (!refreshToken) {
+    logWarn("calendar.google.auth.refresh_token_missing", {
+      authenticatedUserHash,
+    });
     throw new Error(
       "Google Calendar is not connected for this user. Connect Google first.",
     );
   }
 
+  logInfo("calendar.google.auth.refresh.request.started", {
+    authenticatedUserHash,
+    hasRefreshToken: true,
+  });
   const response = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: {
@@ -110,6 +143,14 @@ async function getGoogleAccessToken(input: {
   });
 
   if (!response.ok) {
+    const raw = await response.text().catch(() => "");
+    logWarn("calendar.google.auth.refresh.request.failed", {
+      authenticatedUserHash,
+      status: response.status,
+      statusText: response.statusText,
+      responseBodyLength: raw.length,
+      responseBodySnippet: raw.slice(0, 1500),
+    });
     throw new Error(
       `Google access token request failed with status ${response.status}.`,
     );
@@ -117,6 +158,10 @@ async function getGoogleAccessToken(input: {
 
   const body = (await response.json()) as GoogleCalendarAccessTokenResponse;
   if (!body.access_token) {
+    logWarn("calendar.google.auth.refresh.request.missing_access_token", {
+      authenticatedUserHash,
+      responseKeys: Object.keys(body),
+    });
     throw new Error(
       "Google access token response did not contain access_token.",
     );
@@ -131,6 +176,12 @@ async function getGoogleAccessToken(input: {
     });
   }
 
+  logInfo("calendar.google.auth.refresh.request.succeeded", {
+    authenticatedUserHash,
+    hasAccessToken: true,
+    scopes: body.scope?.split(/\s+/u).filter(Boolean) ?? [],
+  });
+
   return body.access_token;
 }
 
@@ -138,6 +189,7 @@ async function listGoogleCalendarEvents(input: {
   accessToken: string;
   calendarId: string;
   searchWindow: CalendarSearchWindow;
+  authenticatedUserHash?: string;
 }): Promise<GoogleCalendarEvent[]> {
   const url = new URL(
     `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(input.calendarId)}/events`,
@@ -150,8 +202,22 @@ async function listGoogleCalendarEvents(input: {
   url.searchParams.set("timeMax", input.searchWindow.timeMax);
   url.searchParams.set(
     "fields",
-    "items(id,summary,description,location,start,end,htmlLink,hangoutLink,attachments(fileUrl,title,url),creator(displayName,email),organizer(displayName,email),conferenceData(entryPoints(uri,label,entryPointType))),nextPageToken",
+    "items(id,summary,description,location,start,end,htmlLink,hangoutLink,attachments(fileId,fileUrl,title,mimeType,iconLink),creator(displayName,email),organizer(displayName,email),conferenceData(entryPoints(uri,label,entryPointType))),nextPageToken",
   );
+
+  logInfo("calendar.google.events.request.started", {
+    authenticatedUserHash: input.authenticatedUserHash,
+    requestUrl: url.toString(),
+    requestParams: {
+      calendarId: input.calendarId,
+      singleEvents: "true",
+      showDeleted: "false",
+      orderBy: input.searchWindow.orderBy,
+      maxResults: input.searchWindow.maxResults,
+      timeMin: input.searchWindow.timeMin,
+      timeMax: input.searchWindow.timeMax,
+    },
+  });
 
   const response = await fetch(url.toString(), {
     headers: {
@@ -161,12 +227,26 @@ async function listGoogleCalendarEvents(input: {
   });
 
   if (!response.ok) {
+    const raw = await response.text().catch(() => "");
+    logWarn("calendar.google.events.request.failed", {
+      authenticatedUserHash: input.authenticatedUserHash,
+      status: response.status,
+      statusText: response.statusText,
+      responseBodyLength: raw.length,
+      responseBodySnippet: raw.slice(0, 2000),
+      requestUrl: url.toString(),
+    });
     throw new Error(
       `Google Calendar events request failed with status ${response.status}.`,
     );
   }
 
   const body = (await response.json()) as GoogleCalendarEventsResponse;
+  logInfo("calendar.google.events.request.completed", {
+    authenticatedUserHash: input.authenticatedUserHash,
+    itemCount: body.items?.length ?? 0,
+    nextPageTokenPresent: Boolean(body.nextPageToken),
+  });
   return body.items ?? [];
 }
 

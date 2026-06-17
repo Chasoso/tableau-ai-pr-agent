@@ -27,10 +27,22 @@ export class GoogleCalendarOAuthService {
     user: AuthenticatedUser | undefined,
   ): Promise<GoogleCalendarStatusResponse> {
     requireUser(user);
+    const userHash = safeHash(user.userId);
     let connection: GoogleCalendarConnectionRecord | null = null;
     try {
+      logInfo("google.oauth.status.connection_lookup.start", {
+        userHash,
+      });
       connection = await this.repository.getConnection(user.userId);
+      logInfo("google.oauth.status.connection_lookup.completed", {
+        userHash,
+        hasConnection: Boolean(connection),
+        connectionStatus: connection?.status ?? "disconnected",
+      });
     } catch {
+      logWarn("google.oauth.status.connection_lookup.failed", {
+        userHash,
+      });
       return {
         connected: false,
         status: "disconnected",
@@ -51,6 +63,7 @@ export class GoogleCalendarOAuthService {
   ): Promise<GoogleCalendarPopupStartResponse> {
     validateGoogleCalendarOAuthConfiguration();
     requireUser(user);
+    const userHash = safeHash(user.userId);
     const transactionId = randomUUID();
     const state = `${transactionId}.${randomBase64Url(18)}`;
     const pollToken = randomBase64Url(32);
@@ -61,6 +74,13 @@ export class GoogleCalendarOAuthService {
       (now.getTime() + getConfig().auth.popup.transactionTtlSeconds * 1000) /
         1000,
     );
+
+    logInfo("google.oauth.start.requested", {
+      userHash,
+      hasRedirectAfter: Boolean(input.redirectAfter),
+      transactionIdHash: safeHash(transactionId),
+      stateHash: safeHash(state),
+    });
 
     await this.repository.putOAuthState({
       transactionId,
@@ -76,6 +96,7 @@ export class GoogleCalendarOAuthService {
     });
 
     logInfo("google.oauth.start.created", {
+      userHash,
       transactionIdHash: safeHash(transactionId),
       stateHash: safeHash(state),
       hasRedirectAfter: Boolean(input.redirectAfter),
@@ -117,8 +138,15 @@ export class GoogleCalendarOAuthService {
       throw new Error("Missing Google OAuth callback parameters.");
     }
 
+    logInfo("google.oauth.callback.received", {
+      stateHash: safeHash(input.state),
+      hasCode: Boolean(input.code),
+    });
     const transaction = await this.repository.getOAuthStateByState(input.state);
     if (!transaction) {
+      logWarn("google.oauth.callback.state_not_found", {
+        stateHash: safeHash(input.state),
+      });
       throw new Error("Google OAuth state not found or already used.");
     }
 
@@ -127,6 +155,10 @@ export class GoogleCalendarOAuthService {
         throw new Error("Google OAuth state expired.");
       }
 
+      logInfo("google.oauth.callback.token_exchange.start", {
+        transactionIdHash: safeHash(transaction.transactionId),
+        userHash: safeHash(transaction.userId),
+      });
       const tokenData = await exchangeAuthorizationCode({
         code: input.code,
         codeVerifier: transaction.codeVerifier,
@@ -154,7 +186,15 @@ export class GoogleCalendarOAuthService {
         status: "connected",
         scopes: tokenData.scope?.split(/\s+/u).filter(Boolean),
       };
+      logInfo("google.oauth.callback.connection.persist.start", {
+        transactionIdHash: safeHash(transaction.transactionId),
+        userHash: safeHash(transaction.userId),
+      });
       await this.repository.putConnection(connection);
+      logInfo("google.oauth.callback.connection.persist.completed", {
+        transactionIdHash: safeHash(transaction.transactionId),
+        userHash: safeHash(transaction.userId),
+      });
       await this.repository.updateOAuthState(transaction.transactionId, {
         status: "completed",
         updatedAt: nowIso,
@@ -169,6 +209,11 @@ export class GoogleCalendarOAuthService {
 
       return { redirectAfter: transaction.redirectAfter };
     } catch (error) {
+      logWarn("google.oauth.callback.failed", {
+        transactionIdHash: safeHash(transaction.transactionId),
+        stateHash: safeHash(input.state),
+        ...safeErrorDetails(error),
+      });
       await this.repository.updateOAuthState(transaction.transactionId, {
         status: "failed",
         updatedAt: new Date().toISOString(),
@@ -195,10 +240,18 @@ export class GoogleCalendarOAuthService {
       throw new Error("transactionId is required.");
     }
 
+    logInfo("google.oauth.popup.status.requested", {
+      transactionIdHash: safeHash(input.transactionId),
+      hasPollToken: Boolean(input.pollToken),
+    });
+
     const transaction = await this.repository.getOAuthStateByTransactionId(
       input.transactionId,
     );
     if (!transaction) {
+      logWarn("google.oauth.popup.status.not_found", {
+        transactionIdHash: safeHash(input.transactionId),
+      });
       return {
         status: "failed",
         message: "Authentication transaction was not found.",
@@ -209,6 +262,9 @@ export class GoogleCalendarOAuthService {
       !input.pollToken ||
       hashString(input.pollToken) !== transaction.pollTokenHash
     ) {
+      logWarn("google.oauth.popup.status.invalid_token", {
+        transactionIdHash: safeHash(input.transactionId),
+      });
       return {
         status: "failed",
         message: "Authentication transaction token is invalid.",
@@ -216,16 +272,26 @@ export class GoogleCalendarOAuthService {
     }
 
     if (transaction.status === "completed") {
+      logInfo("google.oauth.popup.status.completed", {
+        transactionIdHash: safeHash(input.transactionId),
+      });
       return { status: "completed", connected: true };
     }
 
     if (transaction.status === "failed" || transaction.status === "consumed") {
+      logWarn("google.oauth.popup.status.failed", {
+        transactionIdHash: safeHash(input.transactionId),
+        status: transaction.status,
+      });
       return {
         status: transaction.status,
         message: transaction.errorMessageSafe || "Authentication failed.",
       };
     }
 
+    logInfo("google.oauth.popup.status.pending", {
+      transactionIdHash: safeHash(input.transactionId),
+    });
     return { status: "pending" };
   }
 
