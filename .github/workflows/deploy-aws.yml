@@ -111,6 +111,9 @@ jobs:
       TABLEAU_CONTEXT_PROVIDER: ${{ vars.TABLEAU_CONTEXT_PROVIDER || 'mock' }}
       AUTH_REQUIRED: ${{ vars.AUTH_REQUIRED || 'false' }}
       VITE_AUTH_REQUIRED: ${{ vars.AUTH_REQUIRED || 'false' }}
+      BLUESKY_IDENTIFIER: ${{ vars.BLUESKY_IDENTIFIER || secrets.BLUESKY_IDENTIFIER }}
+      BLUESKY_APP_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD || vars.BLUESKY_APP_PASSWORD }}
+      BLUESKY_SERVICE_URL: ${{ vars.BLUESKY_SERVICE_URL || 'https://bsky.social' }}
       COGNITO_USER_POOL_ID: ${{ vars.COGNITO_USER_POOL_ID || vars.VITE_COGNITO_USER_POOL_ID || secrets.COGNITO_USER_POOL_ID }}
       COGNITO_CLIENT_ID: ${{ vars.COGNITO_CLIENT_ID || vars.VITE_COGNITO_CLIENT_ID || secrets.COGNITO_CLIENT_ID }}
       COGNITO_REGION: ${{ vars.COGNITO_REGION || vars.VITE_COGNITO_REGION || secrets.COGNITO_REGION }}
@@ -198,6 +201,9 @@ jobs:
             "$TABLEAU_CONTEXT_PROVIDER" \
             "$AUTH_REQUIRED" \
             "$VITE_AUTH_REQUIRED" \
+            "$BLUESKY_IDENTIFIER" \
+            "$BLUESKY_APP_PASSWORD" \
+            "$BLUESKY_SERVICE_URL" \
             "$COGNITO_USER_POOL_ID" \
             "$COGNITO_CLIENT_ID" \
             "$COGNITO_REGION" \
@@ -278,6 +284,8 @@ jobs:
             TABLEAU_CONNECTED_APP_SECRET_ID
             TABLEAU_CONNECTED_APP_SECRET_VALUE
             TABLEAU_DEFAULT_SUBJECT
+            BLUESKY_IDENTIFIER
+            BLUESKY_APP_PASSWORD
           )
           for name in "${required[@]}"; do
             require_setting "$name"
@@ -441,6 +449,9 @@ jobs:
               TableauScopes="$TABLEAU_SCOPES" \
               TableauContextProvider="$TABLEAU_CONTEXT_PROVIDER" \
               AuthRequired="$AUTH_REQUIRED" \
+              BlueskyIdentifier="$BLUESKY_IDENTIFIER" \
+              BlueskyAppPassword="$BLUESKY_APP_PASSWORD" \
+              BlueskyServiceUrl="$BLUESKY_SERVICE_URL" \
               CognitoUserPoolId="$COGNITO_USER_POOL_ID" \
               CognitoClientId="$COGNITO_CLIENT_ID" \
               CognitoRegion="$COGNITO_REGION" \

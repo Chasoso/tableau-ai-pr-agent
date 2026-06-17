@@ -24,6 +24,8 @@ The workflow intentionally avoids printing AWS account IDs, ARNs, bucket names, 
 
 The current PR Assistant demo flow is calendar-first and draft-only. Google Calendar resolution is implemented in the backend and can run in mock mode by default or live mode when the Google credentials are configured. Set `GOOGLE_CALENDAR_PROVIDER=google` in the backend environment only when you want the deployment to use the live Google Calendar API.
 
+Bluesky posting uses app-password authentication. For deployments that enable Bluesky posting, set `BLUESKY_IDENTIFIER` and `BLUESKY_APP_PASSWORD`. `BLUESKY_SERVICE_URL` defaults to `https://bsky.social` unless you override it for another PDS endpoint.
+
 The frontend upload keeps hashed files under `assets/` as append-only objects with long-lived cache headers, while `index.html` and `.trex` are uploaded with `no-cache`. This avoids a CloudFront/S3 race where an older cached `index.html` points at a hashed JS file that has already been deleted.
 
 ### Cognito Popup Auth Flow
@@ -59,6 +61,8 @@ Store these as GitHub Secrets:
 | `TABLEAU_CONNECTED_APP_SECRET_ID`          | Connected App secret ID.                                                                                                      |
 | `TABLEAU_CONNECTED_APP_SECRET_VALUE`       | Connected App secret value.                                                                                                   |
 | `TABLEAU_DEFAULT_SUBJECT`                  | PoC fallback Tableau subject.                                                                                                 |
+| `BLUESKY_IDENTIFIER`                      | Bluesky handle or email used by the backend post service.                                                                     |
+| `BLUESKY_APP_PASSWORD`                    | Bluesky app password for API-based posting.                                                                                   |
 | `COGNITO_USER_POOL_ID`                     | Required when auth is enabled.                                                                                                |
 | `COGNITO_CLIENT_ID`                        | Required when auth is enabled.                                                                                                |
 | `VITE_COGNITO_DOMAIN`                      | Cognito Hosted UI domain.                                                                                                     |
@@ -104,6 +108,7 @@ These can be repository Variables if acceptable:
 | `TABLEAU_MCP_DEBUG_LOG_RESULTS`         | `false`                                             | Temporarily set to `true` to log sanitized MCP tool result shapes and short snippets to CloudWatch. Disable after diagnosis.            |
 | `TABLEAU_MCP_TOOL_PLANNING_ENABLED`     | `false`                                             | Enables Bedrock-based JSON planning for MCP tool calls.                                                                                 |
 | `TABLEAU_MCP_PLANNER_MAX_OUTPUT_TOKENS` | `600`                                               | Max output tokens for the planning call.                                                                                                |
+| `BLUESKY_SERVICE_URL`                   | `https://bsky.social`                               | Optional Bluesky PDS endpoint override.                                                                                                 |
 | `ACTION_RUN_TTL_SECONDS`                | `86400`                                             | TTL for completed/failed action runs. `CHAT_JOB_TTL_SECONDS` remains a compatibility fallback.                                          |
 | `ACTION_RUN_LEASE_SECONDS`              | `120`                                               | Worker lease duration for action-run claiming. `CHAT_JOB_LEASE_SECONDS` remains a compatibility fallback.                               |
 | `ACTION_RUN_PROGRESS_MESSAGE_LIMIT`     | `12`                                                | Maximum number of progress messages retained per action-run record. `CHAT_JOB_PROGRESS_MESSAGE_LIMIT` remains a compatibility fallback. |
@@ -171,6 +176,8 @@ Google Calendar live-mode credentials follow the same pattern:
 - The Google Calendar connection and OAuth state tables are created automatically from the stack name, so no table-name setting is needed in GitHub Variables or Secrets.
 - If `google` is selected but one of the required Google settings is missing, the deploy workflow fails fast and lists the missing settings instead of silently switching to `mock`.
 - Do not expose Google OAuth credentials in frontend code, logs, or artifact output.
+
+Bluesky posting settings are passed through the deploy workflow into the Lambda environment in the same way as other backend credentials.
 
 One-time migration note: if the stack was previously deployed with the managed `TableauConnectedAppSecret` resource, the CloudFormation execution role may need temporary `secretsmanager:DeleteSecret` and `secretsmanager:DescribeSecret` permissions for `arn:aws:secretsmanager:<region>:<account-id>:secret:<stack-name>/tableau-connected-app-*` so CloudFormation can remove the old secret. Remove those permissions after the update succeeds.
 

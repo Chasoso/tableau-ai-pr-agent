@@ -84,6 +84,18 @@ Parameters:
     Type: String
     NoEcho: true
     Default: ""
+  BlueskyIdentifier:
+    Type: String
+    NoEcho: true
+    Default: ""
+  BlueskyAppPassword:
+    Type: String
+    NoEcho: true
+    Default: ""
+  BlueskyServiceUrl:
+    Type: String
+    NoEcho: true
+    Default: "https://bsky.social"
   GoogleCalendarProvider:
     Type: String
     Default: "mock"
@@ -569,6 +581,9 @@ Resources:
           COGNITO_AUTH_TRANSACTION_KEY_PARAM: !Ref CognitoAuthTransactionKeyParam
           COGNITO_AUTH_TRANSACTION_TTL_SECONDS: !Sub "${CognitoAuthTransactionTtlSeconds}"
           SLACK_INCOMING_WEBHOOK_URL: !Ref SlackIncomingWebhookUrl
+          BLUESKY_IDENTIFIER: !Ref BlueskyIdentifier
+          BLUESKY_APP_PASSWORD: !Ref BlueskyAppPassword
+          BLUESKY_SERVICE_URL: !Ref BlueskyServiceUrl
           GOOGLE_CALENDAR_PROVIDER: !Ref GoogleCalendarProvider
           GOOGLE_CALENDAR_CALENDAR_ID: !Ref GoogleCalendarCalendarId
           GOOGLE_CALENDAR_CLIENT_ID: !Ref GoogleCalendarClientId
@@ -659,6 +674,9 @@ Resources:
           COGNITO_AUTH_TRANSACTION_KEY_PARAM: !Ref CognitoAuthTransactionKeyParam
           COGNITO_AUTH_TRANSACTION_TTL_SECONDS: !Sub "${CognitoAuthTransactionTtlSeconds}"
           SLACK_INCOMING_WEBHOOK_URL: !Ref SlackIncomingWebhookUrl
+          BLUESKY_IDENTIFIER: !Ref BlueskyIdentifier
+          BLUESKY_APP_PASSWORD: !Ref BlueskyAppPassword
+          BLUESKY_SERVICE_URL: !Ref BlueskyServiceUrl
           GOOGLE_CALENDAR_PROVIDER: !Ref GoogleCalendarProvider
           GOOGLE_CALENDAR_CALENDAR_ID: !Ref GoogleCalendarCalendarId
           GOOGLE_CALENDAR_CLIENT_ID: !Ref GoogleCalendarClientId
@@ -819,6 +837,13 @@ Resources:
     Properties:
       ApiId: !Ref HttpApi
       RouteKey: "POST /action-runs/{actionRunId}/approval"
+      Target: !Sub "integrations/${ChatIntegration}"
+
+  ActionRunBlueskyPostRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "POST /action-runs/{actionRunId}/bluesky-post"
       Target: !Sub "integrations/${ChatIntegration}"
 
   ActionRunInputImageRoute:
@@ -996,6 +1021,14 @@ Resources:
       FunctionName: !Ref ChatFunction
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/action-runs/*/approval"
+
+  ActionRunBlueskyPostInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ChatFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/action-runs/*/bluesky-post"
 
   ActionRunInputImageInvokePermission:
     Type: AWS::Lambda::Permission

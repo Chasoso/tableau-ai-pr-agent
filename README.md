@@ -439,6 +439,7 @@ PoC note:
 ### AWS Deployment
 
 `.github/workflows/deploy-aws.yml` builds the backend and frontend, deploys `infra/cloudformation.yaml`, uploads frontend assets to S3, and invalidates CloudFront. Sensitive values should be stored in GitHub Secrets or repository Variables, and the workflow masks account-specific IDs and URLs in logs.
+Bluesky posting is wired through the same deploy path: set `BLUESKY_IDENTIFIER` and `BLUESKY_APP_PASSWORD`, and the workflow passes them into the Lambda environment.
 Lambda log groups are not managed by CloudFormation; Lambda creates them automatically.
 
 CI now runs in `.github/workflows/ci.yml` for pull requests to `main` and pushes to `develop` and `main`. The deployment workflow also has its own `ci` job, and the deploy job runs only after those quality gates succeed.
