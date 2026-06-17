@@ -824,34 +824,6 @@ function buildSuggestionWarnings(input: {
   return warnings;
 }
 
-function buildRationaleV2(input: {
-  hasEvent: boolean;
-  hasPhoto: boolean;
-  hasSurvey: boolean;
-  hasPerformance: boolean;
-  hasAccount: boolean;
-  variant: "opening" | "community" | "invitation";
-}): string {
-  const parts = [
-    input.hasPhoto
-      ? "画像情報を使用しています。"
-      : "画像情報は使っていません。",
-    input.hasEvent
-      ? "イベント情報を使用しています。"
-      : "イベント情報は未取得です。",
-    input.hasSurvey
-      ? "参加者アンケートを反映しています。"
-      : "参加者アンケートは未取得です。",
-    input.hasPerformance
-      ? "過去投稿の傾向を反映しています。"
-      : "過去投稿の傾向は未取得です。",
-    input.hasAccount
-      ? "アカウント概要を反映しています。"
-      : "アカウント概要は未取得です。",
-    `variant: ${input.variant}`,
-  ];
-  return parts.join(" ");
-}
 function limitPostLength(text: string): string {
   if (text.length <= 280) {
     return text;
@@ -873,7 +845,7 @@ function buildHashtagsForSuggestion(
   postType?: ActionRunRequest["postType"],
 ): string[] {
   const tags = new Set<string>(["#Tableau"]);
-  if (postType === "????") {
+  if (postType === "事前告知") {
     tags.add("#HokuTUG");
   }
   if (eventName) {
