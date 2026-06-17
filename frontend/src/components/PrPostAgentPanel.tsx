@@ -7,6 +7,7 @@ import type {
   CalendarResolveResponse,
 } from "../types/calendar";
 import type { DashboardContext } from "../types/tableau";
+import type { GeneratedPostSuggestion } from "../types/actionRun";
 import type {
   GeneratedPrPostDraft,
   PostedResult,
@@ -16,11 +17,9 @@ import type {
 } from "../services/prPostAgent";
 import {
   analyzePastPostsWithTableau,
-  buildPostTrendSummary,
   fetchTechPlayEventInfo,
   generatePrPostDraft,
   postToSlack,
-  postToX,
   resolveCalendarEventContext,
 } from "../services/prPostAgent";
 import GeneratedPostSuggestionsPanel from "./GeneratedPostSuggestionsPanel";
@@ -46,9 +45,10 @@ type ChatMessage = {
 
 type GenerationStatus = "idle" | "generating" | "generated" | "error";
 
-type PendingPost = {
-  channel: "slack" | "x";
-  text: string;
+type SelectedSuggestion = {
+  id: string;
+  index: number;
+  suggestion: GeneratedPostSuggestion;
 };
 
 type WorkflowState = {
@@ -100,6 +100,7 @@ export default function PrPostAgentPanel({
 }: Props) {
   const workflowIdRef = useRef(0);
   const tableauAnalysisInFlightRef = useRef<number | null>(null);
+  const uiSuggestionLogRef = useRef<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const manualTechPlayInputRef = useRef<HTMLInputElement | null>(null);
   const [anonymousConnectionToken, setAnonymousConnectionToken] = useState<
@@ -133,7 +134,6 @@ export default function PrPostAgentPanel({
     useState<CalendarResolveResponse | null>(null);
   const [analysisResult, setAnalysisResult] =
     useState<TableauAnalysisResult | null>(null);
-  const [postTrendSummary, setPostTrendSummary] = useState<string[]>([]);
   const [imageMode, setImageMode] = useState<
     "camera" | "library" | "none" | null
   >(null);
@@ -148,12 +148,13 @@ export default function PrPostAgentPanel({
     useState<GenerationStatus>("idle");
   const [generatedDraft, setGeneratedDraft] =
     useState<GeneratedPrPostDraft | null>(null);
-  const [draftExpanded, setDraftExpanded] = useState(true);
-  const [pendingPost, setPendingPost] = useState<PendingPost | null>(null);
-  const [postingStatus, setPostingStatus] = useState<{
-    slack: "idle" | "posting" | "done" | "error";
-    x: "idle" | "posting" | "done" | "error";
-  }>({ slack: "idle", x: "idle" });
+  const [selectedSuggestion, setSelectedSuggestion] =
+    useState<SelectedSuggestion | null>(null);
+  const [isApprovalOpen, setIsApprovalOpen] = useState(false);
+  const [slackPostStatus, setSlackPostStatus] = useState<
+    "idle" | "posting" | "posted" | "failed"
+  >("idle");
+  const [slackPostError, setSlackPostError] = useState<string | null>(null);
   const [completedPosts, setCompletedPosts] = useState<PostedResult[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -178,13 +179,6 @@ export default function PrPostAgentPanel({
     !detectedTechPlayUrl &&
     workflow.techPlayFetchStatus !== "fetching" &&
     workflow.techPlayFetchStatus !== "fetched";
-  const photoAnalysisSection = useMemo(
-    () =>
-      analysisResult?.result.analysisSections?.find(
-        (section) => section.key === "photo_context",
-      ),
-    [analysisResult?.result.analysisSections],
-  );
   const generatedPostSuggestions = useMemo(
     () =>
       analysisResult?.result.generatedPostSuggestions?.length
@@ -197,6 +191,17 @@ export default function PrPostAgentPanel({
       analysisResult?.result.generatedPostSuggestion,
     ],
   );
+  const attachedImagePreviewUrl =
+    analysisResult?.result.attachedImage?.url ??
+    uploadedImage?.objectUrl ??
+    generatedDraft?.image?.objectUrl ??
+    undefined;
+  const attachedImagePreviewLabel =
+    uploadedImage?.fileName ??
+    analysisResult?.result.attachedImage?.objectKey?.split("/").pop() ??
+    "添付予定画像";
+  const selectedSuggestionId = selectedSuggestion?.id ?? null;
+  const isSlackPosting = slackPostStatus === "posting";
 
   const canGenerate = useMemo(() => {
     if (!selectedPostType || generationStatus !== "idle") {
@@ -266,6 +271,36 @@ export default function PrPostAgentPanel({
     workflow.calendarLookupStatus,
     workflow.techPlayFetchStatus,
     workflow.tableauAnalysisStatus,
+  ]);
+
+  useEffect(() => {
+    if (!generatedPostSuggestions.length) {
+      return;
+    }
+
+    const logKey = [
+      analysisResult?.result.primaryOutputType ?? "unknown",
+      generatedPostSuggestions.length,
+      Boolean(attachedImagePreviewUrl),
+    ].join(":");
+    if (uiSuggestionLogRef.current === logKey) {
+      return;
+    }
+
+    uiSuggestionLogRef.current = logKey;
+    console.debug(
+      "ui.primaryOutputType",
+      analysisResult?.result.primaryOutputType ?? "analysis_summary",
+    );
+    console.debug("ui.postSuggestions.rendered", true);
+    console.debug("ui.postSuggestions.count", generatedPostSuggestions.length);
+    console.debug("ui.suggestionCarousel.rendered", true);
+    console.debug("ui.analysisDetails.collapsedByDefault", true);
+    console.debug("ui.attachedImage.present", Boolean(attachedImagePreviewUrl));
+  }, [
+    analysisResult?.result.primaryOutputType,
+    attachedImagePreviewUrl,
+    generatedPostSuggestions.length,
   ]);
 
   useEffect(() => {
@@ -403,7 +438,6 @@ export default function PrPostAgentPanel({
         }
 
         setGeneratedDraft(draft);
-        setDraftExpanded(true);
         setGenerationStatus("generated");
         setMessages((current) => [
           ...current,
@@ -613,7 +647,6 @@ export default function PrPostAgentPanel({
     }
 
     setAnalysisResult(analysis);
-    setPostTrendSummary(buildPostTrendSummary(analysis.result, input.postType));
     setWorkflow((current) => ({
       ...current,
       tableauAnalysisStatus: "completed",
@@ -638,7 +671,6 @@ export default function PrPostAgentPanel({
     setSelectedCalendarEventId(null);
     setCalendarResult(null);
     setAnalysisResult(null);
-    setPostTrendSummary([]);
     setImageMode(null);
     setUploadedImage(null);
     setImagePreviewExpanded(false);
@@ -647,9 +679,10 @@ export default function PrPostAgentPanel({
     setManualTechPlayUrl("");
     setGenerationStatus("idle");
     setGeneratedDraft(null);
-    setDraftExpanded(true);
-    setPendingPost(null);
-    setPostingStatus({ slack: "idle", x: "idle" });
+    setSelectedSuggestion(null);
+    setIsApprovalOpen(false);
+    setSlackPostStatus("idle");
+    setSlackPostError(null);
     setCompletedPosts([]);
     setError(null);
   }
@@ -859,9 +892,6 @@ export default function PrPostAgentPanel({
           ownerToken: resolvedConnectionOwnerToken ?? undefined,
         });
         setAnalysisResult(analysis);
-        setPostTrendSummary(
-          buildPostTrendSummary(analysis.result, selectedPostType!),
-        );
         setWorkflow((current) => ({
           ...current,
           tableauAnalysisStatus: "completed",
@@ -935,9 +965,6 @@ export default function PrPostAgentPanel({
       }
 
       setAnalysisResult(analysis);
-      setPostTrendSummary(
-        buildPostTrendSummary(analysis.result, input.postType),
-      );
       setWorkflow((current) => ({
         ...current,
         tableauAnalysisStatus: "completed",
@@ -1054,78 +1081,95 @@ export default function PrPostAgentPanel({
     });
   }
 
-  function openPostConfirmation(channel: "slack" | "x") {
-    if (!generatedDraft) {
-      return;
-    }
-
-    setPendingPost({
-      channel,
-      text:
-        channel === "slack"
-          ? generatedDraft.slackPostText
-          : generatedDraft.xPostText,
+  function handleSuggestionSelect(input: {
+    suggestion: GeneratedPostSuggestion;
+    suggestionId: string;
+    index: number;
+  }) {
+    setSelectedSuggestion({
+      id: input.suggestionId,
+      index: input.index,
+      suggestion: input.suggestion,
+    });
+    setSlackPostError(null);
+    setSlackPostStatus("idle");
+    setIsApprovalOpen(true);
+    console.debug("ui.suggestion.selected", {
+      suggestionId: input.suggestionId,
+      index: input.index,
+    });
+    console.debug("ui.approvalModal.opened", {
+      suggestionId: input.suggestionId,
     });
   }
 
-  async function confirmPendingPost() {
-    if (!pendingPost || !generatedDraft) {
+  function handleApprovalCancel() {
+    if (selectedSuggestion) {
+      console.debug("ui.approvalModal.cancelled", {
+        suggestionId: selectedSuggestion.id,
+      });
+    }
+
+    setIsApprovalOpen(false);
+    setSelectedSuggestion(null);
+    setSlackPostError(null);
+    setSlackPostStatus("idle");
+  }
+
+  async function handleSlackApprovalSubmit() {
+    if (!generatedDraft || !selectedSuggestion) {
       return;
     }
 
+    setSlackPostStatus("posting");
+    setSlackPostError(null);
+    console.debug("ui.slackPost.started", {
+      suggestionId: selectedSuggestion.id,
+    });
+
     try {
-      if (pendingPost.channel === "slack") {
-        setPostingStatus((current) => ({ ...current, slack: "posting" }));
-        const response = await postToSlack({
-          draft: generatedDraft,
-          accessToken: authToken,
-          ownerToken: generatedDraft.analysis.ownerToken,
-        });
-        setPostingStatus((current) => ({ ...current, slack: "done" }));
-        setCompletedPosts((current) => [
-          ...current,
-          {
-            channel: "slack",
-            text: generatedDraft.slackPostText,
-            openLabel: "Slackを開く",
-            postedAt: new Date().toISOString(),
-            url: response.slackWebhook.sent ? "https://slack.com" : undefined,
-          },
-        ]);
-        setDraftExpanded(false);
-        setMessages((current) => [
-          ...current,
-          {
-            id: crypto.randomUUID(),
-            role: "assistant",
-            lines: ["Slackに投稿しました。"],
-          },
-        ]);
-      } else {
-        setPostingStatus((current) => ({ ...current, x: "posting" }));
-        const response = await postToX({ draft: generatedDraft });
-        setPostingStatus((current) => ({ ...current, x: "done" }));
-        setCompletedPosts((current) => [...current, response]);
-        setDraftExpanded(false);
-        setMessages((current) => [
-          ...current,
-          {
-            id: crypto.randomUUID(),
-            role: "assistant",
-            lines: ["Xに投稿しました。"],
-          },
-        ]);
-      }
-      setPendingPost(null);
+      const response = await postToSlack({
+        draft: generatedDraft,
+        accessToken: authToken,
+        ownerToken: generatedDraft.analysis.ownerToken,
+        selectedSuggestionText: selectedSuggestion.suggestion.text,
+      });
+      setSlackPostStatus("posted");
+      console.debug("ui.slackPost.completed", {
+        suggestionId: selectedSuggestion.id,
+        sent: response.slackWebhook.sent,
+      });
+      setCompletedPosts((current) => [
+        ...current,
+        {
+          channel: "slack",
+          text: selectedSuggestion.suggestion.text,
+          openLabel: "Slackを開く",
+          postedAt: new Date().toISOString(),
+          url: response.slackWebhook.sent ? "https://slack.com" : undefined,
+        },
+      ]);
+      setMessages((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          lines: ["Slackに投稿しました"],
+        },
+      ]);
+      setIsApprovalOpen(false);
+      setSelectedSuggestion(null);
     } catch (postError) {
-      if (pendingPost.channel === "slack") {
-        setPostingStatus((current) => ({ ...current, slack: "error" }));
-      } else {
-        setPostingStatus((current) => ({ ...current, x: "error" }));
-      }
-      setError(
-        postError instanceof Error ? postError.message : "投稿に失敗しました。",
-      );
+      const message =
+        postError instanceof Error
+          ? postError.message
+          : "Slackへの投稿に失敗しました。";
+      setSlackPostStatus("failed");
+      setSlackPostError(message);
+      console.debug("ui.slackPost.failed", {
+        suggestionId: selectedSuggestion.id,
+        message,
+      });
     }
   }
 
@@ -1318,72 +1362,21 @@ export default function PrPostAgentPanel({
             <GeneratedPostSuggestionsPanel
               suggestions={generatedPostSuggestions}
               primaryOutputType={analysisResult?.result.primaryOutputType}
+              attachedImage={
+                attachedImagePreviewUrl
+                  ? {
+                      src: attachedImagePreviewUrl,
+                      alt: attachedImagePreviewLabel,
+                      label: attachedImagePreviewLabel,
+                    }
+                  : null
+              }
+              evidencePack={analysisResult?.result.evidencePack}
+              analysisSections={analysisResult?.result.analysisSections}
+              selectedSuggestionId={selectedSuggestionId}
+              isPosting={isSlackPosting}
+              onSelectSuggestion={handleSuggestionSelect}
             />
-          </ChatBubble>
-        ) : null}
-
-        {photoAnalysisSection ? (
-          <ChatBubble role="assistant">
-            <section className="pr-post-agent-photo-analysis">
-              <h3>画像解析結果</h3>
-              <p>{photoAnalysisSection.summary}</p>
-              <div className="pr-post-agent-photo-analysis-grid">
-                <div>
-                  <strong>見えている要素</strong>
-                  <ul>
-                    {photoAnalysisSection.details?.observedItems?.length ? (
-                      photoAnalysisSection.details.observedItems.map((item) => (
-                        <li key={item}>{item}</li>
-                      ))
-                    ) : (
-                      <li>未取得</li>
-                    )}
-                  </ul>
-                </div>
-                <div>
-                  <strong>読み取れた文字</strong>
-                  <p>
-                    {photoAnalysisSection.details?.ocrText?.trim() || "未取得"}
-                  </p>
-                </div>
-                {photoAnalysisSection.details?.postableElements?.length ? (
-                  <div>
-                    <strong>投稿に使えそうな要素</strong>
-                    <ul>
-                      {photoAnalysisSection.details.postableElements.map(
-                        (item) => (
-                          <li key={item}>{item}</li>
-                        ),
-                      )}
-                    </ul>
-                  </div>
-                ) : null}
-                {photoAnalysisSection.details?.subjectCandidates?.length ? (
-                  <div>
-                    <strong>主題候補</strong>
-                    <ul>
-                      {photoAnalysisSection.details.subjectCandidates.map(
-                        (item) => (
-                          <li key={item}>{item}</li>
-                        ),
-                      )}
-                    </ul>
-                  </div>
-                ) : null}
-                {photoAnalysisSection.details?.sceneInference ? (
-                  <div>
-                    <strong>状況推定</strong>
-                    <p>{photoAnalysisSection.details.sceneInference}</p>
-                  </div>
-                ) : null}
-                {photoAnalysisSection.details?.eventFeel ? (
-                  <div>
-                    <strong>現場感</strong>
-                    <p>{photoAnalysisSection.details.eventFeel}</p>
-                  </div>
-                ) : null}
-              </div>
-            </section>
           </ChatBubble>
         ) : null}
 
@@ -1415,100 +1408,6 @@ export default function PrPostAgentPanel({
                 <li>投稿文を作成中…</li>
               </ul>
             </div>
-          </ChatBubble>
-        ) : null}
-
-        {generatedDraft ? (
-          <ChatBubble role="assistant">
-            <article className="pr-post-agent-draft">
-              <div className="pr-post-agent-draft-head">
-                <p className="pr-post-agent-draft-eyebrow">
-                  過去投稿の傾向をもとに作成しました
-                </p>
-                <button
-                  type="button"
-                  className="pr-post-agent-link-button"
-                  onClick={() => setDraftExpanded((current) => !current)}
-                >
-                  {draftExpanded ? "プレビューを非表示" : "プレビューを表示"}
-                </button>
-              </div>
-
-              {draftExpanded ? (
-                <>
-                  <div className="pr-post-agent-draft-summary">
-                    <ul>
-                      {postTrendSummary.map((line) => (
-                        <li key={line}>{line}</li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <div className="pr-post-agent-draft-copy">
-                    <strong>投稿文</strong>
-                    <pre>{generatedDraft.slackPostText}</pre>
-                  </div>
-
-                  <div className="pr-post-agent-draft-url">
-                    <strong>URL</strong>
-                    <a
-                      href={generatedDraft.techplayUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      {generatedDraft.techplayUrl}
-                    </a>
-                  </div>
-
-                  {uploadedImage ? (
-                    <div className="pr-post-agent-draft-thumb">
-                      <img
-                        src={uploadedImage.objectUrl}
-                        alt={uploadedImage.fileName}
-                      />
-                    </div>
-                  ) : null}
-
-                  {generatedDraft.techplayPreview ? (
-                    <p className="pr-post-agent-draft-preview-note">
-                      {generatedDraft.techplayPreview.summary}
-                    </p>
-                  ) : null}
-                </>
-              ) : (
-                <p className="pr-post-agent-draft-collapsed">
-                  生成済みの投稿案を省略表示しています。
-                </p>
-              )}
-
-              <div className="pr-post-agent-draft-actions">
-                <button
-                  type="button"
-                  className="pr-post-agent-secondary-button"
-                  disabled={
-                    !serviceConnections.slack ||
-                    postingStatus.slack === "posting"
-                  }
-                  onClick={() => openPostConfirmation("slack")}
-                >
-                  Slackに投稿
-                </button>
-                <button
-                  type="button"
-                  className="pr-post-agent-secondary-button"
-                  disabled={postingStatus.x === "posting"}
-                  onClick={() => openPostConfirmation("x")}
-                >
-                  Xに投稿
-                </button>
-              </div>
-
-              {!serviceConnections.slack ? (
-                <p className="pr-post-agent-hint">
-                  Slackに接続すると、この内容を投稿できます。
-                </p>
-              ) : null}
-            </article>
           </ChatBubble>
         ) : null}
 
@@ -1646,32 +1545,80 @@ export default function PrPostAgentPanel({
         onChange={handleUploadImage}
       />
 
-      {pendingPost ? (
+      {isApprovalOpen && selectedSuggestion ? (
         <div className="pr-post-agent-modal-backdrop" role="presentation">
           <section
             className="pr-post-agent-modal"
-            aria-label="投稿確認"
+            aria-label="Slack投稿の承認"
             role="dialog"
             aria-modal="true"
           >
-            <h2>上記の内容で投稿しますか？</h2>
-            <pre className="pr-post-agent-modal-preview">
-              {pendingPost.text}
-            </pre>
+            <div className="pr-post-agent-modal-head">
+              <p className="pr-post-agent-draft-eyebrow">
+                Slackへの投稿がリクエストされました
+              </p>
+              <h2>上記の内容で投稿しますか？</h2>
+              <p className="pr-post-agent-modal-destination">
+                投稿先: Slack Incoming Webhook
+              </p>
+            </div>
+
+            <div className="pr-post-agent-modal-body">
+              <section className="pr-post-agent-modal-copy">
+                <h3>採用した投稿文</h3>
+                <pre className="pr-post-agent-modal-preview long-text">
+                  {selectedSuggestion.suggestion.text}
+                </pre>
+              </section>
+
+              {attachedImagePreviewUrl ? (
+                <figure className="pr-post-agent-modal-image">
+                  <img
+                    src={attachedImagePreviewUrl}
+                    alt={attachedImagePreviewLabel}
+                  />
+                  <figcaption className="long-text">
+                    {attachedImagePreviewLabel}
+                  </figcaption>
+                </figure>
+              ) : null}
+
+              <section className="pr-post-agent-modal-copy">
+                <h3>確認情報</h3>
+                <ul className="pr-post-agent-modal-meta">
+                  <li>投稿案: {selectedSuggestion.index + 1}</li>
+                  <li>投稿先: Slack Incoming Webhook</li>
+                  {selectedSuggestion.suggestion.rationale ? (
+                    <li className="long-text">
+                      根拠: {selectedSuggestion.suggestion.rationale}
+                    </li>
+                  ) : null}
+                </ul>
+              </section>
+            </div>
+
+            {slackPostError ? (
+              <div className="pr-post-agent-error" role="alert">
+                {slackPostError}
+              </div>
+            ) : null}
+
             <div className="pr-post-agent-modal-actions">
               <button
                 type="button"
                 className="pr-post-agent-secondary-button"
-                onClick={() => setPendingPost(null)}
+                disabled={isSlackPosting}
+                onClick={handleApprovalCancel}
               >
                 キャンセル
               </button>
               <button
                 type="button"
                 className="pr-post-agent-primary-button"
-                onClick={() => void confirmPendingPost()}
+                disabled={isSlackPosting}
+                onClick={() => void handleSlackApprovalSubmit()}
               >
-                {pendingPost.channel === "slack" ? "Slackに投稿" : "Xに投稿"}
+                {isSlackPosting ? "投稿中..." : "Slackに投稿"}
               </button>
             </div>
           </section>

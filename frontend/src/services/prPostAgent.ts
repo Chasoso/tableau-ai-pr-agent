@@ -383,10 +383,14 @@ export async function postToSlack(input: {
   draft: GeneratedPrPostDraft;
   accessToken?: string;
   ownerToken?: string;
+  selectedSuggestionText?: string;
 }): Promise<ActionRunApprovalResponse> {
   return approveActionRun(
     input.draft.analysis.actionRunId,
-    { approved: true },
+    {
+      approved: true,
+      selectedSuggestionText: input.selectedSuggestionText?.trim() || undefined,
+    },
     input.accessToken,
     input.ownerToken,
   );

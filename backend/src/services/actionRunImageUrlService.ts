@@ -13,7 +13,18 @@ export function buildActionRunImageUrl(input: {
     config.actionImageObjectKeyPrefix,
   );
   const objectKey = `${objectKeyPrefix}/${input.actionRunId}/poster.svg`;
-  return `${trimTrailingSlashes(baseUrl)}/${objectKey}`;
+  return buildPublicImageUrl(objectKey, baseUrl);
+}
+
+export function buildActionRunPublicImageUrl(
+  objectKey: string,
+): string | undefined {
+  const baseUrl = getConfig().s3.actionImagePublicBaseUrl.trim();
+  if (!baseUrl) {
+    return undefined;
+  }
+
+  return buildPublicImageUrl(objectKey, baseUrl);
 }
 
 function normalizeObjectKeyPrefix(value: string): string {
@@ -23,4 +34,9 @@ function normalizeObjectKeyPrefix(value: string): string {
 
 function trimTrailingSlashes(value: string): string {
   return value.replace(/\/+$/g, "");
+}
+
+function buildPublicImageUrl(objectKey: string, baseUrl: string): string {
+  const trimmedObjectKey = objectKey.trim().replace(/^\/+/, "");
+  return `${trimTrailingSlashes(baseUrl)}/${trimmedObjectKey}`;
 }

@@ -322,6 +322,7 @@ export class ActionRunService {
       request: record.request,
       result: finalResult,
       runId: input.actionRunId,
+      selectedSuggestionText: input.request.selectedSuggestionText,
     });
 
     logInfo("action_run.approved", {

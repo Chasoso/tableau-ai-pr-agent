@@ -107,6 +107,7 @@ export type ActionRunResult = {
   attachedImage?: {
     source: "original_input_image";
     objectKey: string;
+    url?: string;
     contentType: string;
     byteLength?: number;
     width?: number;
@@ -237,6 +238,8 @@ export type ActionRunAnalysisSection = {
 export type ActionRunApprovalRequest = {
   approved: boolean;
   reviewerNote?: string;
+  selectedSuggestionId?: string;
+  selectedSuggestionText?: string;
 };
 
 export type ActionRunApprovalResponse = ActionRunGetResponse & {

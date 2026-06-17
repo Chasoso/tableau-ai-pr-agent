@@ -20,6 +20,7 @@ export class SlackWebhookService {
     request: ActionRunRequest;
     result: ActionRunResult;
     runId?: string;
+    selectedSuggestionText?: string;
   }): Promise<SlackWebhookPostResult> {
     if (getConfig().demoMode) {
       logWarn("slack.webhook.skipped", {
@@ -94,9 +95,11 @@ export class SlackWebhookService {
 function buildSlackPayload(input: {
   request: ActionRunRequest;
   result: ActionRunResult;
+  selectedSuggestionText?: string;
 }) {
   const evidenceLines = input.result.evidence.slice(0, 4);
   const checkLines = input.result.checks.slice(0, 4);
+  const imageUrl = input.result.attachedImage?.url ?? input.result.imageUrl;
   const analysisSectionLines = (input.result.analysisSections ?? [])
     .slice(0, 4)
     .map(
@@ -123,7 +126,7 @@ function buildSlackPayload(input: {
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `*Draft post*\n${input.result.suggestedSlackPostText}`,
+          text: `*Draft post*\n${(input.selectedSuggestionText ?? input.result.suggestedSlackPostText).trim()}`,
         },
       },
       {
@@ -153,16 +156,14 @@ function buildSlackPayload(input: {
             },
           ]
         : []),
-      ...(input.result.imageUrl
-        ? input.result.imageUrl.startsWith("http")
-          ? [
-              {
-                type: "image",
-                image_url: input.result.imageUrl,
-                alt_text: `${input.request.eventName} poster image`,
-              },
-            ]
-          : []
+      ...(imageUrl && imageUrl.startsWith("http")
+        ? [
+            {
+              type: "image",
+              image_url: imageUrl,
+              alt_text: `${input.request.eventName} poster image`,
+            },
+          ]
         : []),
       {
         type: "section",

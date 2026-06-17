@@ -23,13 +23,136 @@ export const e2eServiceConnections = {
 };
 
 export const analysisResult = {
-  summary: "開催中投稿では短文 + 写真つきが多いです。",
+  primaryOutputType: "generated_post_suggestions",
+  summary: "A photo-led draft is ready.",
   suggestedSlackPostText:
-    "#Tableau #TechPlay #HokuTUG\nMCPで整理した開催中の実況です。",
+    "#Tableau #TechPlay #HokuTUG\nA strong event recap draft.",
   hashtags: ["#Tableau", "#TechPlay", "#HokuTUG"],
-  evidence: ["短文投稿が多い", "写真つきの投稿が目立つ"],
-  checks: ["開催中の実況であることを確認"],
-  imageCaption: "会場の写真",
+  evidence: ["photo", "event"],
+  checks: ["preview approved"],
+  imageCaption: "event photo",
+  generatedPostSuggestions: [
+    {
+      text: "#Tableau #TechPlay\nThe event energy comes through in this version.",
+      rationale: "Uses the image and event context.",
+      usedEvidence: {
+        photo: true,
+        event: true,
+        survey: false,
+        postPerformance: false,
+        accountOverview: true,
+      },
+      warnings: [],
+    },
+    {
+      text: "#Tableau #TechPlay\nThis version leads with analysis results.",
+      rationale: "Focuses on Tableau insights.",
+      usedEvidence: {
+        photo: false,
+        event: true,
+        survey: true,
+        postPerformance: false,
+        accountOverview: false,
+      },
+      warnings: ["URL is a little long"],
+    },
+    {
+      text: "#Tableau #TechPlay\nA friendly invite-style draft.",
+      rationale: "Mixes event and account context.",
+      usedEvidence: {
+        photo: true,
+        event: true,
+        survey: false,
+        postPerformance: true,
+        accountOverview: false,
+      },
+      warnings: [],
+    },
+  ],
+  attachedImage: {
+    source: "original_input_image",
+    objectKey: "client-input-images/mock-upload/venue.jpg",
+    url: "https://images.example.com/client-input-images/mock-upload/venue.jpg",
+    contentType: "image/jpeg",
+    width: 1,
+    height: 1,
+  },
+  evidencePack: {
+    photoContext: {
+      available: true,
+      source: "actual_image",
+      summary: "The photo shows the venue.",
+      observedItems: ["venue", "speaker"],
+      visibleText: ["Tableau", "Meetup"],
+      eventFeel: "lively",
+      postableElements: ["venue photo"],
+      subjectCandidates: ["study session"],
+    },
+    eventContext: {
+      available: true,
+      source: "google_calendar",
+      eventName: "Tableau User Group Tokyo 2026",
+      eventUrl: calendarTechPlayUrl,
+      eventDescription: "Event overview",
+      venue: "Tokyo",
+      eventDateText: "2026/06/14 11:30",
+    },
+    surveyInsight: {
+      available: true,
+      sourceStatus: "queried",
+      datasourceKey: "survey",
+      summary: "Survey feedback is positive.",
+    },
+    postPerformanceInsight: {
+      available: true,
+      sourceStatus: "queried",
+      datasourceKey: "post-perf",
+      summary: "Image posts perform well.",
+    },
+    accountOverviewInsight: {
+      available: true,
+      sourceStatus: "queried",
+      datasourceKey: "account",
+      summary: "This account often uses event photos.",
+    },
+    canGeneratePost: true,
+    generationBlockers: [],
+  },
+  analysisSections: [
+    {
+      key: "photo_context",
+      title: "画像解析結果",
+      question: "What is in the image?",
+      summary: "It shows the event venue.",
+      rows: [{ label: "items", value: 2 }],
+      details: {
+        observedItems: ["venue", "speaker"],
+        ocrText: "Tableau Meetup",
+        eventFeel: "lively",
+      },
+    },
+    {
+      key: "survey_insight",
+      title: "アンケート分析結果",
+      question: "How was the response?",
+      summary: "Feedback is positive.",
+      rows: [{ label: "count", value: 10 }],
+    },
+    {
+      key: "post_performance_insight",
+      title: "投稿実績分析結果",
+      question: "How are past posts performing?",
+      summary: "Image posts are strong.",
+      rows: [{ label: "lift", value: 3 }],
+    },
+    {
+      key: "account_overview_insight",
+      title: "アカウント概要",
+      question: "What is the account like?",
+      summary: "Event photos are a common pattern.",
+      rows: [{ label: "freq", value: 5 }],
+    },
+  ],
 };
 
 export async function seedPrPostAgentState(
@@ -198,6 +321,14 @@ export async function mockPrPostAgentApis(page: Page) {
   });
 
   await page.route("**/api/action-runs/*/approval", async (route) => {
+    const requestBody = route.request().postDataJSON() as {
+      approved?: boolean;
+      selectedSuggestionText?: string;
+      selectedSuggestionId?: string;
+    };
+    expect(requestBody.approved).toBe(true);
+    expect(requestBody.selectedSuggestionText).toBeTruthy();
+
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({

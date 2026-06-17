@@ -1,5 +1,6 @@
 import { getConfig } from "../config";
 import { logInfo } from "../logging";
+import { buildActionRunPublicImageUrl } from "./actionRunImageUrlService";
 import { DirectTableauApiContextProvider } from "../tableau/directTableauApiContextProvider";
 import { MockTableauContextProvider } from "../tableau/mockTableauContextProvider";
 import { TableauMcpContextProvider } from "../tableau/tableauMcpContextProvider";
@@ -610,6 +611,7 @@ function buildAttachedInputImage(
   return {
     source: "original_input_image",
     objectKey,
+    url: buildActionRunPublicImageUrl(objectKey),
     contentType,
     ...(inputImage?.bytes ? { byteLength: inputImage.bytes } : {}),
     ...(inputImage?.width ? { width: inputImage.width } : {}),
