@@ -121,7 +121,6 @@ describe("ActionRunService", () => {
     } else {
       process.env.ACTION_RUN_WORKER_FUNCTION_NAME = originalWorkerFunctionName;
     }
-
   });
 
   it("returns a queued action run immediately", async () => {

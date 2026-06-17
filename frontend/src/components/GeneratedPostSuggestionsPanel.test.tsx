@@ -12,7 +12,8 @@ describe("GeneratedPostSuggestionsPanel", () => {
         suggestions={[
           {
             text: "案1の本文",
-            rationale: "画像情報を使用しています。イベント情報を使用しています。",
+            rationale:
+              "画像情報を使用しています。イベント情報を使用しています。",
             usedEvidence: {
               photo: true,
               event: true,

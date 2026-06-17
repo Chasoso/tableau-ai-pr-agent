@@ -159,7 +159,9 @@ function normalizeObjectKeyForContentType(
   const directory =
     lastSlashIndex >= 0 ? normalizedKey.slice(0, lastSlashIndex + 1) : "";
   const fileName =
-    lastSlashIndex >= 0 ? normalizedKey.slice(lastSlashIndex + 1) : normalizedKey;
+    lastSlashIndex >= 0
+      ? normalizedKey.slice(lastSlashIndex + 1)
+      : normalizedKey;
   const dotIndex = fileName.lastIndexOf(".");
   const stem = dotIndex >= 0 ? fileName.slice(0, dotIndex) : fileName;
   return `${directory}${stem}.${extension}`;

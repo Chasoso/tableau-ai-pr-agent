@@ -406,27 +406,6 @@ async function generatePostSuggestionsFromEvidencePack(input: {
   return suggestions;
 }
 
-function buildPostSuggestionPrompt(input: {
-  evidencePack: PostGenerationEvidencePack;
-  postType: ActionRunRequest["postType"];
-  tone?: string;
-  maxSuggestions?: number;
-}): string {
-  return [
-    "あなたの役割は、SNS投稿文のライターです。",
-    "画像分析結果を説明するのではなく、Xにそのまま投稿できる自然な日本語の投稿文を作成してください。",
-    `postType: ${input.postType}`,
-    `tone: ${input.tone ?? "natural"}`,
-    `maxSuggestions: ${input.maxSuggestions ?? 3}`,
-    `photoContextAvailable: ${input.evidencePack.photoContext.available}`,
-    `eventContextAvailable: ${input.evidencePack.eventContext.available}`,
-    `surveyInsightAvailable: ${input.evidencePack.surveyInsight.available}`,
-    `postPerformanceAvailable: ${input.evidencePack.postPerformanceInsight.available}`,
-    `accountOverviewAvailable: ${input.evidencePack.accountOverviewInsight.available}`,
-    JSON.stringify(summarizeEvidencePack(input.evidencePack), null, 2),
-  ].join("\n");
-}
-
 function summarizeEvidencePack(
   evidencePack: PostGenerationEvidencePack,
 ): Record<string, unknown> {
@@ -512,7 +491,6 @@ function buildPostSuggestionPromptV2(input: {
     JSON.stringify(summarizeEvidencePack(input.evidencePack), null, 2),
   ].join("\n");
 }
-
 function normalizeGeneratedPostSuggestions(input: {
   suggestions: GeneratedPostSuggestion[];
   evidencePack: PostGenerationEvidencePack;
@@ -600,11 +578,11 @@ function isMeaningfulPhotoContext(
     photoContext.source === "actual_image" &&
     Boolean(
       normalizeMeaningfulText(photoContext.summary) ||
-        (photoContext.detectedTopics?.length ?? 0) > 0 ||
-        (photoContext.observedItems?.length ?? 0) > 0 ||
-        (photoContext.postableElements?.length ?? 0) > 0 ||
-        (photoContext.subjectCandidates?.length ?? 0) > 0 ||
-        normalizeMeaningfulText(photoContext.ocrText),
+      (photoContext.detectedTopics?.length ?? 0) > 0 ||
+      (photoContext.observedItems?.length ?? 0) > 0 ||
+      (photoContext.postableElements?.length ?? 0) > 0 ||
+      (photoContext.subjectCandidates?.length ?? 0) > 0 ||
+      normalizeMeaningfulText(photoContext.ocrText),
     )
   );
 }
@@ -695,7 +673,9 @@ function buildSuggestionVariant(input: {
       lines.push(stripAnalysisLanguage(input.eventDescription));
     }
     if (input.venue) {
-      lines.push(`${input.venue}の雰囲気も伝わる、落ち着いた立ち上がりです。`);
+      lines.push(
+        `${input.venue}の開催地は落ち着いた雰囲気で、写真からも会場の空気感が伝わります。`,
+      );
     }
   }
 
@@ -705,13 +685,13 @@ function buildSuggestionVariant(input: {
     const accountHint = input.accountThemes[0];
     const middleParts = [
       surveyHint
-        ? `参加される皆さんが気にしていそうな${surveyHint}も、自然に拾えると良さそうです。`
+        ? `参加者が気にしそうな点として ${surveyHint} を自然に織り込みます。`
         : undefined,
       performanceHint
-        ? `最近の反応がよかった流れも意識して、${performanceHint}のような短い導入に寄せています。`
+        ? `伸びやすい表現として ${performanceHint} の流れを取り入れます。`
         : undefined,
       accountHint
-        ? `アカウント全体の流れともなじむように、${accountHint}を軽くにじませます。`
+        ? `アカウントの文脈に合わせて ${accountHint} を反映します。`
         : undefined,
     ].filter((value): value is string => Boolean(value));
     if (middleParts.length) {
@@ -719,28 +699,28 @@ function buildSuggestionVariant(input: {
     }
     if (input.photoTopics.length && lines.length < 3) {
       lines.push(
-        `${input.photoTopics[0]}の空気感を、ひと言で添えるイメージです。`,
+        `${input.photoTopics[0]}の要素を、自然な表現で投稿文に取り込みます。`,
       );
     }
   }
 
   if (input.variant === "invitation") {
     if (input.eventName) {
-      lines.push(`今日は${input.eventName}。`);
+      lines.push(`ぜひ ${input.eventName} に参加してみてください。`);
     }
     lines.push(
-      "会場の熱気を感じつつ、参加される皆さんと一緒に楽しんでいきましょう。",
+      "会場の雰囲気や参加メリットが伝わるように、読みやすく案内します。",
     );
     if (input.eventDateText) {
-      lines.push(`開催情報は${input.eventDateText}です。`);
+      lines.push(`開催日は ${input.eventDateText} です。`);
     }
   }
 
   if (!lines.length) {
     lines.push(
       hasEvent
-        ? `${input.eventName} の様子を、現場感が伝わる一文でまとめます。`
-        : "現場感が伝わる一文でまとめます。",
+        ? `${input.eventName} の告知として、現場感が伝わる一文を中心にまとめます。`
+        : "現場感が伝わる一文を中心にまとめます。",
     );
   }
 
@@ -772,7 +752,6 @@ function buildSuggestionVariant(input: {
     }),
   };
 }
-
 function buildOpeningLine(
   variant: "opening" | "community" | "invitation",
   eventName?: string,
@@ -780,26 +759,26 @@ function buildOpeningLine(
 ): string {
   if (variant === "invitation") {
     return eventName
-      ? `${eventName}、まもなくスタートです！`
-      : "まもなくスタートです！";
+      ? `${eventName}、ぜひ参加してみてください。`
+      : "ぜひ参加してみてください。";
   }
 
   if (variant === "community") {
     return eventName
-      ? `${eventName}、現場の空気が少しずつ高まってきました。`
-      : "会場の空気が少しずつ高まってきました。";
+      ? `${eventName}の現場は、少しずつ熱気が高まってきています。`
+      : "現場の熱気が少しずつ高まってきています。";
   }
 
   if (eventName) {
     return eventDateText
-      ? `${eventName}（${eventDateText}）の様子をお届けします。`
-      : `${eventName}の様子をお届けします。`;
+      ? `${eventName}・${eventDateText}の告知を、現場感を込めてお届けします。`
+      : `${eventName}の告知を、現場感を込めてお届けします。`;
   }
 
-  return "会場の様子をお届けします。";
+  return "Untitled event";
 }
 
-function buildRationale(input: {
+function buildRationaleV2(input: {
   hasEvent: boolean;
   hasPhoto: boolean;
   hasSurvey: boolean;
@@ -809,20 +788,20 @@ function buildRationale(input: {
 }): string {
   const parts = [
     input.hasPhoto
-      ? "画像の現場感を起点にしています。"
+      ? "画像情報を使用しています。"
       : "画像情報は使っていません。",
     input.hasEvent
-      ? "イベント名や開催情報を自然に織り込んでいます。"
-      : "イベント名は捏造していません。",
+      ? "イベント情報を使用しています。"
+      : "イベント情報は未取得です。",
     input.hasSurvey
-      ? "アンケート傾向を軽く反映しています。"
-      : "アンケート情報は補助扱いです。",
+      ? "参加者アンケートを反映しています。"
+      : "参加者アンケートは未取得です。",
     input.hasPerformance
-      ? "過去の投稿傾向をトーン調整に使っています。"
-      : "過去の投稿傾向は未取得でも成立するようにしています。",
+      ? "過去投稿の傾向を反映しています。"
+      : "過去投稿の傾向は未取得です。",
     input.hasAccount
-      ? "アカウント全体の流れも意識しています。"
-      : "アカウント概要は未取得でも成立するようにしています。",
+      ? "アカウント概要を反映しています。"
+      : "アカウント概要は未取得です。",
     `variant: ${input.variant}`,
   ];
   return parts.join(" ");
@@ -864,8 +843,8 @@ function buildRationaleV2(input: {
       ? "参加者アンケートを反映しています。"
       : "参加者アンケートは未取得です。",
     input.hasPerformance
-      ? "過去の投稿傾向を反映しています。"
-      : "過去の投稿傾向は未取得です。",
+      ? "過去投稿の傾向を反映しています。"
+      : "過去投稿の傾向は未取得です。",
     input.hasAccount
       ? "アカウント概要を反映しています。"
       : "アカウント概要は未取得です。",
@@ -873,7 +852,6 @@ function buildRationaleV2(input: {
   ];
   return parts.join(" ");
 }
-
 function limitPostLength(text: string): string {
   if (text.length <= 280) {
     return text;
@@ -895,7 +873,7 @@ function buildHashtagsForSuggestion(
   postType?: ActionRunRequest["postType"],
 ): string[] {
   const tags = new Set<string>(["#Tableau"]);
-  if (postType === "開催中の実況") {
+  if (postType === "????") {
     tags.add("#HokuTUG");
   }
   if (eventName) {
@@ -1072,16 +1050,12 @@ function getEffectiveEventName(request: ActionRunRequest): string {
     return requestEventName;
   }
 
-  return "イベント";
+  return "Untitled event";
 }
 
 function normalizeMeaningfulText(value?: string): string | undefined {
   const text = value?.trim();
   if (!text) {
-    return undefined;
-  }
-
-  if (/未取得|未設定|未入力|不明|なし|イベント情報は未取得です/i.test(text)) {
     return undefined;
   }
 

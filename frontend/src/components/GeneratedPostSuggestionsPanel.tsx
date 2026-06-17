@@ -27,7 +27,9 @@ export default function GeneratedPostSuggestionsPanel({
               : "下書き候補として表示しています。"}
           </p>
         </div>
-        <span className="pr-post-agent-status-pill">{suggestions.length}案</span>
+        <span className="pr-post-agent-status-pill">
+          {suggestions.length}案
+        </span>
       </div>
 
       <div className="pr-post-agent-suggestions-list">
@@ -60,7 +62,11 @@ export default function GeneratedPostSuggestionsPanel({
               </div>
               <div>
                 <dt>注意</dt>
-                <dd>{suggestion.warnings.length ? suggestion.warnings.join(" / ") : "なし"}</dd>
+                <dd>
+                  {suggestion.warnings.length
+                    ? suggestion.warnings.join(" / ")
+                    : "なし"}
+                </dd>
               </div>
             </dl>
           </article>

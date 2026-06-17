@@ -129,7 +129,9 @@ describe("ActionRunAnalysisService", () => {
       request: buildRequest(),
     });
 
-    expect(result.generatedPostSuggestions?.[0]?.usedEvidence.photo).toBe(false);
+    expect(result.generatedPostSuggestions?.[0]?.usedEvidence.photo).toBe(
+      false,
+    );
     expect(result.generatedPostSuggestions?.[0]?.warnings).toContain(
       "photo_context_missing",
     );

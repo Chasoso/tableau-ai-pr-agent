@@ -410,7 +410,8 @@ export class ActionRunService {
           `Required analysis was not completed: ${generationBlockers.join(", ") || "unknown blockers"}`,
         );
       }
-      const attachedImage = response.attachedImage ?? buildAttachedInputImage(claimed.request);
+      const attachedImage =
+        response.attachedImage ?? buildAttachedInputImage(claimed.request);
       const completedResult = {
         ...response,
         ...(attachedImage ? { attachedImage } : {}),
@@ -425,7 +426,7 @@ export class ActionRunService {
         generatedPostSuggestionCount:
           completedResult.generatedPostSuggestions?.length ?? 0,
         primaryOutputTextLength:
-          completedResult.generatedPostSuggestions?.[0]?.text?.length ?? 
+          completedResult.generatedPostSuggestions?.[0]?.text?.length ??
           completedResult.suggestedSlackPostText.length,
         hasPhotoAnalysisSections:
           (completedResult.analysisSections?.length ?? 0) > 0,
