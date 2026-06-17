@@ -25,6 +25,11 @@ export type AppConfig = {
   slack: {
     incomingWebhookUrl: string;
   };
+  bluesky: {
+    identifier: string;
+    appPassword: string;
+    serviceUrl: string;
+  };
   s3: {
     actionImageBucketName: string;
     actionImagePublicBaseUrl: string;
@@ -195,6 +200,11 @@ export function getConfig(): AppConfig {
     },
     slack: {
       incomingWebhookUrl: process.env.SLACK_INCOMING_WEBHOOK_URL ?? "",
+    },
+    bluesky: {
+      identifier: process.env.BLUESKY_IDENTIFIER ?? "",
+      appPassword: process.env.BLUESKY_APP_PASSWORD ?? "",
+      serviceUrl: process.env.BLUESKY_SERVICE_URL ?? "https://bsky.social",
     },
     s3: {
       actionImageBucketName: process.env.PR_ACTION_IMAGE_BUCKET_NAME ?? "",

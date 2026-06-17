@@ -30,6 +30,9 @@ Default local settings:
 - `TABLEAU_CONTEXT_PROVIDER=mock`
 - `CHAT_AGENT_ENABLED=true`
 - `CHAT_AGENT_MAX_CONTEXT_PASSES=2`
+- `BLUESKY_IDENTIFIER=<handle or email>`
+- `BLUESKY_APP_PASSWORD=<app password>`
+- `BLUESKY_SERVICE_URL=https://bsky.social`
 
 ### Testing
 
@@ -92,6 +95,9 @@ npm run dev
 - `PORT=3001`
 - `USE_IN_MEMORY_REPOSITORY=true`
 - `TABLEAU_CONTEXT_PROVIDER=mock`
+- `BLUESKY_IDENTIFIER=<handle or email>`
+- `BLUESKY_APP_PASSWORD=<app password>`
+- `BLUESKY_SERVICE_URL=https://bsky.social`
 
 ### テスト
 

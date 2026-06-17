@@ -4,7 +4,7 @@
 
 `tableau-ai-pr-agent` は、Tableau ダッシュボード内で動く **AI広報アクション** のための拡張機能です。
 
-チャットアプリではなく、分析結果をもとに広報投稿を素早く作成し、確認し、必要なら Slack へ投稿することを目的にします。
+チャットアプリではなく、分析結果をもとに広報投稿を素早く作成し、確認し、必要なら Slack と Bluesky へ投稿することを目的にします。
 
 主な利用シーンは次のとおりです。
 
@@ -21,9 +21,10 @@
 3. イベント名、TechPlay イベントページ URL、現在の状況などを入力する
 4. 必要に応じて会場写真をアップロードする
 5. Tableau の分析結果、TechPlay ページ、将来の Drive 資料、会場写真を参照する
-6. Agent が Slack 投稿文、画像、ハッシュタグ、根拠、確認ポイントを生成する
+6. Agent が Slack / Bluesky 投稿文、画像、ハッシュタグ、根拠、確認ポイントを生成する
 7. 画像を S3 に保存し、URL を表示する
 8. Slack Incoming Webhook で画像付き投稿を送る
+9. 必要に応じて Bluesky App Password で API 投稿する
 
 ## MVP 範囲
 
@@ -33,7 +34,7 @@
 - Phase 2: Action Runs API
 - Phase 3: TechPlay ページ読み込み
 - Phase 4: Tableau MCP で固定分析
-- Phase 5: Slack Webhook 投稿
+- Phase 5: Slack / Bluesky 投稿
 - Phase 6: S3 画像 URL 表示
 
 この MVP では、Google Drive、スマホ写真の本格取り込み、画像生成の高度化は後回しにします。
@@ -65,9 +66,10 @@
 - 投稿タイプ別、キーワード別、曜日・時間帯別、画像有無などの傾向を見る
 - `query-datasource` / `get-datasource-metadata` を中心に使う
 
-### Phase 5: Slack Webhook 投稿
+### Phase 5: Slack / Bluesky 投稿
 
 - Slack Incoming Webhook で投稿文、根拠、確認ポイントを送る
+- Bluesky は App Password 認証で API 経由投稿する
 - 画像は S3 URL を image block として表示する
 
 ### Phase 6: S3 画像保存基盤
@@ -142,9 +144,15 @@
 
 ### Slack
 
-- 最終出力先
+- 最終出力先のひとつ
 - 画像付きの広報投稿を送る
 - 投稿文、根拠、確認ポイントを含める
+
+### Bluesky
+
+- 最終出力先のひとつ
+- App Password 認証で API 投稿する
+- Slack 承認後に追加で投稿する
 
 ### S3
 

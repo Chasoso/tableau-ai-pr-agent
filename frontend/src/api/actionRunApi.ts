@@ -1,5 +1,7 @@
 import { env } from "../env";
 import type {
+  ActionRunBlueskyPostRequest,
+  ActionRunBlueskyPostResponse,
   ActionRunApprovalRequest,
   ActionRunApprovalResponse,
   ActionRunCreateResponse,
@@ -67,6 +69,28 @@ export async function approveActionRun(
   }
 
   return response.json() as Promise<ActionRunApprovalResponse>;
+}
+
+export async function postActionRunToBluesky(
+  actionRunId: string,
+  request: ActionRunBlueskyPostRequest,
+  accessToken?: string,
+  ownerToken?: string,
+): Promise<ActionRunBlueskyPostResponse> {
+  const response = await fetch(
+    `${apiBaseUrl()}/action-runs/${encodeURIComponent(actionRunId)}/bluesky-post`,
+    {
+      method: "POST",
+      headers: buildJsonHeaders(accessToken, ownerToken),
+      body: JSON.stringify(request),
+    },
+  );
+
+  if (!response.ok) {
+    throw await toApiError(response);
+  }
+
+  return response.json() as Promise<ActionRunBlueskyPostResponse>;
 }
 
 function buildJsonHeaders(accessToken?: string, ownerToken?: string) {

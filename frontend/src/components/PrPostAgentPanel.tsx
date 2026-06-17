@@ -19,6 +19,7 @@ import {
   analyzePastPostsWithTableau,
   fetchTechPlayEventInfo,
   generatePrPostDraft,
+  postToBluesky,
   postToSlack,
   resolveCalendarEventContext,
 } from "../services/prPostAgent";
@@ -89,7 +90,6 @@ const INITIAL_MESSAGES: ChatMessage[] = [
 const DEFAULT_CONNECTIONS: ServiceConnections = {
   google: false,
   slack: false,
-  x: false,
 };
 
 export default function PrPostAgentPanel({
@@ -157,6 +157,11 @@ export default function PrPostAgentPanel({
     "idle" | "posting" | "posted" | "failed"
   >("idle");
   const [slackPostError, setSlackPostError] = useState<string | null>(null);
+  const [isBlueskyApprovalOpen, setIsBlueskyApprovalOpen] = useState(false);
+  const [blueskyPostStatus, setBlueskyPostStatus] = useState<
+    "idle" | "posting" | "posted" | "failed"
+  >("idle");
+  const [blueskyPostError, setBlueskyPostError] = useState<string | null>(null);
   const [completedPosts, setCompletedPosts] = useState<PostedResult[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -208,6 +213,8 @@ export default function PrPostAgentPanel({
     "添付予定画像";
   const visibleSelectedSuggestionId = activeSuggestion ? "suggestion-0" : null;
   const isSlackPosting = slackPostStatus === "posting";
+  const isBlueskyPosting = blueskyPostStatus === "posting";
+  const activeBlueskySuggestion = approvedSuggestion ?? selectedSuggestion;
 
   const canGenerate = useMemo(() => {
     if (!selectedPostType || generationStatus !== "idle") {
@@ -452,7 +459,7 @@ export default function PrPostAgentPanel({
             role: "assistant",
             lines: [
               "投稿案を生成しました。",
-              "必要なら Slack や X に投稿できます。",
+              "必要なら Slack や Bluesky に投稿できます。",
             ],
           },
         ]);
@@ -1055,6 +1062,9 @@ export default function PrPostAgentPanel({
     setApprovedSuggestion(null);
     setSlackPostError(null);
     setSlackPostStatus("idle");
+    setBlueskyPostError(null);
+    setBlueskyPostStatus("idle");
+    setIsBlueskyApprovalOpen(false);
     setIsApprovalOpen(true);
     console.debug("ui.suggestion.selected", {
       suggestionId: input.suggestionId,
@@ -1077,6 +1087,9 @@ export default function PrPostAgentPanel({
     setApprovedSuggestion(null);
     setSlackPostError(null);
     setSlackPostStatus("idle");
+    setBlueskyPostError(null);
+    setBlueskyPostStatus("idle");
+    setIsBlueskyApprovalOpen(false);
   }
 
   async function handleSlackApprovalSubmit() {
@@ -1117,12 +1130,15 @@ export default function PrPostAgentPanel({
         {
           id: crypto.randomUUID(),
           role: "assistant",
-          lines: ["Slackに投稿しました"],
+          lines: ["Slackに投稿しました。続けてBlueskyにも投稿できます。"],
         },
       ]);
       setIsApprovalOpen(false);
       setApprovedSuggestion(selectedSuggestion);
       setSelectedSuggestion(null);
+      setIsBlueskyApprovalOpen(true);
+      setBlueskyPostError(null);
+      setBlueskyPostStatus("idle");
     } catch (postError) {
       const message =
         postError instanceof Error
@@ -1132,6 +1148,81 @@ export default function PrPostAgentPanel({
       setSlackPostError(message);
       console.debug("ui.slackPost.failed", {
         suggestionId: selectedSuggestion.id,
+        message,
+      });
+    }
+  }
+
+  function handleBlueskyApprovalCancel() {
+    if (activeBlueskySuggestion) {
+      console.debug("ui.blueskyApprovalModal.cancelled", {
+        suggestionId: activeBlueskySuggestion.id,
+      });
+    }
+
+    setIsBlueskyApprovalOpen(false);
+    setBlueskyPostError(null);
+    setBlueskyPostStatus("idle");
+  }
+
+  async function handleBlueskyApprovalSubmit() {
+    if (!analysisResult || !activeBlueskySuggestion) {
+      return;
+    }
+
+    setBlueskyPostStatus("posting");
+    setBlueskyPostError(null);
+    console.debug("ui.blueskyPost.started", {
+      suggestionId: activeBlueskySuggestion.id,
+    });
+
+    try {
+      const response = await postToBluesky({
+        actionRunId: analysisResult.actionRunId,
+        accessToken: authToken,
+        ownerToken: analysisResult.ownerToken,
+        selectedSuggestionText: activeBlueskySuggestion.suggestion.text,
+      });
+      setBlueskyPostStatus("posted");
+      console.debug("ui.blueskyPost.completed", {
+        suggestionId: activeBlueskySuggestion.id,
+        sent: response.blueskyPost.sent,
+        postUri: response.blueskyPost.postUri,
+      });
+      const blueskyUrl = blueskyPostUriToWebUrl(response.blueskyPost.postUri);
+      setCompletedPosts((current) => [
+        ...current,
+        {
+          channel: "bluesky",
+          text: activeBlueskySuggestion.suggestion.text,
+          openLabel: "Blueskyを開く",
+          postedAt: new Date().toISOString(),
+          url: blueskyUrl,
+        },
+      ]);
+      setMessages((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          lines: [
+            response.blueskyPost.sent
+              ? "Blueskyに投稿しました。"
+              : "Blueskyへの投稿は送信されませんでした。",
+          ],
+        },
+      ]);
+      setIsBlueskyApprovalOpen(false);
+      setBlueskyPostError(null);
+    } catch (postError) {
+      const message =
+        postError instanceof Error
+          ? postError.message
+          : "Blueskyへの投稿に失敗しました。";
+      setBlueskyPostStatus("failed");
+      setBlueskyPostError(message);
+      console.debug("ui.blueskyPost.failed", {
+        suggestionId: activeBlueskySuggestion.id,
         message,
       });
     }
@@ -1387,14 +1478,14 @@ export default function PrPostAgentPanel({
             <div className="pr-post-agent-posted">
               <span>
                 {post.channel === "slack"
-                  ? "Slackに投稿しました。"
-                  : "Xに投稿しました。"}{" "}
+                  ? "Slackに投稿しました"
+                  : "Blueskyに投稿しました"}{" "}
                 <a
                   href={
                     post.url ??
                     (post.channel === "slack"
                       ? "https://slack.com"
-                      : "https://x.com")
+                      : "https://bsky.app")
                   }
                   target="_blank"
                   rel="noreferrer"
@@ -1403,7 +1494,7 @@ export default function PrPostAgentPanel({
                 </a>
               </span>
               <details>
-                <summary>投稿内容を開く</summary>
+                <summary>投稿文を表示</summary>
                 <pre>{post.text}</pre>
               </details>
             </div>
@@ -1475,13 +1566,6 @@ export default function PrPostAgentPanel({
                 onClick={() => void handleConnectService("slack")}
               >
                 {serviceConnections.slack ? "Slack 接続済" : "Slackに接続"}
-              </button>
-              <button
-                type="button"
-                disabled={serviceConnections.x}
-                onClick={() => void handleConnectService("x")}
-              >
-                {serviceConnections.x ? "X 接続済" : "Xに接続"}
               </button>
               <button type="button" onClick={() => resetConversation()}>
                 会話をやり直す
@@ -1558,6 +1642,50 @@ export default function PrPostAgentPanel({
           ) : null}
         </section>
       ) : null}
+
+      {isBlueskyApprovalOpen && activeBlueskySuggestion ? (
+        <section
+          className="pr-post-agent-approval-bar"
+          aria-label="Bluesky投稿の承認"
+          role="dialog"
+          aria-modal="false"
+        >
+          <div className="pr-post-agent-approval-bar-copy">
+            <p className="pr-post-agent-approval-bar-title">
+              Blueskyへの投稿がリクエストされました
+            </p>
+            <p className="pr-post-agent-approval-bar-text">
+              Slack 承認後の投稿案を、Bluesky App Password で API
+              経由で投稿します。
+            </p>
+          </div>
+
+          <div className="pr-post-agent-approval-bar-actions">
+            <button
+              type="button"
+              className="pr-post-agent-secondary-button"
+              disabled={isBlueskyPosting}
+              onClick={handleBlueskyApprovalCancel}
+            >
+              キャンセル
+            </button>
+            <button
+              type="button"
+              className="pr-post-agent-primary-button"
+              disabled={isBlueskyPosting}
+              onClick={() => void handleBlueskyApprovalSubmit()}
+            >
+              {isBlueskyPosting ? "投稿中..." : "Blueskyに投稿"}
+            </button>
+          </div>
+
+          {blueskyPostError ? (
+            <div className="pr-post-agent-error" role="alert">
+              {blueskyPostError}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
     </section>
   );
 }
@@ -1602,7 +1730,6 @@ function loadConnections(scopeKey?: string): ServiceConnections {
     return {
       google: parsed.google ?? false,
       slack: parsed.slack ?? false,
-      x: parsed.x ?? false,
     };
   } catch {
     return DEFAULT_CONNECTIONS;
@@ -1633,6 +1760,22 @@ function resolveConnectionOwnerToken(scopeKey?: string): string | undefined {
   }
 
   return scopeKey.slice("anon:".length) || undefined;
+}
+
+function blueskyPostUriToWebUrl(uri?: string): string | undefined {
+  if (!uri?.trim()) {
+    return undefined;
+  }
+
+  const match = uri.match(
+    /^at:\/\/(?:did:[^/]+|[A-Za-z0-9._:-]+)\/app\.bsky\.feed\.post\/([A-Za-z0-9]+)$/,
+  );
+  if (!match) {
+    return undefined;
+  }
+
+  const did = uri.slice("at://".length, uri.indexOf("/app.bsky.feed.post/"));
+  return `https://bsky.app/profile/${did}/post/${match[1]}`;
 }
 
 function formatFileSize(bytes: number): string {

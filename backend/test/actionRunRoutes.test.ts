@@ -4,6 +4,7 @@ const actionRunMocks = vi.hoisted(() => ({
   createActionRun: vi.fn(),
   getActionRun: vi.fn(),
   approveActionRun: vi.fn(),
+  postActionRunToBluesky: vi.fn(),
 }));
 
 vi.mock("../src/services/actionRunService", () => ({
@@ -20,6 +21,7 @@ describe("action run routes", () => {
     actionRunMocks.createActionRun.mockReset();
     actionRunMocks.getActionRun.mockReset();
     actionRunMocks.approveActionRun.mockReset();
+    actionRunMocks.postActionRunToBluesky.mockReset();
   });
 
   afterEach(() => {
@@ -185,6 +187,58 @@ describe("action run routes", () => {
       request: {
         approved: true,
         reviewerNote: "Looks good.",
+      },
+      authenticatedUser: undefined,
+      headers: {},
+      requestId: undefined,
+    });
+  });
+
+  it("posts an approved action run to Bluesky", async () => {
+    actionRunMocks.postActionRunToBluesky.mockResolvedValue({
+      actionRunId: "action-run-123",
+      jobType: "action_run",
+      status: "completed",
+      stage: "completed",
+      progressMessages: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      expiresAt: Math.floor(Date.now() / 1000) + 3600,
+      ownerType: "anonymous",
+      blueskyPost: {
+        sent: true,
+        skipped: false,
+        statusCode: 200,
+        postUri: "at://did:plc:abc123/app.bsky.feed.post/3lzwxyz",
+        cid: "cid-123",
+      },
+    });
+
+    const response = await handler({
+      httpMethod: "POST",
+      rawPath: "/action-runs/action-run-123/bluesky-post",
+      headers: {},
+      body: JSON.stringify({
+        selectedSuggestionText: "Bluesky post draft",
+      }),
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toMatchObject({
+      actionRunId: "action-run-123",
+      blueskyPost: {
+        sent: true,
+        skipped: false,
+        statusCode: 200,
+        postUri: "at://did:plc:abc123/app.bsky.feed.post/3lzwxyz",
+        cid: "cid-123",
+      },
+    });
+    expect(actionRunMocks.postActionRunToBluesky).toHaveBeenCalledTimes(1);
+    expect(actionRunMocks.postActionRunToBluesky).toHaveBeenCalledWith({
+      actionRunId: "action-run-123",
+      request: {
+        selectedSuggestionText: "Bluesky post draft",
       },
       authenticatedUser: undefined,
       headers: {},

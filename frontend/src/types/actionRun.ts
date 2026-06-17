@@ -251,6 +251,21 @@ export type ActionRunApprovalResponse = ActionRunGetResponse & {
   };
 };
 
+export type ActionRunBlueskyPostRequest = {
+  selectedSuggestionText?: string;
+};
+
+export type ActionRunBlueskyPostResponse = ActionRunGetResponse & {
+  blueskyPost: {
+    sent: boolean;
+    skipped: boolean;
+    statusCode?: number;
+    error?: string;
+    postUri?: string;
+    cid?: string;
+  };
+};
+
 export type ActionRunCreateResponse = {
   actionRunId: string;
   jobType: "action_run";

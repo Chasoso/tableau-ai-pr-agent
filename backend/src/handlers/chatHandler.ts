@@ -19,6 +19,7 @@ import type {
   LambdaExecutionContext,
 } from "../types/api";
 import type {
+  ActionRunBlueskyPostRequest,
   ActionRunApprovalRequest,
   ActionRunInputImageUploadRequest,
   ActionRunRequest,
@@ -45,6 +46,9 @@ export async function handler(
   const isActionRunRoute = routePath.startsWith("/action-runs");
   const isActionRunApprovalRoute =
     routePath.startsWith("/action-runs/") && routePath.endsWith("/approval");
+  const isActionRunBlueskyPostRoute =
+    routePath.startsWith("/action-runs/") &&
+    routePath.endsWith("/bluesky-post");
   const isActionRunInputImageRoute = routePath === "/action-run-input-images";
   const isTechPlayRoute = routePath.startsWith("/techplay");
   const isNotionCallbackRoute = routePath.startsWith("/notion/callback");
@@ -55,6 +59,7 @@ export async function handler(
     isChatJobRoute ||
     isActionRunRoute ||
     isActionRunApprovalRoute ||
+    isActionRunBlueskyPostRoute ||
     routePath === "/calendar/resolve" ||
     routePath === "/techplay/preview" ||
     isActionRunInputImageRoute;
@@ -339,6 +344,38 @@ export async function handler(
       });
     }
 
+    if (isActionRunBlueskyPostRoute && method === "POST") {
+      const actionRunId = parseActionRunBlueskyPostId(routePath);
+      if (!actionRunId) {
+        return jsonResponse(400, { message: "actionRunId is required." });
+      }
+
+      const request = parseRequest(event.body) as ActionRunBlueskyPostRequest;
+      const validationError = validateActionRunBlueskyPostRequest(request);
+      if (validationError) {
+        logWarn("action.run_bluesky_post_request.invalid", {
+          requestId,
+          validationError,
+        });
+        return jsonResponse(400, { message: validationError });
+      }
+
+      const response = await actionRunService.postActionRunToBluesky({
+        actionRunId,
+        request,
+        authenticatedUser: authResult.user,
+        headers: event.headers,
+        requestId,
+      });
+      logInfo("action.run.bluesky_post.completed", {
+        requestId,
+        actionRunId,
+        blueskySent: response.blueskyPost.sent,
+        blueskySkipped: response.blueskyPost.skipped,
+      });
+      return jsonResponse(200, response);
+    }
+
     if (routePath === "/calendar/resolve" && method !== "POST") {
       return jsonResponse(405, {
         message: "Method not allowed.",
@@ -582,6 +619,19 @@ function validateActionRunApprovalRequest(
   return null;
 }
 
+function validateActionRunBlueskyPostRequest(
+  request: ActionRunBlueskyPostRequest,
+): string | null {
+  if (
+    request.selectedSuggestionText !== undefined &&
+    typeof request.selectedSuggestionText !== "string"
+  ) {
+    return "selectedSuggestionText must be a string.";
+  }
+
+  return null;
+}
+
 function validateCalendarResolveRequest(
   request: CalendarResolveRequest,
 ): string | null {
@@ -670,6 +720,18 @@ function parseActionRunId(routePath: string): string | null {
 
 function parseActionRunApprovalId(routePath: string): string | null {
   const suffix = "/approval";
+  if (!routePath.startsWith("/action-runs/") || !routePath.endsWith(suffix)) {
+    return null;
+  }
+
+  const actionRunId = routePath
+    .slice("/action-runs/".length, -suffix.length)
+    .trim();
+  return actionRunId || null;
+}
+
+function parseActionRunBlueskyPostId(routePath: string): string | null {
+  const suffix = "/bluesky-post";
   if (!routePath.startsWith("/action-runs/") || !routePath.endsWith(suffix)) {
     return null;
   }

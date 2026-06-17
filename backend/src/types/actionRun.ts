@@ -75,13 +75,22 @@ export type ActionRunPhotoContext = NonNullable<
 };
 
 export type ActionRunSafetyReview = {
-  status: "pending_manual_review" | "approved" | "rejected" | "sent_to_slack";
+  status:
+    | "pending_manual_review"
+    | "approved"
+    | "rejected"
+    | "sent_to_slack"
+    | "sent_to_bluesky";
   required: true;
   checklist: string[];
   notes: string[];
   reviewerNote?: string;
   reviewedAt?: string;
   sentAt?: string;
+};
+
+export type ActionRunBlueskyPostRequest = {
+  selectedSuggestionText?: string;
 };
 
 export type ActionRunResult = {

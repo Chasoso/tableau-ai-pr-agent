@@ -37,21 +37,24 @@ The PR drafting path now has a Strands Agents-based implementation behind a feat
 
 ### PR Demo Flow
 
-The current PR demo is calendar-first and draft-only:
+The current PR demo is calendar-first, then Slack approval, then optional Bluesky approval:
 
 1. Select a post type.
 2. Add a venue photo.
 3. The backend resolves a calendar event context and looks for a TechPlay URL in the event data.
 4. The backend fetches TechPlay details when a URL is found.
 5. The UI prepares a post preview from Tableau context, calendar context, TechPlay context, photo, and optional notes.
-6. The user sends a draft request only. No automatic Slack post, send, or publish occurs.
+6. The user approves the Slack post draft.
+7. After Slack approval, the UI opens a Bluesky approval popup.
+8. The user can publish the same draft to Bluesky through the backend API.
 
 If calendar resolution is unavailable, the UI falls back to manual TechPlay URL entry.
 
 Safety rules for this path:
 
 - No automatic posting, sending, publishing, or scheduling.
-- Slack approval is draft-only and does not call the Slack webhook.
+- Slack approval calls the Slack webhook only after the user explicitly approves.
+- Bluesky approval uses Bluesky app-password auth and only posts after the user confirms the popup.
 - Notion save flows return a draft preview instead of creating a real page.
 - Missing information is returned as missing fields rather than guessed.
 - Google Calendar resolution is implemented in the backend and can run in mock mode or live Google mode.
@@ -284,6 +287,9 @@ Action run settings:
 - `ACTION_RUN_LEASE_SECONDS=120`: worker lease duration for claim / retry protection. `CHAT_JOB_LEASE_SECONDS` is still accepted as a compatibility fallback.
 - `ACTION_RUN_PROGRESS_MESSAGE_LIMIT=12`: max progress messages retained per action-run record. `CHAT_JOB_PROGRESS_MESSAGE_LIMIT` is still accepted as a compatibility fallback.
 - `ACTION_RUN_OWNER_TOKEN_HEADER_NAME=x-action-run-owner-token`: anonymous action-run ownership header used for polling and history continuity. `CHAT_JOB_OWNER_TOKEN_HEADER_NAME` is still accepted as a compatibility fallback.
+- `BLUESKY_IDENTIFIER=<handle or email>`: Bluesky account identifier used by the backend post service.
+- `BLUESKY_APP_PASSWORD=<app password>`: Bluesky app password used for API-based posting.
+- `BLUESKY_SERVICE_URL=https://bsky.social`: optional override for the Bluesky service endpoint.
 
 Recommended limited-agent settings:
 

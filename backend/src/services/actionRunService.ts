@@ -11,11 +11,13 @@ import {
 } from "../logging";
 import { ActionRunAnalysisService } from "./actionRunAnalysisService";
 import { ActionRunInputImageService } from "./actionRunInputImageService";
+import { BlueskyPostService } from "./blueskyPostService";
 import { runTableauConnectivityDiagnosticsWithAuthContext } from "./tableauConnectivityDiagnostics";
 import { ActionRunRepository } from "../repositories/actionRunRepository";
 import { SlackWebhookService } from "./slackWebhookService";
 import type { AuthenticatedUser } from "../types/auth";
 import type {
+  ActionRunBlueskyPostRequest,
   ActionRunApprovalRequest,
   ActionRunGetResponse,
   ActionRunCreateResponse,
@@ -26,15 +28,21 @@ import type {
   ActionRunResult,
 } from "../types/actionRun";
 import type { ChatJobAuthSnapshot } from "../types/chatJob";
+import type { BlueskyPostResult } from "./blueskyPostService";
 import type { SlackWebhookPostResult } from "./slackWebhookService";
 
 export type ActionRunApprovalResponse = ActionRunGetResponse & {
   slackWebhook: SlackWebhookPostResult;
 };
 
+export type ActionRunBlueskyPostResponse = ActionRunGetResponse & {
+  blueskyPost: BlueskyPostResult;
+};
+
 const repository = new ActionRunRepository();
 const analysisService = new ActionRunAnalysisService();
 const inputImageService = new ActionRunInputImageService();
+const blueskyPostService = new BlueskyPostService();
 const slackWebhookService = new SlackWebhookService();
 
 export class ActionRunService {
@@ -267,7 +275,10 @@ export class ActionRunService {
       throw new Error("Action run result is not ready for approval.");
     }
 
-    if (record.result.safetyReview?.status === "sent_to_slack") {
+    if (
+      record.result.safetyReview?.status === "sent_to_slack" ||
+      record.result.safetyReview?.status === "sent_to_bluesky"
+    ) {
       throw new Error("Action run has already been finalized.");
     }
 
@@ -338,6 +349,88 @@ export class ActionRunService {
         ? await repository.toPublicView(updatedRecord)
         : await repository.toPublicView({ ...record, result: finalResult })),
       slackWebhook: slackWebhookResult,
+    };
+  }
+
+  async postActionRunToBluesky(input: {
+    actionRunId: string;
+    request: ActionRunBlueskyPostRequest;
+    authenticatedUser?: AuthenticatedUser;
+    headers?: Record<string, string | undefined>;
+    requestId?: string;
+  }): Promise<ActionRunBlueskyPostResponse> {
+    const record = await repository.get(input.actionRunId);
+    if (!record) {
+      throw new Error("Action run not found.");
+    }
+
+    this.assertOwner(record, input.authenticatedUser, input.headers);
+
+    if (!record.result) {
+      throw new Error("Action run result is not ready for posting.");
+    }
+
+    if (record.result.safetyReview?.status === "sent_to_bluesky") {
+      throw new Error("Action run has already been posted to Bluesky.");
+    }
+
+    if (
+      !record.result.safetyReview ||
+      record.result.safetyReview.status === "pending_manual_review"
+    ) {
+      throw new Error("Action run must be approved before posting to Bluesky.");
+    }
+
+    const selectedSuggestionText =
+      input.request.selectedSuggestionText?.trim() ||
+      record.result.generatedPostSuggestions?.[0]?.text?.trim() ||
+      record.result.generatedPostSuggestion?.text?.trim() ||
+      record.result.suggestedSlackPostText.trim();
+
+    const blueskyPostResult = await blueskyPostService.postText({
+      text: selectedSuggestionText,
+      runId: input.actionRunId,
+    });
+
+    if (blueskyPostResult.sent) {
+      const nowIso = new Date().toISOString();
+      const safetyReview = record.result.safetyReview;
+      const updatedResult: ActionRunResult = {
+        ...record.result,
+        safetyReview: safetyReview
+          ? {
+              ...safetyReview,
+              status: "sent_to_bluesky" as const,
+              sentAt: nowIso,
+            }
+          : safetyReview,
+      };
+
+      await repository.updateResult({
+        actionRunId: input.actionRunId,
+        result: updatedResult,
+      });
+    }
+
+    const publicRecord = blueskyPostResult.sent
+      ? {
+          ...record,
+          result: {
+            ...record.result,
+            safetyReview: record.result.safetyReview
+              ? {
+                  ...record.result.safetyReview,
+                  status: "sent_to_bluesky" as const,
+                  sentAt: new Date().toISOString(),
+                }
+              : record.result.safetyReview,
+          },
+        }
+      : record;
+
+    return {
+      ...(await repository.toPublicView(publicRecord)),
+      blueskyPost: blueskyPostResult,
     };
   }
 

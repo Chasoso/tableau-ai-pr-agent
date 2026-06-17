@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createActionRun, getActionRun } from "./actionRunApi";
+import {
+  createActionRun,
+  getActionRun,
+  postActionRunToBluesky,
+} from "./actionRunApi";
 
 const fetchMock = vi.fn();
 
@@ -108,6 +112,60 @@ describe("actionRunApi", () => {
         method: "GET",
         headers: expect.objectContaining({
           "X-Chat-Owner-Token": "owner-1",
+        }),
+      }),
+    );
+  });
+
+  it("posts action runs to Bluesky with the owner token header", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        actionRunId: "action-run-1",
+        jobType: "action_run",
+        status: "completed",
+        stage: "completed",
+        progressMessages: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        expiresAt: Math.floor(Date.now() / 1000) + 60,
+        ownerType: "anonymous",
+        blueskyPost: {
+          sent: true,
+          skipped: false,
+          statusCode: 200,
+          postUri: "at://did:plc:abc123/app.bsky.feed.post/3lzwxyz",
+          cid: "cid-123",
+        },
+      }),
+    );
+
+    await expect(
+      postActionRunToBluesky(
+        "action-run-1",
+        { selectedSuggestionText: "Bluesky draft" },
+        "token-1",
+        "owner-1",
+      ),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        actionRunId: "action-run-1",
+        blueskyPost: expect.objectContaining({
+          sent: true,
+          postUri: "at://did:plc:abc123/app.bsky.feed.post/3lzwxyz",
+        }),
+      }),
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/action-runs/action-run-1/bluesky-post",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Authorization: "Bearer token-1",
+          "X-Chat-Owner-Token": "owner-1",
+        }),
+        body: JSON.stringify({
+          selectedSuggestionText: "Bluesky draft",
         }),
       }),
     );

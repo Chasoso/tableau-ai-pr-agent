@@ -2,12 +2,14 @@ import {
   approveActionRun,
   createActionRun,
   getActionRun,
+  postActionRunToBluesky,
 } from "../api/actionRunApi";
 import { resolveCalendarEventContext as resolveCalendarEventContextApi } from "../api/calendarApi";
 import { previewTechPlayEvent } from "../api/techplayApi";
 import { env } from "../env";
 import type {
   ActionRunApprovalResponse,
+  ActionRunBlueskyPostResponse,
   ActionRunEventContext,
   ActionRunPostType,
   ActionRunRequest,
@@ -24,7 +26,6 @@ import type { TechPlayPreviewResponse } from "../types/techplay";
 export type ServiceConnections = {
   google: boolean;
   slack: boolean;
-  x: boolean;
 };
 
 export type UploadedImage = {
@@ -60,7 +61,7 @@ export type GeneratedPrPostDraft = {
   evidenceLines: string[];
   checkLines: string[];
   slackPostText: string;
-  xPostText: string;
+  blueskyPostText: string;
   hashtags: string[];
   imageCaption?: string;
   image?: UploadedImage | null;
@@ -68,7 +69,7 @@ export type GeneratedPrPostDraft = {
 };
 
 export type PostedResult = {
-  channel: "slack" | "x";
+  channel: "slack" | "bluesky";
   text: string;
   openLabel: string;
   postedAt: string;
@@ -268,7 +269,7 @@ export async function generatePrPostDraft(
     image: input.image ?? null,
     noImageSituationMemo: input.noImageSituationMemo,
   });
-  const xPostText = buildXPost({
+  const blueskyPostText = buildBlueskyPost({
     eventName,
     postType: input.postType,
     hashtags,
@@ -290,7 +291,7 @@ export async function generatePrPostDraft(
     evidenceLines,
     checkLines,
     slackPostText,
-    xPostText,
+    blueskyPostText,
     hashtags,
     imageCaption: input.analysis.result.imageCaption,
     image: input.image ?? null,
@@ -354,7 +355,7 @@ export function buildSlackPost(input: {
   return baseLines.join("\n").trim();
 }
 
-export function buildXPost(input: {
+export function buildBlueskyPost(input: {
   eventName: string;
   postType: ActionRunPostType;
   hashtags: string[];
@@ -372,8 +373,8 @@ export function buildXPost(input: {
   ].filter(Boolean);
 
   let text = parts.join("\n").trim();
-  if (text.length > 280) {
-    text = `${text.slice(0, 277).trimEnd()}...`;
+  if (text.length > 300) {
+    text = `${text.slice(0, 297).trimEnd()}...`;
   }
 
   return text;
@@ -402,16 +403,26 @@ export async function postToSlack(input: {
   );
 }
 
-export async function postToX(input: {
-  draft: GeneratedPrPostDraft;
-}): Promise<PostedResult> {
-  await sleep(700);
-  return {
-    channel: "x",
-    text: input.draft.xPostText,
-    openLabel: "Xを開く",
-    postedAt: new Date().toISOString(),
-  };
+export async function postToBluesky(input: {
+  draft?: GeneratedPrPostDraft;
+  actionRunId?: string;
+  accessToken?: string;
+  ownerToken?: string;
+  selectedSuggestionText?: string;
+}): Promise<ActionRunBlueskyPostResponse> {
+  const actionRunId = input.actionRunId ?? input.draft?.analysis.actionRunId;
+  if (!actionRunId) {
+    throw new Error("Bluesky posting requires an action run id.");
+  }
+
+  return postActionRunToBluesky(
+    actionRunId,
+    {
+      selectedSuggestionText: input.selectedSuggestionText?.trim() || undefined,
+    },
+    input.accessToken,
+    input.ownerToken,
+  );
 }
 
 export function buildCurrentSituation(input: {
