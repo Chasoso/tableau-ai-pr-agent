@@ -94,6 +94,25 @@ test.describe("PR post agent", () => {
       "Slackに投稿しました",
     );
     await expect(
+      page.getByRole("dialog", { name: "Bluesky投稿の承認" }),
+    ).toBeVisible();
+    await expect(
+      page
+        .getByRole("dialog", { name: "Bluesky投稿の承認" })
+        .getByText("Blueskyへの投稿がリクエストされました"),
+    ).toBeVisible();
+    await page
+      .getByRole("dialog", { name: "Bluesky投稿の承認" })
+      .getByRole("button", { name: "Blueskyに投稿" })
+      .click();
+    await expect(page.locator(".pr-post-agent-posted")).toHaveCount(2);
+    await expect(page.locator(".pr-post-agent-posted").last()).toContainText(
+      "Blueskyに投稿しました",
+    );
+    await expect(
+      page.getByRole("dialog", { name: "Bluesky投稿の承認" }),
+    ).toHaveCount(0);
+    await expect(
       page.getByRole("dialog", { name: "Slack投稿の承認" }),
     ).toHaveCount(0);
     await expect(page.locator(".suggestion-card")).toHaveCount(1);

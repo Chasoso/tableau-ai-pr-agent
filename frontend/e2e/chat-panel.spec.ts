@@ -102,7 +102,7 @@ test.describe("PR投稿エージェント", () => {
       .click();
 
     await expect(page.locator(".pr-post-agent-posted").first()).toContainText(
-      "Slackに投稿しました。",
+      "Slackに投稿しました",
     );
     await expect(
       page.locator(".pr-post-agent-posted").first().getByRole("link"),

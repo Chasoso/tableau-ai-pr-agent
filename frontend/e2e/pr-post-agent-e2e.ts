@@ -19,7 +19,6 @@ export const e2eOwnerToken = "e2e-owner-token";
 export const e2eServiceConnections = {
   google: true,
   slack: true,
-  x: false,
 };
 
 export const analysisResult = {
@@ -342,6 +341,38 @@ export async function mockPrPostAgentApis(page: Page) {
           sent: true,
           skipped: false,
           statusCode: 200,
+        },
+        createdAt: "2026-06-14T00:00:00.000Z",
+        updatedAt: "2026-06-14T00:00:02.000Z",
+        completedAt: "2026-06-14T00:00:02.000Z",
+        expiresAt: Date.now() + 60_000,
+        ownerType: "authenticated",
+      }),
+    });
+  });
+
+  await page.route("**/api/action-runs/*/bluesky-post", async (route) => {
+    const requestBody = route.request().postDataJSON() as {
+      selectedSuggestionText?: string;
+    };
+
+    expect(requestBody.selectedSuggestionText).toBeTruthy();
+
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        actionRunId: "action-run-1",
+        jobType: "action_run",
+        status: "completed",
+        stage: "completed",
+        progressMessages: [],
+        result: analysisResult,
+        blueskyPost: {
+          sent: true,
+          skipped: false,
+          statusCode: 200,
+          postUri: "at://did:plc:abc123/app.bsky.feed.post/3lzwxyz",
+          cid: "cid-123",
         },
         createdAt: "2026-06-14T00:00:00.000Z",
         updatedAt: "2026-06-14T00:00:02.000Z",
