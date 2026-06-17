@@ -1559,24 +1559,26 @@ function createPhotoVisionAnalyzer(): PhotoVisionAnalyzer {
 
       const prompt =
         "Analyze this photo for X post generation. Return JSON only with keys: sceneInference, eventFeel, observedItems, postableElements, subjectCandidates, detectedTopics, suggestedPostAngles, ocrText. Keep strings concise. Do not invent text you cannot read.";
-      const request: ConverseCommandInput = {
-        modelId: config.model.bedrock.modelId,
-        messages: [
-          {
-            role: "user",
-            content: [
-              { text: prompt },
-              {
-                image: {
-                  format,
-                  source: {
-                    bytes: input.bytes,
-                  },
+      const messages: NonNullable<ConverseCommandInput["messages"]> = [
+        {
+          role: "user",
+          content: [
+            { text: prompt },
+            {
+              image: {
+                format,
+                source: {
+                  bytes: input.bytes,
                 },
               },
-            ],
-          },
-        ],
+            },
+          ],
+        },
+      ];
+
+      const request: ConverseCommandInput = {
+        modelId: config.model.bedrock.modelId,
+        messages,
         inferenceConfig: {
           maxTokens: 800,
           temperature: 0.1,
@@ -1589,7 +1591,7 @@ function createPhotoVisionAnalyzer(): PhotoVisionAnalyzer {
         visionInputImageIncluded: true,
         visionInputImageBytes: input.bytes.length,
         visionInputImageContentType: input.contentType,
-        visionInputMessageCount: request.messages.length,
+        visionInputMessageCount: messages.length,
         visionPromptChars: prompt.length,
       });
 
