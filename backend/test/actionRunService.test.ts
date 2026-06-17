@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ActionRunService } from "../src/services/actionRunService";
-import type { ActionRunRecord } from "../src/types/actionRun";
+import type { ActionRunRequest, ActionRunRecord } from "../src/types/actionRun";
 
 const repositoryMock = vi.hoisted(() => ({
   create: vi.fn(),
@@ -19,6 +19,14 @@ const analysisMock = vi.hoisted(() => ({
 
 const slackMock = vi.hoisted(() => ({
   postActionRun: vi.fn(),
+}));
+
+const blueskyMock = vi.hoisted(() => ({
+  postText: vi.fn(),
+}));
+
+const inputImageMock = vi.hoisted(() => ({
+  fetchActionRunInputImage: vi.fn(),
 }));
 
 const tableauDiagnosticsMock = vi.hoisted(() => ({
@@ -41,6 +49,18 @@ vi.mock("../src/services/actionRunAnalysisService", () => ({
 vi.mock("../src/services/slackWebhookService", () => ({
   SlackWebhookService: vi.fn(function () {
     return slackMock;
+  }),
+}));
+
+vi.mock("../src/services/blueskyPostService", () => ({
+  BlueskyPostService: vi.fn(function () {
+    return blueskyMock;
+  }),
+}));
+
+vi.mock("../src/services/actionRunInputImageService", () => ({
+  ActionRunInputImageService: vi.fn(function () {
+    return inputImageMock;
   }),
 }));
 
@@ -80,6 +100,8 @@ describe("ActionRunService", () => {
     repositoryMock.updateResult.mockReset();
     analysisMock.analyzeActionRun.mockReset();
     slackMock.postActionRun.mockReset();
+    blueskyMock.postText.mockReset();
+    inputImageMock.fetchActionRunInputImage.mockReset();
     tableauDiagnosticsMock.runTableauConnectivityDiagnostics.mockReset();
     tableauDiagnosticsMock.runTableauConnectivityDiagnosticsWithAuthContext.mockReset();
   });
@@ -430,6 +452,95 @@ describe("ActionRunService", () => {
     expect(response.result?.safetyReview?.status).toBe("approved");
   });
 
+  it("posts a Bluesky image from the stored input image", async () => {
+    repositoryMock.get.mockResolvedValue(
+      buildActionRunRecord({
+        request: {
+          ...buildRequest(),
+          inputImage: {
+            source: "upload",
+            objectKey: "client-input-images/upload-1/venue.jpg",
+            contentType: "image/jpeg",
+            bytes: 12,
+            width: 1200,
+            height: 800,
+          },
+        },
+        result: buildActionRunResult({
+          safetyReview: {
+            status: "approved",
+            required: true,
+            checklist: ["Confirm permissions before posting"],
+            notes: [
+              "Human approval is required before any Slack post is sent.",
+            ],
+            reviewedAt: "2026-06-08T00:00:00.000Z",
+          },
+        }),
+      }),
+    );
+    repositoryMock.updateResult.mockResolvedValue(buildActionRunRecord());
+    repositoryMock.toPublicView.mockResolvedValue({
+      actionRunId: "action-run-1",
+      jobType: "action_run",
+      status: "completed",
+      stage: "completed",
+      progressMessages: [],
+      result: buildActionRunResult({
+        safetyReview: {
+          status: "sent_to_bluesky",
+          required: true,
+          checklist: ["Confirm permissions before posting"],
+          notes: [],
+          sentAt: "2026-06-08T00:01:00.000Z",
+        },
+      }),
+      createdAt: "2026-06-08T00:00:00.000Z",
+      updatedAt: "2026-06-08T00:01:00.000Z",
+      expiresAt: 1_999_999_999,
+      ownerType: "anonymous",
+    });
+    inputImageMock.fetchActionRunInputImage.mockResolvedValue({
+      objectKey: "client-input-images/upload-1/venue.jpg",
+      contentType: "image/jpeg",
+      byteLength: 12,
+      source: "existing_object",
+      bytes: Uint8Array.from([1, 2, 3, 4]),
+    });
+    blueskyMock.postText.mockResolvedValue({
+      sent: true,
+      skipped: false,
+      statusCode: 200,
+      postUri: "at://did:plc:abc123/app.bsky.feed.post/3lzwxyz",
+      cid: "cid-123",
+    });
+
+    const service = new ActionRunService();
+    const response = await service.postActionRunToBluesky({
+      actionRunId: "action-run-1",
+      request: {
+        selectedSuggestionText: "Bluesky draft",
+      },
+      headers: {
+        "X-Action-Run-Owner-Token": "owner-token-123",
+      },
+    });
+
+    expect(inputImageMock.fetchActionRunInputImage).toHaveBeenCalledWith({
+      objectKey: "client-input-images/upload-1/venue.jpg",
+    });
+    expect(blueskyMock.postText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: "Bluesky draft",
+        image: expect.objectContaining({
+          contentType: "image/jpeg",
+          altText: "Tableau User Group Tokyo 2026",
+        }),
+      }),
+    );
+    expect(response.blueskyPost.sent).toBe(true);
+  });
+
   it("returns a public view when polling action runs", async () => {
     const service = new ActionRunService();
     const record = buildActionRunRecord();
@@ -474,7 +585,7 @@ describe("ActionRunService", () => {
   });
 });
 
-function buildRequest() {
+function buildRequest(): ActionRunRequest {
   return {
     postType: "\u4e8b\u524d\u544a\u77e5",
     eventName: "Tableau User Group Tokyo 2026",
@@ -498,7 +609,7 @@ function buildRequest() {
       parameters: [],
       capturedAt: "2026-06-08T00:00:00.000Z",
     },
-  } as never;
+  };
 }
 
 function buildActionRunRecord(

@@ -102,6 +102,8 @@ export async function runPrDraftAgent(input: {
   analysisSections: ActionRunAnalysisSection[];
   evidencePack?: PostGenerationEvidencePack;
   photoContext?: PostGenerationEvidencePack["photoContext"];
+  postCopyLimitChars?: number;
+  copyGenerationAttempt?: number;
 }): Promise<PrDraftOutput> {
   const config = getConfig();
   if (!config.prAgent.useStrandsAgent) {
@@ -143,6 +145,8 @@ export function buildPrAgentPrompt(input: {
   analysisSections: ActionRunAnalysisSection[];
   evidencePack?: PostGenerationEvidencePack;
   photoContext?: PostGenerationEvidencePack["photoContext"];
+  postCopyLimitChars?: number;
+  copyGenerationAttempt?: number;
 }): string {
   return [
     "Create a draft-only PR package from the JSON input below.",
@@ -150,6 +154,12 @@ export function buildPrAgentPrompt(input: {
     "Never publish, send, post, schedule, or mutate anything external.",
     "If any information is missing, surface it in missingFields and do not invent it.",
     "Use the provided evidencePack to keep the X draft natural, photo-aware, and evidence-based.",
+    input.postCopyLimitChars
+      ? `Keep the shared social copy within ${input.postCopyLimitChars} characters, counting emoji and line breaks as visible characters.`
+      : "Keep the shared social copy concise and ready for approval.",
+    input.copyGenerationAttempt && input.copyGenerationAttempt > 1
+      ? "This is a retry. Make the social copy shorter and more compact than the previous attempt."
+      : "If a draft is too long, regenerate a shorter version before finalizing.",
     "Return the final structured output only.",
     "",
     JSON.stringify(
@@ -159,6 +169,8 @@ export function buildPrAgentPrompt(input: {
         analysisSections: input.analysisSections,
         evidencePack: input.evidencePack,
         photoContext: input.photoContext,
+        postCopyLimitChars: input.postCopyLimitChars,
+        copyGenerationAttempt: input.copyGenerationAttempt ?? 1,
         constraints: {
           draftOnly: true,
           allowedOutputs: ["x", "linkedin", "email", "notion"],

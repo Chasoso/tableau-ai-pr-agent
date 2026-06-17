@@ -1,4 +1,9 @@
 import { getConfig } from "../config";
+import {
+  countPostTextCharacters,
+  isWithinPostTextLimit,
+  POST_TEXT_LIMIT,
+} from "../utils/postText";
 import { logInfo, logWarn, safeErrorDetails, safeHash } from "../logging";
 
 export type BlueskyPostResult = {
@@ -22,6 +27,16 @@ type BlueskyCreateRecordResponse = {
   cid: string;
 };
 
+type BlueskyUploadBlobResponse = {
+  blob: unknown;
+};
+
+type BlueskyImageInput = {
+  bytes: Uint8Array;
+  contentType: string;
+  altText: string;
+};
+
 export class BlueskyPostService {
   constructor(
     private readonly fetchImpl: typeof fetch = globalThis.fetch.bind(
@@ -32,6 +47,7 @@ export class BlueskyPostService {
   async postText(input: {
     text: string;
     runId?: string;
+    image?: BlueskyImageInput | null;
   }): Promise<BlueskyPostResult> {
     if (getConfig().demoMode) {
       logWarn("bluesky.post.skipped", {
@@ -67,17 +83,33 @@ export class BlueskyPostService {
       };
     }
 
+    if (!isWithinPostTextLimit(text, POST_TEXT_LIMIT)) {
+      return {
+        sent: false,
+        skipped: false,
+        error: `Bluesky post text must be ${POST_TEXT_LIMIT} characters or fewer.`,
+      };
+    }
+
     try {
       const session = await this.createSession({
         serviceUrl,
         identifier,
         appPassword,
       });
+      const image = input.image
+        ? await this.uploadBlob({
+            serviceUrl,
+            accessJwt: session.accessJwt,
+            image: input.image,
+          })
+        : undefined;
       const record = await this.createPostRecord({
         serviceUrl,
         accessJwt: session.accessJwt,
         did: session.did,
         text,
+        image,
       });
 
       logInfo("bluesky.post.sent", {
@@ -85,6 +117,8 @@ export class BlueskyPostService {
         identifierHash: safeHash(identifier),
         handle: session.handle,
         postUri: record.uri,
+        hasImage: Boolean(image),
+        textLength: countPostTextCharacters(text),
       });
 
       return {
@@ -137,12 +171,71 @@ export class BlueskyPostService {
     return (await response.json()) as BlueskySessionResponse;
   }
 
+  private async uploadBlob(input: {
+    serviceUrl: string;
+    accessJwt: string;
+    image: BlueskyImageInput;
+  }): Promise<{
+    blob: unknown;
+    altText: string;
+  }> {
+    const response = await this.fetchImpl(
+      `${input.serviceUrl}/xrpc/com.atproto.repo.uploadBlob`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${input.accessJwt}`,
+          "Content-Type": normalizeBlueskyContentType(input.image.contentType),
+        },
+        body: Buffer.from(input.image.bytes),
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Bluesky image upload failed with status ${response.status}.`,
+      );
+    }
+
+    const payload = (await response.json()) as BlueskyUploadBlobResponse;
+    if (!payload.blob) {
+      throw new Error("Bluesky image upload returned no blob.");
+    }
+
+    return {
+      blob: payload.blob,
+      altText: input.image.altText,
+    };
+  }
+
   private async createPostRecord(input: {
     serviceUrl: string;
     accessJwt: string;
     did: string;
     text: string;
+    image?: {
+      blob: unknown;
+      altText: string;
+    };
   }): Promise<BlueskyCreateRecordResponse> {
+    const record: Record<string, unknown> = {
+      $type: "app.bsky.feed.post",
+      text: input.text,
+      createdAt: new Date().toISOString(),
+    };
+
+    if (input.image) {
+      record.embed = {
+        $type: "app.bsky.embed.images",
+        images: [
+          {
+            alt: input.image.altText,
+            image: input.image.blob,
+          },
+        ],
+      };
+    }
+
     const response = await this.fetchImpl(
       `${input.serviceUrl}/xrpc/com.atproto.repo.createRecord`,
       {
@@ -154,11 +247,7 @@ export class BlueskyPostService {
         body: JSON.stringify({
           repo: input.did,
           collection: "app.bsky.feed.post",
-          record: {
-            $type: "app.bsky.feed.post",
-            text: input.text,
-            createdAt: new Date().toISOString(),
-          },
+          record,
         }),
       },
     );
@@ -175,4 +264,18 @@ export class BlueskyPostService {
 
 function normalizeBaseUrl(value: string): string {
   return value.trim().replace(/\/+$/, "");
+}
+
+function normalizeBlueskyContentType(value: string): string {
+  const normalized = value.trim().toLowerCase();
+  if (
+    normalized === "image/png" ||
+    normalized === "image/jpeg" ||
+    normalized === "image/jpg" ||
+    normalized === "image/webp"
+  ) {
+    return normalized === "image/jpg" ? "image/jpeg" : normalized;
+  }
+
+  return "image/jpeg";
 }

@@ -30,6 +30,7 @@ import {
 } from "../services/googleCalendarConnection";
 import { uploadActionRunInputImage } from "../api/actionRunImageApi";
 import { prepareImageAnalysisPayload } from "../utils/prepareImageAnalysisPayload";
+import { countPostTextCharacters, POST_TEXT_LIMIT } from "../utils/postText";
 
 type Props = {
   dashboardContext: DashboardContext;
@@ -215,6 +216,11 @@ export default function PrPostAgentPanel({
   const isSlackPosting = slackPostStatus === "posting";
   const isBlueskyPosting = blueskyPostStatus === "posting";
   const activeBlueskySuggestion = approvedSuggestion ?? selectedSuggestion;
+  const activeBlueskySuggestionText =
+    activeBlueskySuggestion?.suggestion.text.trim() ?? "";
+  const activeBlueskySuggestionLength = activeBlueskySuggestionText
+    ? countPostTextCharacters(activeBlueskySuggestionText)
+    : 0;
 
   const canGenerate = useMemo(() => {
     if (!selectedPostType || generationStatus !== "idle") {
@@ -1613,6 +1619,10 @@ export default function PrPostAgentPanel({
             </p>
             <p className="pr-post-agent-approval-bar-text">
               この投稿案を Slack Incoming Webhook に送信します。
+            </p>
+            <p className="pr-post-agent-approval-bar-text">
+              本文 {activeBlueskySuggestionLength}/{POST_TEXT_LIMIT} 字。 画像は
+              1 枚を別添付します。
             </p>
           </div>
 

@@ -1,5 +1,5 @@
 import { getConfig } from "../config";
-import { logInfo } from "../logging";
+import { logInfo, logWarn } from "../logging";
 import { buildActionRunPublicImageUrl } from "./actionRunImageUrlService";
 import { DirectTableauApiContextProvider } from "../tableau/directTableauApiContextProvider";
 import { MockTableauContextProvider } from "../tableau/mockTableauContextProvider";
@@ -14,6 +14,12 @@ import type {
   PostGenerationEvidencePack,
 } from "../types/actionRun";
 import { runPrDraftAgent } from "../agents/prAgent";
+import {
+  countPostTextCharacters,
+  isWithinPostTextLimit,
+  POST_TEXT_LIMIT,
+  truncatePostText,
+} from "../utils/postText";
 import {
   TableauPhotoPostAnalysisService,
   type AccountOverviewInsight,
@@ -138,8 +144,8 @@ export class ActionRunAnalysisService {
     logInfo("postSuggestionGenerationCompleted", {
       postType: input.request.postType,
       suggestionCount: normalizedGeneratedPostSuggestions.length,
-      suggestionTextLengths: normalizedGeneratedPostSuggestions.map(
-        (item) => item.text.length,
+      suggestionTextLengths: normalizedGeneratedPostSuggestions.map((item) =>
+        countPostTextCharacters(item.text),
       ),
     });
     logInfo("postSuggestionCount", {
@@ -147,12 +153,44 @@ export class ActionRunAnalysisService {
       count: normalizedGeneratedPostSuggestions.length,
     });
 
-    const prDraft = await runPrDraftAgent({
+    let prDraft = await runPrDraftAgent({
       request: input.request,
       analysisSections: fixedAnalysis.analysisSections,
       evidencePack: fixedAnalysis.evidencePack,
       photoContext: fixedAnalysis.photoContext,
+      postCopyLimitChars: POST_TEXT_LIMIT,
+      copyGenerationAttempt: 1,
     });
+
+    if (
+      !isWithinPostTextLimit(
+        prDraft.drafts.x || primarySuggestion?.text || "",
+        POST_TEXT_LIMIT,
+      )
+    ) {
+      logWarn("postSuggestionRetryRequested", {
+        postType: input.request.postType,
+        limit: POST_TEXT_LIMIT,
+        draftLength: countPostTextCharacters(prDraft.drafts.x || ""),
+        suggestionLength: primarySuggestion
+          ? countPostTextCharacters(primarySuggestion.text)
+          : 0,
+      });
+      const retriedDraft = await runPrDraftAgent({
+        request: input.request,
+        analysisSections: fixedAnalysis.analysisSections,
+        evidencePack: fixedAnalysis.evidencePack,
+        photoContext: fixedAnalysis.photoContext,
+        postCopyLimitChars: POST_TEXT_LIMIT,
+        copyGenerationAttempt: 2,
+      });
+      if (
+        countPostTextCharacters(retriedDraft.drafts.x) <
+        countPostTextCharacters(prDraft.drafts.x)
+      ) {
+        prDraft = retriedDraft;
+      }
+    }
 
     const summary =
       prDraft.summary || buildSummary(input.request, fixedAnalysis);
@@ -170,8 +208,11 @@ export class ActionRunAnalysisService {
       buildImageCaption(input.request, fixedAnalysis.analysisSections);
     const warnings = collectWarnings(fixedAnalysis);
     const primaryOutputType = "generated_post_suggestions" as const;
-    const suggestedSlackPostText =
-      primarySuggestion?.text?.trim() || prDraft.drafts.x;
+    const suggestedSlackPostText = resolveSharedPostText({
+      primarySuggestionText: primarySuggestion?.text?.trim(),
+      fallbackText: prDraft.drafts.x.trim(),
+      limit: POST_TEXT_LIMIT,
+    });
     const attachedImage = buildAttachedInputImage(input.request);
     logInfo("photoPostResultBuilt", {
       primaryOutputType,
@@ -223,10 +264,12 @@ export class ActionRunAnalysisService {
             score: computeQualityScore(fixedAnalysis),
             issues: warnings,
             signals: collectTableauSignals(fixedAnalysis.analysisSections),
-            draftLength:
-              primarySuggestion?.text.length ?? prDraft.drafts.x.length,
-            refinedLength:
-              primarySuggestion?.text.length ?? prDraft.drafts.x.length,
+            draftLength: primarySuggestion?.text
+              ? countPostTextCharacters(primarySuggestion.text)
+              : countPostTextCharacters(prDraft.drafts.x),
+            refinedLength: primarySuggestion?.text
+              ? countPostTextCharacters(primarySuggestion.text)
+              : countPostTextCharacters(prDraft.drafts.x),
           },
           prAgent: {
             enabled: getConfig().prAgent.useStrandsAgent,
@@ -827,10 +870,27 @@ function buildSuggestionWarnings(input: {
 }
 
 function limitPostLength(text: string): string {
-  if (text.length <= 280) {
-    return text;
+  return truncatePostText(text, POST_TEXT_LIMIT);
+}
+
+function resolveSharedPostText(input: {
+  primarySuggestionText?: string;
+  fallbackText: string;
+  limit: number;
+}): string {
+  const candidates = [
+    input.primarySuggestionText?.trim(),
+    input.fallbackText.trim(),
+  ].filter((value): value is string => Boolean(value));
+
+  const withinLimit = candidates.find((value) =>
+    isWithinPostTextLimit(value, input.limit),
+  );
+  if (withinLimit) {
+    return withinLimit;
   }
-  return `${text.slice(0, 277).trimEnd()}...`;
+
+  return truncatePostText(candidates[0] ?? input.fallbackText, input.limit);
 }
 
 function stripAnalysisLanguage(text: string): string {

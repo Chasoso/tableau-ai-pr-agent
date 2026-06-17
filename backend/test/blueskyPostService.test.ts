@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BlueskyPostService } from "../src/services/blueskyPostService";
+import { countPostTextCharacters } from "../src/utils/postText";
 
 const fetchMock = vi.fn();
 
@@ -109,6 +110,124 @@ describe("BlueskyPostService", () => {
         }),
       }),
     );
+  });
+
+  it("uploads one image blob and embeds it in the post record", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            accessJwt: "jwt-123",
+            did: "did:plc:abc123",
+            handle: "user.bsky.social",
+          }),
+          {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            blob: {
+              $type: "blob",
+              ref: { $link: "bafyblob123" },
+              mimeType: "image/jpeg",
+              size: 12,
+            },
+          }),
+          {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            uri: "at://did:plc:abc123/app.bsky.feed.post/3lzwxyz",
+            cid: "cid-123",
+          }),
+          {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          },
+        ),
+      );
+
+    const service = new BlueskyPostService(fetchMock as typeof fetch);
+    await expect(
+      service.postText({
+        text: "Hello Bluesky",
+        runId: "run-1",
+        image: {
+          bytes: Uint8Array.from([1, 2, 3, 4]),
+          contentType: "image/jpeg",
+          altText: "venue photo",
+        },
+      }),
+    ).resolves.toEqual({
+      sent: true,
+      skipped: false,
+      statusCode: 200,
+      postUri: "at://did:plc:abc123/app.bsky.feed.post/3lzwxyz",
+      cid: "cid-123",
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://bsky.social/xrpc/com.atproto.repo.uploadBlob",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Authorization: "Bearer jwt-123",
+          "Content-Type": "image/jpeg",
+        }),
+        body: expect.any(Buffer),
+      }),
+    );
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "https://bsky.social/xrpc/com.atproto.repo.createRecord",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Authorization: "Bearer jwt-123",
+          "Content-Type": "application/json",
+        }),
+      }),
+    );
+
+    const createRecordCall = fetchMock.mock.calls[2];
+    const payload = JSON.parse(
+      String((createRecordCall?.[1] as RequestInit).body),
+    ) as {
+      record?: {
+        embed?: {
+          images?: Array<{ alt?: string }>;
+        };
+      };
+    };
+    expect(payload.record?.embed?.images?.[0]?.alt).toBe("venue photo");
+  });
+
+  it("rejects posts that exceed the 300 character limit", async () => {
+    const service = new BlueskyPostService(fetchMock as typeof fetch);
+    await expect(
+      service.postText({
+        text: "a".repeat(301),
+        runId: "run-1",
+      }),
+    ).resolves.toEqual({
+      sent: false,
+      skipped: false,
+      error: "Bluesky post text must be 300 characters or fewer.",
+    });
+
+    expect(countPostTextCharacters("🙂\n🙂")).toBe(3);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("skips posting when credentials are missing", async () => {

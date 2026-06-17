@@ -15,6 +15,11 @@ import { BlueskyPostService } from "./blueskyPostService";
 import { runTableauConnectivityDiagnosticsWithAuthContext } from "./tableauConnectivityDiagnostics";
 import { ActionRunRepository } from "../repositories/actionRunRepository";
 import { SlackWebhookService } from "./slackWebhookService";
+import {
+  isWithinPostTextLimit,
+  POST_TEXT_LIMIT,
+  truncatePostText,
+} from "../utils/postText";
 import type { AuthenticatedUser } from "../types/auth";
 import type {
   ActionRunBlueskyPostRequest,
@@ -387,9 +392,19 @@ export class ActionRunService {
       record.result.generatedPostSuggestion?.text?.trim() ||
       record.result.suggestedSlackPostText.trim();
 
+    const postText = resolveBlueskyPostText({
+      selectedSuggestionText,
+      result: record.result,
+    });
+    const postImage = await resolveBlueskyPostImage({
+      actionRunId: input.actionRunId,
+      request: record.request,
+    });
+
     const blueskyPostResult = await blueskyPostService.postText({
-      text: selectedSuggestionText,
+      text: postText,
       runId: input.actionRunId,
+      ...(postImage ? { image: postImage } : {}),
     });
 
     if (blueskyPostResult.sent) {
@@ -630,6 +645,60 @@ export class ActionRunService {
       throw new Error("You do not have access to this action run.");
     }
   }
+}
+
+function resolveBlueskyPostText(input: {
+  selectedSuggestionText: string;
+  result: ActionRunResult;
+}): string {
+  const candidates = [
+    input.selectedSuggestionText,
+    input.result.suggestedSlackPostText,
+    input.result.generatedPostSuggestions?.[0]?.text?.trim() ?? "",
+    input.result.generatedPostSuggestion?.text?.trim() ?? "",
+  ].filter(Boolean);
+
+  const withinLimit = candidates.find((text) =>
+    isWithinPostTextLimit(text, POST_TEXT_LIMIT),
+  );
+  if (withinLimit) {
+    return withinLimit;
+  }
+
+  return truncatePostText(candidates[0] ?? input.selectedSuggestionText);
+}
+
+async function resolveBlueskyPostImage(input: {
+  actionRunId: string;
+  request: ActionRunRequest;
+}): Promise<
+  | {
+      bytes: Uint8Array;
+      contentType: string;
+      altText: string;
+    }
+  | undefined
+> {
+  const objectKey = input.request.inputImage?.objectKey?.trim();
+  if (!objectKey) {
+    return undefined;
+  }
+
+  const storedImage = await inputImageService.fetchActionRunInputImage({
+    objectKey,
+  });
+  if (!storedImage) {
+    return undefined;
+  }
+
+  return {
+    bytes: storedImage.bytes,
+    contentType: storedImage.contentType,
+    altText:
+      input.request.eventContext?.eventName?.trim() ||
+      input.request.eventName?.trim() ||
+      "投稿画像",
+  };
 }
 
 async function storeInputImage(

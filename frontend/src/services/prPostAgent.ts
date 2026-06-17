@@ -7,6 +7,7 @@ import {
 import { resolveCalendarEventContext as resolveCalendarEventContextApi } from "../api/calendarApi";
 import { previewTechPlayEvent } from "../api/techplayApi";
 import { env } from "../env";
+import { POST_TEXT_LIMIT, truncatePostText } from "../utils/postText";
 import type {
   ActionRunApprovalResponse,
   ActionRunBlueskyPostResponse,
@@ -259,26 +260,11 @@ export async function generatePrPostDraft(
   );
   const evidenceLines = input.analysis.result.evidence.slice(0, 5);
   const checkLines = input.analysis.result.checks.slice(0, 5);
-  const slackPostText = buildSlackPost({
-    eventName,
-    postType: input.postType,
-    hashtags,
-    techplayUrl,
+  const sharedPostText = buildSharedPostText({
     analysis: input.analysis.result,
-    summaryLines,
-    image: input.image ?? null,
-    noImageSituationMemo: input.noImageSituationMemo,
   });
-  const blueskyPostText = buildBlueskyPost({
-    eventName,
-    postType: input.postType,
-    hashtags,
-    techplayUrl,
-    analysis: input.analysis.result,
-    summaryLines,
-    image: input.image ?? null,
-    noImageSituationMemo: input.noImageSituationMemo,
-  });
+  const slackPostText = sharedPostText;
+  const blueskyPostText = sharedPostText;
 
   return {
     postType: input.postType,
@@ -297,6 +283,13 @@ export async function generatePrPostDraft(
     image: input.image ?? null,
     noImageSituationMemo: input.noImageSituationMemo?.trim() || undefined,
   };
+}
+
+function buildSharedPostText(input: { analysis: ActionRunResult }): string {
+  const text =
+    input.analysis.generatedPostSuggestions?.[0]?.text?.trim() ||
+    input.analysis.suggestedSlackPostText.trim();
+  return truncatePostText(text, POST_TEXT_LIMIT);
 }
 
 export function buildPostTrendSummary(
@@ -365,19 +358,10 @@ export function buildBlueskyPost(input: {
   image?: UploadedImage | null;
   noImageSituationMemo?: string;
 }): string {
-  const parts = [
-    input.hashtags.slice(0, 3).join(" "),
+  const sharedCopy =
     input.analysis.generatedPostSuggestions?.[0]?.text?.trim() ||
-      input.analysis.suggestedSlackPostText.trim(),
-    input.techplayUrl,
-  ].filter(Boolean);
-
-  let text = parts.join("\n").trim();
-  if (text.length > 300) {
-    text = `${text.slice(0, 297).trimEnd()}...`;
-  }
-
-  return text;
+    input.analysis.suggestedSlackPostText.trim();
+  return truncatePostText(sharedCopy, POST_TEXT_LIMIT);
 }
 
 export async function postToSlack(input: {
