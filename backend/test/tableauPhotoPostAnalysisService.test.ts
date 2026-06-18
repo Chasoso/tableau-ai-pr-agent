@@ -104,7 +104,7 @@ describe("TableauPhotoPostAnalysisService", () => {
     expect(result.evidencePack.surveyInsight?.evidenceSummary).toContain(
       "Participants want practical examples.",
     );
-    expect(provider.getAdditionalContext).toHaveBeenCalledTimes(3);
+    expect(provider.getAdditionalContext).toHaveBeenCalledTimes(6);
     for (const call of provider.getAdditionalContext.mock.calls) {
       const input = call[0];
       expect(input.dashboardContext.dataSources ?? []).toHaveLength(1);
@@ -186,7 +186,7 @@ describe("TableauPhotoPostAnalysisService", () => {
     });
 
     expect(result.surveyInsight?.available).toBe(false);
-    expect(result.surveyInsight?.sourceStatus).toBe("skipped");
+    expect(result.surveyInsight?.sourceStatus).toBe("metadata_only");
     expect(result.evidencePack.canGeneratePost).toBe(true);
     expect(result.evidencePack.generationBlockers).toEqual([]);
   });
@@ -319,10 +319,15 @@ describe("TableauPhotoPostAnalysisService", () => {
         async (
           input: Parameters<TableauContextProvider["getAdditionalContext"]>[0],
         ) => {
-          if (input.question.includes("survey")) {
+          if (input.questionInterpretation?.requestType === "field_inventory") {
             return buildAdditionalContext(
-              "survey",
-              "Survey responses mention setup and speed.",
+              input.question.includes("survey")
+                ? "survey"
+                : input.question.includes("engagement")
+                  ? "performance"
+                  : "overview",
+              "Metadata fetched successfully.",
+              [{ label: "Metadata fetched successfully.", value: 1 }],
             );
           }
           if (input.question.includes("engagement")) {
@@ -479,6 +484,85 @@ describe("TableauPhotoPostAnalysisService", () => {
       "input_image_not_found",
     );
   });
+
+  it("builds fixed purpose-specific query interpretations from metadata", async () => {
+    const provider = {
+      name: "tableau-mcp" as const,
+      getAdditionalContext: vi.fn(async (input) => {
+        const kind = input.question.includes("survey")
+          ? "survey"
+          : input.question.includes("engagement")
+            ? "performance"
+            : "overview";
+        return buildAdditionalContext(kind, "Metadata fetched successfully.", [
+          { label: "Metadata fetched successfully.", value: 1 },
+        ]);
+      }),
+    };
+
+    const gateway = {
+      listDatasources: vi.fn(async () => [
+        { name: "MCP_Session_Survey_Responses", luid: "survey-luid" },
+        { name: "X Account Analytics Contents", luid: "performance-luid" },
+        { name: "X Account Overview Analytics", luid: "overview-luid" },
+      ]),
+    };
+
+    const service = new TableauPhotoPostAnalysisService(
+      provider as never,
+      gateway as never,
+    );
+    await service.analyze({
+      request: buildRequest(),
+      authenticatedUser: {
+        userId: "user-1",
+        tableauSubject: "user@example.com",
+      },
+    });
+
+    const queryCalls = (
+      provider.getAdditionalContext as unknown as {
+        mock: {
+          calls: Array<
+            [Parameters<TableauContextProvider["getAdditionalContext"]>[0]]
+          >;
+        };
+      }
+    ).mock.calls
+      .map((call) => call[0])
+      .filter(
+        (input) =>
+          input.questionInterpretation?.requestType !== "field_inventory",
+      );
+
+    expect(queryCalls).toHaveLength(3);
+    const surveyCall = queryCalls.find(
+      (input) =>
+        input.question.includes("survey") &&
+        input.questionInterpretation?.topN === 20,
+    );
+    const performanceCall = queryCalls.find(
+      (input) =>
+        input.questionInterpretation?.rankingTarget === "post" &&
+        input.questionInterpretation?.topN === 10,
+    );
+    const overviewCall = queryCalls.find(
+      (input) =>
+        input.questionInterpretation?.analysisIntent === "grouped_trend" &&
+        input.questionInterpretation?.topN === 30,
+    );
+
+    expect(surveyCall?.questionInterpretation?.topN).toBe(20);
+    expect(performanceCall?.questionInterpretation?.metricIntent).not.toBe(
+      "bookmarks",
+    );
+    expect(overviewCall?.questionInterpretation?.period).toEqual(
+      expect.objectContaining({
+        startDate: expect.any(String),
+        endDate: expect.any(String),
+      }),
+    );
+  });
 });
 
 function buildRequest(): ActionRunRequest {
@@ -514,15 +598,50 @@ function buildAdditionalContext(
     { label: summary, value: 1 },
   ],
 ) {
+  const datasourceName =
+    kind === "survey"
+      ? "MCP_Session_Survey_Responses"
+      : kind === "performance"
+        ? "X Account Analytics Contents"
+        : "X Account Overview Analytics";
+  const fields = [
+    { name: "Response Text", dataType: "STRING", role: "DIMENSION" },
+    { name: "Feedback", dataType: "STRING", role: "DIMENSION" },
+    { name: "Concern", dataType: "STRING", role: "DIMENSION" },
+    { name: "Post Text", dataType: "STRING", role: "DIMENSION" },
+    { name: "Post Title", dataType: "STRING", role: "DIMENSION" },
+    { name: "Date", dataType: "DATE", role: "DIMENSION" },
+    { name: "Impressions", dataType: "INTEGER", role: "MEASURE" },
+    { name: "Engagement", dataType: "INTEGER", role: "MEASURE" },
+    { name: "Likes", dataType: "INTEGER", role: "MEASURE" },
+    { name: "Reposts", dataType: "INTEGER", role: "MEASURE" },
+    { name: "Replies", dataType: "INTEGER", role: "MEASURE" },
+    { name: "Bookmarks", dataType: "INTEGER", role: "MEASURE" },
+  ];
   return {
     provider: "tableau-mcp" as const,
+    datasourceFieldProfiles: [
+      {
+        datasourceName,
+        fieldCount: fields.length,
+        fieldNames: fields.map((field) => field.name),
+        fields,
+        sourceTool: "get-datasource-metadata" as const,
+      },
+    ],
     queryInsights: [
       {
-        datasourceName: kind,
+        datasourceName,
         metricField: "count",
         rowCount: rows.length,
         actualRowCount: rows.length,
         rows,
+      },
+    ],
+    mcpToolResults: [
+      {
+        toolName: "query-datasource",
+        status: "success",
       },
     ],
     warnings: [],

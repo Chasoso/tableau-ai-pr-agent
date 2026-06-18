@@ -163,9 +163,12 @@ export type InsightSection = {
   available: boolean;
   sourceStatus: "queried" | "metadata_only" | "skipped" | "failed";
   datasourceKey: string;
+  datasourceName?: string;
+  queryRowCount: number;
   summary?: string;
   keyFindings?: string[];
   evidenceRows?: unknown[];
+  warnings: string[];
   skippedReason?: string;
   failedReason?: string;
 };
