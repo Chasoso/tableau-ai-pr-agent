@@ -1,6 +1,6 @@
-﻿// @vitest-environment jsdom
+// @vitest-environment jsdom
 
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import PrActionPanel from "./PrActionPanel";
@@ -381,12 +381,11 @@ describe("PrActionPanel", () => {
         screen.getByRole("region", { name: "回答生成ステータス" }),
       ).toHaveTextContent("running_mcp_tools"),
     );
-    const statusRegion = screen.getByRole("region", {
-      name: "回答生成ステータス",
-    });
-    expect(statusRegion).toHaveTextContent("completed");
-    expect(within(statusRegion).getByText("Action Run ID")).toBeVisible();
-    expect(within(statusRegion).getByText("action-run-1")).toBeVisible();
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("region", { name: "回答生成ステータス" }),
+      ).not.toBeInTheDocument(),
+    );
 
     await user.click(screen.getByText("根拠・チェック結果を見る"));
   });

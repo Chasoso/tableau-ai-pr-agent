@@ -1309,37 +1309,20 @@ export default function PrActionPanel({
           </div>
         ) : null}
 
-        {submissionSummary ? (
+        {submissionSummary &&
+        (actionRunDetail?.status ?? submissionSummary.status) !==
+          "completed" ? (
           <section
             className="pr-agent-status-card"
             aria-label="回答生成ステータス"
           >
-            <div className="pr-agent-status-card-header">
-              <strong>現在の回答生成ステータス</strong>
-              <span>
-                {actionRunDetail?.status ?? submissionSummary.status} /{" "}
-                {actionRunDetail?.stage ?? submissionSummary.stage}
-              </span>
+            <div className="pr-agent-status-state">
+              <span
+                className="spinner pr-agent-status-spinner"
+                aria-hidden="true"
+              />
+              <span className="pr-agent-status-state-text">回答を生成中</span>
             </div>
-
-            <dl className="pr-agent-status-grid">
-              <div>
-                <dt>Action Run ID</dt>
-                <dd>{submissionSummary.actionRunId}</dd>
-              </div>
-              <div>
-                <dt>Status</dt>
-                <dd>{actionRunDetail?.status ?? submissionSummary.status}</dd>
-              </div>
-              <div>
-                <dt>Stage</dt>
-                <dd>{actionRunDetail?.stage ?? submissionSummary.stage}</dd>
-              </div>
-              <div>
-                <dt>Poll URL</dt>
-                <dd>{submissionSummary.pollUrl}</dd>
-              </div>
-            </dl>
 
             {actionRunDetail?.progressMessages?.length ? (
               <ul className="pr-agent-status-progress">
@@ -1351,20 +1334,10 @@ export default function PrActionPanel({
                     <span className="pr-agent-status-progress-message">
                       {message.message}
                     </span>
-                    <time dateTime={message.at}>
-                      {new Date(message.at).toLocaleTimeString("ja-JP", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </time>
                   </li>
                 ))}
               </ul>
-            ) : (
-              <p className="pr-agent-inline-note">
-                進捗メッセージを取得中です。
-              </p>
-            )}
+            ) : null}
           </section>
         ) : null}
 

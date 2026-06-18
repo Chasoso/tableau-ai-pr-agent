@@ -1393,52 +1393,33 @@ export default function PrPostAgentPanel({
           </section>
         ) : null}
 
-        {actionRunStatus ? (
+        {actionRunStatus && actionRunStatus.status !== "completed" ? (
           <section
             className="pr-post-agent-action-run-panel"
             aria-label="回答生成ステータス"
           >
-            <div className="pr-post-agent-action-run-header">
-              <strong>現在の回答生成ステータス</strong>
-              <span>{actionRunStatus.status}</span>
+            <div className="pr-post-agent-action-run-state">
+              <span
+                className="spinner pr-post-agent-action-run-spinner"
+                aria-hidden
+              />
+              <span className="pr-post-agent-action-run-state-text">
+                回答を生成中
+              </span>
             </div>
-            <dl className="pr-post-agent-action-run-meta">
-              <div>
-                <dt>Stage</dt>
-                <dd>{actionRunStatus.stage}</dd>
-              </div>
-              <div>
-                <dt>Action Run ID</dt>
-                <dd>{actionRunStatus.actionRunId}</dd>
-              </div>
-            </dl>
             {actionRunStatus.progressMessages.length ? (
               <ul className="pr-post-agent-action-run-progress-list">
                 {actionRunStatus.progressMessages.map((message) => (
                   <li key={`${message.stage}-${message.at}`}>
-                    <span className="pr-post-agent-action-run-progress-stage">
-                      {message.stage}
-                    </span>
                     <span className="pr-post-agent-action-run-progress-message">
                       {message.message}
                     </span>
-                    <time dateTime={message.at}>
-                      {new Date(message.at).toLocaleTimeString("ja-JP", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </time>
                   </li>
                 ))}
               </ul>
-            ) : (
-              <p className="pr-post-agent-inline-note">
-                現在の回答生成メッセージを取得中です。
-              </p>
-            )}
+            ) : null}
           </section>
         ) : null}
-
         {generatedPostSuggestions.length ? (
           <ChatBubble role="assistant" className="pr-post-agent-bubble--cards">
             <GeneratedPostSuggestionsPanel
@@ -1459,37 +1440,6 @@ export default function PrPostAgentPanel({
               isPosting={isSlackPosting || Boolean(activeSuggestion)}
               onSelectSuggestion={handleSuggestionSelect}
             />
-          </ChatBubble>
-        ) : null}
-
-        {generationStatus === "generating" ? (
-          <ChatBubble role="assistant">
-            <div className="pr-post-agent-status">
-              <strong>回答を生成中</strong>
-              <ul>
-                <li>会話履歴を確認中…</li>
-                {selectedPostType ? <li>投稿シーン選択済み</li> : null}
-                {selectedPostType === "開催中の実況" && uploadedImage ? (
-                  <li>画像アップロード完了</li>
-                ) : null}
-                {selectedPostType === "開催中の実況" && imageMode === "none" ? (
-                  <li>画像を投稿しないを選択済み</li>
-                ) : null}
-                <li>Google/Slack接続状態確認済み</li>
-                <li>
-                  {workflow.calendarLookupStatus === "searching"
-                    ? "Googleカレンダー / TechPlay取得中…"
-                    : "Googleカレンダー / TechPlay取得完了"}
-                </li>
-                <li>
-                  {workflow.tableauAnalysisStatus === "fetching"
-                    ? "過去投稿データを分析中…"
-                    : "過去投稿データの分析完了"}
-                </li>
-                <li>投稿シーンに合う傾向を確認中…</li>
-                <li>投稿文を作成中…</li>
-              </ul>
-            </div>
           </ChatBubble>
         ) : null}
 
