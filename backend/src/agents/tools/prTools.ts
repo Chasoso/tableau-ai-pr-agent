@@ -317,24 +317,32 @@ export function collectPrSourceInfo(
   const worksheetNames = request.dashboardContext.worksheets
     .map((worksheet) => worksheet.name.trim())
     .filter(Boolean);
+  const analysisTopics = uniqueStrings([
+    ...(parsed.evidencePack?.photoContext.detectedTopics ?? []),
+    ...(parsed.evidencePack?.photoContext.suggestedPostAngles ?? []).map(
+      (angle) => angle.split(/\s+/u)[0],
+    ),
+    ...(postMaterial.eventThemes ?? []),
+  ])
+    .map((topic) => topic.trim())
+    .filter(Boolean)
+    .slice(0, 3);
   const analysisHighlights = uniqueStrings([
     postMaterial.eventShortName
-      ? `Event: ${postMaterial.eventShortName}`
+      ? "Event: " + postMaterial.eventShortName
       : undefined,
-    postMaterial.mainTopics?.length
-      ? `Topics: ${postMaterial.mainTopics.slice(0, 3).join(" / ")}`
-      : undefined,
-    postMaterial.mood ? `Mood: ${postMaterial.mood}` : undefined,
+    analysisTopics.length ? "Topics: " + analysisTopics.join(" / ") : undefined,
+    postMaterial.mood ? "Mood: " + postMaterial.mood : undefined,
     postMaterial.audienceContext
-      ? `Audience: ${postMaterial.audienceContext}`
+      ? "Audience: " + postMaterial.audienceContext
       : undefined,
     postMaterial.speakerOrSessionContext
-      ? `Session: ${postMaterial.speakerOrSessionContext}`
+      ? "Session: " + postMaterial.speakerOrSessionContext
       : undefined,
     postMaterial.photoDescriptionForPost
-      ? `Photo: ${postMaterial.photoDescriptionForPost}`
+      ? "Photo: " + postMaterial.photoDescriptionForPost
       : undefined,
-    postMaterial.callToAction ? `CTA: ${postMaterial.callToAction}` : undefined,
+    postMaterial.callToAction ? "CTA: " + postMaterial.callToAction : undefined,
   ]).slice(0, 10);
   const missingFields = getMissingSourceFields({
     request,

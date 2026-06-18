@@ -778,34 +778,32 @@ function extractEventThemeCandidates(value: string): string[] {
     return [];
   }
 
-  const emphasized =
-    normalized.match(/[〜～]([^〜～]+)[〜～]/u)?.[1] ?? normalized;
-  let seed = emphasized;
-  for (const suffix of [
-    "から考える",
-    "をテーマに",
-    "について",
-    "の次の一歩",
-    "の可能性",
-  ]) {
+  let seed = normalized
+    .replace(/(?:^|\s)Hashtags?\b/giu, " ")
+    .replace(/#[^\s]+/gu, " ");
+
+  const emphasized = seed.match(/[~〜～]([^~〜～]+)[~〜～]/u)?.[1] ?? seed;
+  seed = emphasized;
+
+  for (const suffix of ["?????", "?????", "????", "?????", "????"]) {
     const index = seed.indexOf(suffix);
     if (index >= 0) {
       seed = seed.slice(0, index);
     }
   }
+
   seed = seed
     .trim()
     .replace(/^[\s-]+/u, "")
     .replace(/[\s-]+$/u, "");
 
   return seed
-    .split(/[、・,\/|]+\s*/u)
+    .split(/[??,\/|]+\s*/u)
     .map((topic) => topic.trim())
     .filter((topic) => topic.length > 0)
     .filter((topic) => !looksLikeImageLabel(topic))
     .filter((topic) => !isGenericThemeStopWord(topic));
 }
-
 function extractSessionTitleCandidates(value: string): string[] {
   const normalized = normalize(value);
   if (!normalized) {
@@ -813,11 +811,12 @@ function extractSessionTitleCandidates(value: string): string[] {
   }
 
   const quoted = [
-    ...normalized.matchAll(/[「]([^」]+)[」]|[『]([^』]+)[』]|"([^"]+)"/g),
+    ...normalized.matchAll(/[?]([^?]+)[?]|[?]([^?]+)[?]|"([^"]+)"/g),
   ]
     .map((match) => match[1] ?? match[2] ?? match[3] ?? "")
     .map((item) => item.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((item) => !/#/.test(item));
   if (quoted.length > 0) {
     return quoted;
   }
@@ -826,9 +825,10 @@ function extractSessionTitleCandidates(value: string): string[] {
     .split(/\r?\n+/u)
     .map((line) => line.replace(/^[\s\-*]+/u, "").trim())
     .filter((line) => line.length > 0)
+    .filter((line) => !/#/.test(line))
+    .filter((line) => line.length <= 40)
     .filter((line) => !isGenericThemeStopWord(line));
 }
-
 function isGenericThemeStopWord(value: string): boolean {
   const trimmed = value.trim();
   return [
@@ -986,13 +986,13 @@ function deriveSessionContext(
 function sanitizeTopic(value: string): string {
   return normalize(value)
     .replace(
-      /^(?:metric|dimension|top item|rank_metric|rank_label)\s*[:：]?\s*/iu,
+      /^(?:metric|dimension|top item|rank_metric|rank_label|hashtags?)\s*[:?]\s*/iu,
       "",
     )
+    .replace(/^#+/u, "")
     .replace(/\s+/gu, " ")
     .trim();
 }
-
 function isSafeTopic(value: string): boolean {
   const trimmed = value.trim();
   if (!trimmed) {
