@@ -782,10 +782,17 @@ function extractEventThemeCandidates(value: string): string[] {
     .replace(/(?:^|\s)Hashtags?\b/giu, " ")
     .replace(/#[^\s]+/gu, " ");
 
-  const emphasized = seed.match(/[~〜～]([^~〜～]+)[~〜～]/u)?.[1] ?? seed;
+  const emphasized =
+    seed.match(/[\u301c\uFF5E]([^\u301c\uFF5E]+)[\u301c\uFF5E]/u)?.[1] ?? seed;
   seed = emphasized;
 
-  for (const suffix of ["?????", "?????", "????", "?????", "????"]) {
+  for (const suffix of [
+    "\u304b\u3089\u8003\u3048\u308b",
+    "\u3092\u30c6\u30fc\u30de\u306b",
+    "\u306b\u3064\u3044\u3066",
+    "\u306e\u6b21\u306e\u4e00\u6b69",
+    "\u306e\u53ef\u80fd\u6027",
+  ]) {
     const index = seed.indexOf(suffix);
     if (index >= 0) {
       seed = seed.slice(0, index);
@@ -798,7 +805,7 @@ function extractEventThemeCandidates(value: string): string[] {
     .replace(/[\s-]+$/u, "");
 
   return seed
-    .split(/[??,\/|]+\s*/u)
+    .split(/[\u3001\u30fb,\/|]+\s*/u)
     .map((topic) => topic.trim())
     .filter((topic) => topic.length > 0)
     .filter((topic) => !looksLikeImageLabel(topic))
@@ -811,7 +818,9 @@ function extractSessionTitleCandidates(value: string): string[] {
   }
 
   const quoted = [
-    ...normalized.matchAll(/[?]([^?]+)[?]|[?]([^?]+)[?]|"([^"]+)"/g),
+    ...normalized.matchAll(
+      /[\u300c]([^\u300d]+)[\u300d]|[\u300e]([^\u300f]+)[\u300f]|"([^"]+)"/g,
+    ),
   ]
     .map((match) => match[1] ?? match[2] ?? match[3] ?? "")
     .map((item) => item.trim())
