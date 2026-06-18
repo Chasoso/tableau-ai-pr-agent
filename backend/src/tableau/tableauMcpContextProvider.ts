@@ -2598,7 +2598,15 @@ export function buildDataAnalysisQueryRecoverySelection(input: {
     return undefined;
   }
 
-  if (!isAggregateAnalysisQuestion(input.input.question)) {
+  const hasExplicitQueryPlan =
+    Array.isArray(input.input.questionInterpretation?.queryFields) &&
+    input.input.questionInterpretation.queryFields.some(
+      (field) => Boolean(field) && typeof field === "object",
+    );
+  if (
+    !hasExplicitQueryPlan &&
+    !isAggregateAnalysisQuestion(input.input.question)
+  ) {
     return undefined;
   }
 

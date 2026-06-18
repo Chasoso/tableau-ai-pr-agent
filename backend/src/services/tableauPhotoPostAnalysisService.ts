@@ -865,6 +865,7 @@ async function runPurposeAnalysis(input: {
       validationSkippedReason: fieldValidation.skippedReason,
       fieldValidationPassed: fieldValidation.fieldValidationPassed,
     });
+    const directQueryStartedAt = Date.now();
     logInfo("tableau.photo_post.queryArgsBuildStarted", {
       purpose: input.purpose,
       datasourceKey: input.datasource.allowed.key,
@@ -884,6 +885,19 @@ async function runPurposeAnalysis(input: {
       queryArgsDatasourceLuidPresent:
         queryArgsPreview.queryArgsDatasourceLuidPresent,
       queryArgsBuildWarnings: queryArgsPreview.queryArgsBuildWarnings,
+    });
+    logInfo("tableau.photo_post.photoPostDirectQueryToolCallStarted", {
+      purpose: input.purpose,
+      datasourceKey: input.datasource.allowed.key,
+      datasourceLuidPresent: queryArgsPreview.queryArgsDatasourceLuidPresent,
+      fieldCount: queryArgsPreview.queryArgsFieldCount,
+      fields: queryArgsPreview.queryArgsFields,
+      filterCount: queryArgsPreview.queryArgsFilterCount,
+      filters: queryArgsPreview.queryArgsFilters,
+      sortCount: fieldPlan.querySorts.length,
+      sorts: fieldPlan.querySorts,
+      limit: queryArgsPreview.queryArgsLimit,
+      plannerBypassed: true,
     });
     logInfo("tableau.photo_post.queryToolCallPrepared", {
       purpose: input.purpose,
@@ -924,10 +938,29 @@ async function runPurposeAnalysis(input: {
     );
     const queryInsight = additionalContext.queryInsights?.[0];
     const queryRowCount = queryInsight?.rows?.length ?? 0;
+    const querySucceeded = queryToolResult?.status === "success";
+    logInfo("tableau.photo_post.photoPostDirectQueryToolCallCompleted", {
+      purpose: input.purpose,
+      datasourceKey: input.datasource.allowed.key,
+      toolName: "query-datasource",
+      queryToolCalled: Boolean(queryToolResult),
+      querySucceeded,
+      queryRowCount,
+      queryErrorCategory: queryToolResult?.errorCategory,
+      queryErrorMessage:
+        queryToolResult?.errorMessage ?? queryToolResult?.warning,
+      durationMs: Date.now() - directQueryStartedAt,
+    });
+    if (queryArgsPreview.willCallQueryDatasource && !queryToolResult) {
+      logWarn("tableau.photo_post.photoPostUnexpectedPlannerUsage", {
+        purpose: input.purpose,
+        datasourceKey: input.datasource.allowed.key,
+        reason: "fixed_analysis_should_bypass_planner",
+      });
+    }
     const metadataFieldCount =
       metadataContext.datasourceFieldProfiles?.[0]?.fieldCount ?? 0;
     const metadataSucceeded = metadataFieldCount > 0;
-    const querySucceeded = queryToolResult?.status === "success";
     const queryValidationRejected = queryToolResult?.status === "skipped";
     const queryToolCalled = Boolean(queryToolResult);
     const queryErrorCategory = queryToolResult?.errorCategory;
