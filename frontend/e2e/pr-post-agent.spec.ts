@@ -26,10 +26,10 @@ test.describe("PR post agent", () => {
     await uploadVenuePhoto(page);
 
     await expect(page.locator(".suggestion-card")).toHaveCount(3);
-    await expect(
-      page.getByRole("heading", { name: "生成済み投稿案" }),
-    ).toBeVisible();
-    await expect(page.getByText("詳細を見る")).toBeVisible();
+    await expect(page.locator(".suggestion-carousel")).toBeVisible();
+    await expect(page.locator(".analysis-details-summary")).toHaveText(
+      "詳細を見る",
+    );
 
     const hasHorizontalScroll = await page.evaluate(
       () =>

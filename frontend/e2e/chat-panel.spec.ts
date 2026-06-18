@@ -64,18 +64,19 @@ test.describe("PR投稿エージェント", () => {
     const uploadResponse = await uploadResponsePromise;
     expect(uploadResponse.status()).toBe(201);
 
-    await expect(page.locator(".pr-post-agent-upload-note")).toBeVisible();
+    const uploadSummary = page.locator(".pr-post-agent-upload-card summary");
+    await expect(uploadSummary).toHaveText("›画像をアップロードしました");
     await expect(page.locator(".pr-post-agent-upload-preview")).toHaveCount(0);
-    await page.locator(".pr-post-agent-upload-card summary").click();
+    await uploadSummary.click();
     await expect(page.locator(".pr-post-agent-upload-preview")).toBeVisible();
 
-    await expect(
-      page.getByRole("heading", { name: "生成済み投稿案" }),
-    ).toBeVisible();
+    await expect(page.locator(".suggestion-carousel")).toBeVisible();
     await expect(page.locator(".suggestion-card")).toHaveCount(3);
-    await expect(page.getByText("詳細を見る")).toBeVisible();
+    await expect(page.locator(".analysis-details-summary")).toHaveText(
+      "詳細を見る",
+    );
     await expect(
-      page.locator(".suggestion-card").first().getByText("venue.jpg"),
+      page.locator(".suggestion-card").first().getByRole("img"),
     ).toBeVisible();
     await expect(page.locator(".suggestion-carousel")).toBeVisible();
 
