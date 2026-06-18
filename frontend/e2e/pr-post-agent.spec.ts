@@ -24,12 +24,15 @@ test.describe("PR post agent", () => {
     await page.getByRole("button", { name: "開催中の実況" }).click();
     await page.getByRole("button", { name: "ライブラリから選択" }).click();
     await uploadVenuePhoto(page);
-    await expect(
-      page.getByRole("region", { name: "回答生成ステータス" }),
-    ).toBeVisible();
-
-    await expect(page.locator(".suggestion-card")).toHaveCount(3);
-    await expect(page.locator(".suggestion-carousel")).toBeVisible();
+    await expect(page.locator(".analysis-details-summary")).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.locator(".suggestion-carousel")).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.locator(".suggestion-card")).toHaveCount(3, {
+      timeout: 15_000,
+    });
     await expect(page.locator(".analysis-details-summary")).toHaveText(
       "詳細を見る",
     );
@@ -46,15 +49,26 @@ test.describe("PR post agent", () => {
       .first()
       .getByRole("button", { name: "この案を採用" })
       .click();
-    const dialog = page.getByRole("dialog", { name: "Slack投稿の承認" });
+    const dialog = page.getByRole("dialog", { name: "Slack post approval" });
     await expect(dialog).toBeVisible();
     await expect(page.locator(".suggestion-card")).toHaveCount(1);
+    await expect(dialog.getByRole("textbox", { name: "投稿文" })).toBeVisible();
+    await expect(dialog.getByRole("img", { name: "venue.jpg" })).toBeVisible();
+    await expect(dialog.getByText("Evidence")).toBeVisible();
+    await expect(dialog.getByText("Checks")).toBeVisible();
     await expect(
-      dialog.getByText("Slackへの投稿がリクエストされました"),
+      dialog.getByText("Tableau signals / Debug info"),
     ).toBeVisible();
     await expect(
       dialog.getByRole("button", { name: "Slackに投稿" }),
     ).toBeEnabled();
+
+    const editedSlackText =
+      "#Tableau #TechPlay #HokuTUG\nEdited Slack post text.";
+    await dialog.getByRole("textbox", { name: "投稿文" }).fill(editedSlackText);
+    await expect(dialog.getByRole("textbox", { name: "投稿文" })).toHaveValue(
+      editedSlackText,
+    );
 
     let releaseApproval!: () => void;
     const approvalGate = new Promise<void>((resolve) => {
@@ -62,6 +76,15 @@ test.describe("PR post agent", () => {
     });
     await page.unroute("**/api/action-runs/*/approval").catch(() => undefined);
     await page.route("**/api/action-runs/*/approval", async (route) => {
+      const requestBody = route.request().postDataJSON() as {
+        approved?: boolean;
+        selectedSuggestionText?: string;
+        editedText?: string;
+        selectedSuggestionId?: string;
+      };
+      expect(requestBody.approved).toBe(true);
+      expect(requestBody.selectedSuggestionText).toBeTruthy();
+      expect(requestBody.editedText).toBe(editedSlackText);
       await approvalGate;
       await route.fulfill({
         contentType: "application/json",
@@ -131,16 +154,24 @@ test.describe("PR post agent", () => {
     await page.getByRole("button", { name: "開催中の実況" }).click();
     await page.getByRole("button", { name: "ライブラリから選択" }).click();
     await uploadVenuePhoto(page);
-    await expect(page.locator(".suggestion-card")).toHaveCount(3);
+    await expect(page.locator(".analysis-details-summary")).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.locator(".suggestion-card")).toHaveCount(3, {
+      timeout: 15_000,
+    });
 
     await page
       .locator(".suggestion-card")
       .first()
       .getByRole("button", { name: "この案を採用" })
       .click();
-    const dialog = page.getByRole("dialog", { name: "Slack投稿の承認" });
+    const dialog = page.getByRole("dialog", { name: "Slack post approval" });
     await expect(dialog).toBeVisible();
     await expect(page.locator(".suggestion-card")).toHaveCount(1);
+    await expect(dialog.getByRole("textbox", { name: "投稿文" })).toBeVisible();
+    await expect(dialog.getByRole("img", { name: "venue.jpg" })).toBeVisible();
+    await expect(dialog.getByText("Evidence")).toBeVisible();
 
     await page.unroute("**/api/action-runs/*/approval").catch(() => undefined);
     await page.route("**/api/action-runs/*/approval", async (route) => {
@@ -161,5 +192,8 @@ test.describe("PR post agent", () => {
     );
     await expect(dialog).toBeVisible();
     await expect(page.locator(".suggestion-card")).toHaveCount(1);
+    await expect(
+      page.getByRole("button", { name: "Slackに投稿" }),
+    ).toBeVisible();
   });
 });

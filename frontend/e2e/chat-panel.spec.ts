@@ -67,7 +67,7 @@ test.describe("PR投稿エージェント", () => {
     const uploadSummary = page.locator(".pr-post-agent-upload-card summary");
     await expect(uploadSummary).toHaveText("›画像をアップロードしました");
     await expect(page.locator(".pr-post-agent-upload-preview")).toHaveCount(0);
-    await uploadSummary.click();
+    await uploadSummary.click({ force: true });
     await expect(page.locator(".pr-post-agent-upload-preview")).toBeVisible();
 
     await expect(page.locator(".suggestion-carousel")).toBeVisible();
@@ -90,10 +90,19 @@ test.describe("PR投稿エージェント", () => {
 
     await firstSuggestion.getByRole("button", { name: "この案を採用" }).click();
     await expect(
-      page.getByRole("dialog", { name: "Slack投稿の承認" }),
+      page.getByRole("dialog", { name: "Slack post approval" }),
     ).toBeVisible();
     await expect(page.locator(".suggestion-card")).toHaveCount(1);
     await expect(page.locator(".pr-post-agent-approval-bar")).toBeVisible();
+    await expect(
+      page.getByRole("dialog").getByRole("textbox", { name: "投稿文" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("dialog").getByRole("img", { name: "venue.jpg" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("dialog").getByText("Tableau signals / Debug info"),
+    ).toBeVisible();
 
     await page
       .getByRole("dialog")

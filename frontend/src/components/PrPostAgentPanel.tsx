@@ -223,11 +223,6 @@ export default function PrPostAgentPanel({
   const isSlackPosting = slackPostStatus === "posting";
   const isBlueskyPosting = blueskyPostStatus === "posting";
   const activeBlueskySuggestion = approvedSuggestion ?? selectedSuggestion;
-  const activeBlueskySuggestionText =
-    activeBlueskySuggestion?.suggestion.text.trim() ?? "";
-  const activeBlueskySuggestionLength = activeBlueskySuggestionText
-    ? countPostTextCharacters(activeBlueskySuggestionText)
-    : 0;
   const approvalEvidenceLines =
     analysisResult?.result.evidence?.slice(0, 5) ?? [];
   const approvalCheckLines = analysisResult?.result.checks?.slice(0, 5) ?? [];
