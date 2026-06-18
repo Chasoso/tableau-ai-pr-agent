@@ -44,16 +44,22 @@ describe("GeneratedPostSuggestionsPanel", () => {
             available: true,
             sourceStatus: "queried",
             datasourceKey: "survey",
+            queryRowCount: 1,
+            warnings: [],
           },
           postPerformanceInsight: {
             available: true,
             sourceStatus: "queried",
             datasourceKey: "post-perf",
+            queryRowCount: 1,
+            warnings: [],
           },
           accountOverviewInsight: {
             available: true,
             sourceStatus: "queried",
             datasourceKey: "account",
+            queryRowCount: 1,
+            warnings: [],
           },
         }}
         analysisSections={[
