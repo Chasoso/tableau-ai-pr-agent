@@ -26,9 +26,16 @@ export type PostMaterial = {
   eventUrl?: string;
   eventDateText?: string;
   situation?: string;
+  eventThemes?: string[];
+  sessionTitles?: string[];
+  speakerNames?: string[];
+  venueMood?: string;
+  photoAtmosphere?: string;
+  photoPostableDescription?: string;
   mood?: string;
   mainTopics?: string[];
   audienceContext?: string;
+  surveyInsightForPost?: string;
   speakerOrSessionContext?: string;
   photoDescriptionForPost?: string;
   callToAction?: string;
@@ -46,6 +53,16 @@ export type PostQualityIssue = {
 export type PostQualityResult = {
   ok: boolean;
   issues: PostQualityIssue[];
+};
+
+export type PostSuggestionGenerationDiagnostics = {
+  desiredVariantCount: number;
+  generatedCount: number;
+  excludedCount: number;
+  excludedReasons: Array<{
+    variant: string;
+    issues: PostQualityIssue[];
+  }>;
 };
 
 export type PostCopyDrafts = {
@@ -150,19 +167,36 @@ export function buildPostMaterial(input: {
     evidencePack?.eventContext.eventDateText ??
       input.request.eventContext?.eventDateText,
   );
-  const photoDescriptionForPost = derivePhotoDescription(
-    input.request,
-    evidencePack,
-  );
+  const eventDescriptionTexts = compactStrings([
+    evidencePack?.eventContext.eventDescription,
+    input.request.eventContext?.eventDescription,
+  ]);
+  const eventThemes = deriveEventThemes({
+    eventDescriptionTexts,
+    eventName: eventOfficialName,
+    analysisSections: input.analysisSections,
+  });
+  const sessionTitles = deriveSessionTitles({
+    eventDescriptionTexts,
+    analysisSections: input.analysisSections,
+  });
+  const photoAtmosphere = derivePhotoAtmosphere(input.request, evidencePack);
+  const photoPostableDescription =
+    photoAtmosphere ??
+    derivePhotoPostableDescription(input.request, evidencePack);
+  const photoDescriptionForPost = photoPostableDescription;
   const mood = deriveMood(input.request, evidencePack, photoDescriptionForPost);
-  const mainTopics = deriveMainTopics(input.analysisSections, evidencePack);
+  const mainTopics = uniqueStrings([...eventThemes, ...sessionTitles]).slice(
+    0,
+    3,
+  );
   const audienceContext = deriveAudienceContext(
     input.analysisSections,
     evidencePack,
   );
   const speakerOrSessionContext = deriveSessionContext(
     input.analysisSections,
-    mainTopics,
+    sessionTitles.length ? sessionTitles : eventThemes,
     evidencePack,
   );
   const hashtagCandidates = buildHashtagCandidates({
@@ -190,9 +224,8 @@ export function buildPostMaterial(input: {
     extraTexts: compactStrings([
       input.request.currentSituation,
       ...input.analysisSections.map((section) => section.summary),
-      ...input.analysisSections.flatMap((section) =>
-        section.rows.map((row) => row.label),
-      ),
+      ...eventThemes,
+      ...sessionTitles,
       evidencePack?.photoContext.summary,
     ]),
   });
@@ -214,9 +247,16 @@ export function buildPostMaterial(input: {
       photoDescriptionForPost,
       eventShortName,
     ),
+    eventThemes: eventThemes.length ? eventThemes : undefined,
+    sessionTitles: sessionTitles.length ? sessionTitles : undefined,
+    speakerNames: undefined,
+    venueMood: photoAtmosphere,
+    photoAtmosphere: photoAtmosphere ?? undefined,
+    photoPostableDescription: photoPostableDescription ?? undefined,
     mood,
     mainTopics,
     audienceContext,
+    surveyInsightForPost: audienceContext,
     speakerOrSessionContext,
     photoDescriptionForPost,
     callToAction: buildCallToAction(postType),
@@ -229,17 +269,77 @@ export function generatePostSuggestions(input: {
   material: PostMaterial;
   maxSuggestions?: number;
 }): GeneratedPostSuggestion[] {
-  const variants = ["fact", "soft", "community"] as const;
-  const suggestions = variants
-    .map((variant) => buildSuggestionWithQuality(input.material, variant))
-    .filter((item) => item.quality.ok)
-    .map((item) => item.suggestion);
+  return generatePostSuggestionsWithDiagnostics(input).suggestions;
+}
 
-  if (suggestions.length > 0) {
-    return suggestions.slice(0, input.maxSuggestions ?? 3);
+export function generatePostSuggestionsWithDiagnostics(input: {
+  material: PostMaterial;
+  maxSuggestions?: number;
+}): {
+  suggestions: GeneratedPostSuggestion[];
+  diagnostics: PostSuggestionGenerationDiagnostics;
+} {
+  const desiredVariantCount = input.maxSuggestions ?? 3;
+  const baseVariants = ["fact", "soft", "community", "fallback"] as const;
+  const accepted: GeneratedPostSuggestion[] = [];
+  const excludedReasons: PostSuggestionGenerationDiagnostics["excludedReasons"] =
+    [];
+
+  for (const variant of baseVariants) {
+    const result = buildSuggestionWithQuality(input.material, variant);
+    if (
+      result.quality.ok &&
+      !accepted.some((item) => item.text === result.suggestion.text)
+    ) {
+      accepted.push(result.suggestion);
+    } else if (!result.quality.ok) {
+      excludedReasons.push({ variant, issues: result.quality.issues });
+    }
   }
 
-  return [buildSuggestionWithQuality(input.material, "fallback").suggestion];
+  if (accepted.length < desiredVariantCount) {
+    const fallbackMaterial = createFallbackMaterial(input.material);
+    for (const variant of baseVariants) {
+      if (accepted.length >= desiredVariantCount) {
+        break;
+      }
+      const result = buildSuggestionWithQuality(fallbackMaterial, variant);
+      if (
+        result.quality.ok &&
+        !accepted.some((item) => item.text === result.suggestion.text)
+      ) {
+        accepted.push(result.suggestion);
+      } else if (!result.quality.ok) {
+        excludedReasons.push({
+          variant: `${variant}:fallback`,
+          issues: result.quality.issues,
+        });
+      }
+    }
+  }
+
+  if (accepted.length < desiredVariantCount) {
+    const fallbackSuggestion = buildSuggestionWithQuality(
+      createFallbackMaterial(input.material),
+      "fallback",
+    );
+    if (
+      fallbackSuggestion.quality.ok &&
+      !accepted.some((item) => item.text === fallbackSuggestion.suggestion.text)
+    ) {
+      accepted.push(fallbackSuggestion.suggestion);
+    }
+  }
+
+  return {
+    suggestions: accepted.slice(0, desiredVariantCount),
+    diagnostics: {
+      desiredVariantCount,
+      generatedCount: accepted.length,
+      excludedCount: excludedReasons.length,
+      excludedReasons,
+    },
+  };
 }
 
 export function buildChannelDrafts(input: {
@@ -259,6 +359,7 @@ export function buildPostQualityResult(
     hashtags?: string[];
     hashtagCandidates?: HashtagCandidate[];
     channel?: HashtagChannel;
+    material?: PostMaterial;
   },
 ): PostQualityResult {
   const issues: PostQualityIssue[] = [];
@@ -288,6 +389,10 @@ export function buildPostQualityResult(
         matchedText: issue.matchedTag,
       })),
     );
+  }
+
+  if (context?.material) {
+    issues.push(...detectImageThemeIssues(context.material));
   }
 
   return {
@@ -329,6 +434,7 @@ function buildSuggestionWithQuality(
     hashtags: material.hashtags,
     hashtagCandidates: material.hashtagCandidates,
     channel: "x",
+    material,
   });
 
   return {
@@ -355,7 +461,7 @@ function renderXPost(
   variant: "fact" | "soft" | "community" | "fallback",
 ): string {
   const shortName =
-    material.eventShortName ?? material.eventOfficialName ?? "イベント";
+    material.eventShortName ?? material.eventOfficialName ?? "Event";
   const topics = material.mainTopics?.slice(0, 3) ?? [];
   const topicLine = topics.length
     ? `今日は${topics.join("、")}の3テーマ。`
@@ -370,7 +476,7 @@ function renderXPost(
       return joinLines([
         variant === "soft"
           ? `${shortName}、少しずつ会場があたたまってきました。`
-          : `${shortName}、始まりました！`,
+          : `${shortName}、始まりました。`,
         topicLine || moodLine || photoLine,
         variant === "community"
           ? audienceLine || ctaLine
@@ -395,23 +501,26 @@ function renderXPost(
       ]);
     case "pre_event":
       return joinLines([
+        variant === "fact"
+          ? `${shortName}、開催が始まりました！`
+          : variant === "soft"
+            ? `${shortName}、スタートしました。`
+            : `${shortName}、いよいよ開催です。`,
         variant === "community"
-          ? `${shortName}、いよいよ開催です。`
-          : `${shortName}、まもなく開催です。`,
-        topicLine || audienceLine || photoLine,
+          ? topicLine || audienceLine || photoLine || moodLine
+          : topicLine || audienceLine || photoLine || moodLine,
         ctaLine,
         hashLine(material, "x"),
       ]);
     default:
       return joinLines([
-        `${shortName}の見どころをまとめました。`,
+        `${shortName}の要点をまとめます。`,
         topicLine || audienceLine || moodLine,
         ctaLine,
         hashLine(material, "x"),
       ]);
   }
 }
-
 function renderXDraft(material: PostMaterial): string {
   return truncatePostText(renderXPost(material, "fact"), POST_TEXT_LIMIT);
 }
@@ -540,26 +649,17 @@ function shortenEventName(value?: string): string | undefined {
   return tokens.slice(0, 3).join(" ");
 }
 
-function derivePhotoDescription(
+function derivePhotoPostableDescription(
   request: ActionRunRequest,
   evidencePack?: PostGenerationEvidencePack,
 ): string | undefined {
   const candidates = [
     evidencePack?.photoContext.summary,
-    evidencePack?.photoContext.eventFeel,
     evidencePack?.photoContext.sceneInference,
     request.currentSituation,
   ]
     .map((value) => normalize(value))
     .filter((value): value is string => Boolean(value));
-
-  const joined = candidates.join(" ");
-  if (/(friendship|teamwork|positivity)/i.test(joined)) {
-    return "和やかな雰囲気";
-  }
-  if (/(fill|ready|setup|準備)/i.test(joined)) {
-    return "会場は少しずつ整ってきています";
-  }
 
   const postable = evidencePack?.photoContext.postableElements?.find((value) =>
     isSafeTopic(value),
@@ -568,6 +668,41 @@ function derivePhotoDescription(
     return sanitizeTopic(postable);
   }
 
+  const safeSummary = candidates.find((value) => !looksLikeImageLabel(value));
+  return safeSummary || undefined;
+}
+
+function derivePhotoAtmosphere(
+  request: ActionRunRequest,
+  evidencePack?: PostGenerationEvidencePack,
+): string | undefined {
+  const text = [
+    evidencePack?.photoContext.summary,
+    evidencePack?.photoContext.eventFeel,
+    evidencePack?.photoContext.sceneInference,
+    evidencePack?.photoContext.visibleText?.join(" "),
+    request.currentSituation,
+  ]
+    .map((value) => normalize(value))
+    .filter((value): value is string => Boolean(value))
+    .join(" ");
+
+  if (!text) {
+    return undefined;
+  }
+
+  if (looksLikeWarmPhoto(text)) {
+    return "和やかな雰囲気";
+  }
+  if (looksLikeBrightPhoto(text)) {
+    return "明るい会場";
+  }
+  if (looksLikeCrowdedPhoto(text)) {
+    return "参加者が集まり始めた会場";
+  }
+  if (/(live|started|開催中|開催直前)/i.test(text)) {
+    return "会場が少しずつあたたまってきています";
+  }
   return undefined;
 }
 
@@ -586,44 +721,213 @@ function deriveMood(
     .filter((value): value is string => Boolean(value))
     .join(" ");
 
-  if (/(friendship|teamwork|positivity)/i.test(text)) {
+  if (looksLikeWarmPhoto(text)) {
     return "和やかな雰囲気";
   }
-  if (/(fill|ready|setup|準備)/i.test(text)) {
-    return "準備が少しずつ進んでいます";
+  if (looksLikeBrightPhoto(text)) {
+    return "明るい雰囲気";
   }
-  if (/(live|開催中|started)/i.test(text)) {
-    return "会場の熱量が少しずつ高まっています";
+  if (looksLikeCrowdedPhoto(text)) {
+    return "参加者同士の交流が感じられる雰囲気";
+  }
+  if (/(live|started|開催中|開催直前)/i.test(text)) {
+    return "会場があたたまってきています";
   }
   return undefined;
 }
 
-function deriveMainTopics(
-  analysisSections: ActionRunAnalysisSection[],
-  evidencePack?: PostGenerationEvidencePack,
-): string[] {
+function deriveEventThemes(input: {
+  eventDescriptionTexts: string[];
+  eventName?: string;
+  analysisSections: ActionRunAnalysisSection[];
+}): string[] {
+  const candidates = [...input.eventDescriptionTexts, input.eventName]
+    .map((value) => normalize(value))
+    .filter((value): value is string => Boolean(value));
+
+  return uniqueStrings(
+    candidates
+      .flatMap((candidate) => extractEventThemeCandidates(candidate))
+      .map((topic) => sanitizeTopic(topic))
+      .filter((topic) => isSafeEventTheme(topic)),
+  ).slice(0, 3);
+}
+
+function deriveSessionTitles(input: {
+  eventDescriptionTexts: string[];
+  analysisSections: ActionRunAnalysisSection[];
+}): string[] {
   const candidates = [
-    ...(evidencePack?.photoContext.detectedTopics ?? []),
-    ...(evidencePack?.photoContext.postableElements ?? []),
-    ...(evidencePack?.photoContext.suggestedPostAngles ?? []),
-    ...(evidencePack?.surveyInsight.suggestedAngles ?? []),
-    ...(evidencePack?.postPerformanceInsight.highPerformingThemes ?? []),
-    ...(evidencePack?.accountOverviewInsight.notableChanges ?? []),
-    ...analysisSections.flatMap((section) => [
-      section.title,
-      section.summary,
-      ...section.rows.map((row) => row.label),
-    ]),
+    ...input.eventDescriptionTexts,
+    ...input.analysisSections
+      .filter((section) => section.key !== "photo_context")
+      .flatMap((section) => [section.title, section.question, section.summary]),
   ];
 
   return uniqueStrings(
     candidates
-      .flatMap((candidate) => splitTopics(candidate))
-      .map((topic) => sanitizeTopic(topic))
-      .filter((topic) => isSafeTopic(topic)),
-  ).slice(0, 3);
+      .flatMap((candidate) => extractSessionTitleCandidates(candidate))
+      .map((title) => sanitizeTopic(title))
+      .filter((title) => isSafeSessionTitle(title)),
+  ).slice(0, 5);
 }
 
+function extractEventThemeCandidates(value: string): string[] {
+  const normalized = normalize(value);
+  if (!normalized) {
+    return [];
+  }
+
+  const emphasized =
+    normalized.match(/[〜～]([^〜～]+)[〜～]/u)?.[1] ?? normalized;
+  let seed = emphasized;
+  for (const suffix of [
+    "から考える",
+    "をテーマに",
+    "について",
+    "の次の一歩",
+    "の可能性",
+  ]) {
+    const index = seed.indexOf(suffix);
+    if (index >= 0) {
+      seed = seed.slice(0, index);
+    }
+  }
+  seed = seed
+    .trim()
+    .replace(/^[\s-]+/u, "")
+    .replace(/[\s-]+$/u, "");
+
+  return seed
+    .split(/[、・,\/|]+\s*/u)
+    .map((topic) => topic.trim())
+    .filter((topic) => topic.length > 0)
+    .filter((topic) => !looksLikeImageLabel(topic))
+    .filter((topic) => !isGenericThemeStopWord(topic));
+}
+
+function extractSessionTitleCandidates(value: string): string[] {
+  const normalized = normalize(value);
+  if (!normalized) {
+    return [];
+  }
+
+  const quoted = [
+    ...normalized.matchAll(/[「]([^」]+)[」]|[『]([^』]+)[』]|"([^"]+)"/g),
+  ]
+    .map((match) => match[1] ?? match[2] ?? match[3] ?? "")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  if (quoted.length > 0) {
+    return quoted;
+  }
+
+  return normalized
+    .split(/\r?\n+/u)
+    .map((line) => line.replace(/^[\s\-*]+/u, "").trim())
+    .filter((line) => line.length > 0)
+    .filter((line) => !isGenericThemeStopWord(line));
+}
+
+function isGenericThemeStopWord(value: string): boolean {
+  const trimmed = value.trim();
+  return [
+    "Tableau",
+    "可能性",
+    "次の一歩",
+    "ユーザー会",
+    "開催中",
+    "開催",
+    "広がる",
+    "考える",
+    "イベント",
+    "セッション",
+  ].some((candidate) => candidate === trimmed);
+}
+
+function looksLikeWarmPhoto(value: string): boolean {
+  return /friendship|teamwork|happiness|happy|joyful|smiling|笑顔|交流/i.test(
+    value,
+  );
+}
+
+function looksLikeBrightPhoto(value: string): boolean {
+  return /bright room|large window|明るい|光|照明/i.test(value);
+}
+
+function looksLikeCrowdedPhoto(value: string): boolean {
+  return /group photo|集合|people|participants|team members|friends|colleagues|会場|参加者/i.test(
+    value,
+  );
+}
+
+function looksLikeImageLabel(value: string): boolean {
+  return /^(?:friendship|teamwork|happiness|happy|joyful|positive|positivity|smiling|group photo|bright room|large window|potted plant|friends|team members|colleagues|casual attire)$/i.test(
+    value.trim(),
+  );
+}
+
+function isSafeEventTheme(value: string): boolean {
+  return !looksLikeImageLabel(value) && !isGenericThemeStopWord(value);
+}
+
+function isSafeSessionTitle(value: string): boolean {
+  return !looksLikeImageLabel(value) && value.trim().length > 0;
+}
+
+function detectImageThemeIssues(material: PostMaterial): PostQualityIssue[] {
+  const offendingThemes = uniqueStrings([
+    ...(material.eventThemes ?? []),
+    ...(material.mainTopics ?? []),
+  ]).filter((value) => looksLikeImageLabel(value));
+
+  if (!offendingThemes.length) {
+    return [];
+  }
+
+  return [
+    {
+      code: "image_label_used_as_event_theme",
+      severity: "error",
+      message:
+        "Image-derived labels must not be used as event themes: " +
+        offendingThemes.join(", "),
+      matchedText: offendingThemes[0],
+    },
+  ];
+}
+
+function createFallbackMaterial(material: PostMaterial): PostMaterial {
+  const eventThemes = uniqueStrings(
+    (material.eventThemes ?? [])
+      .filter((value) => !looksLikeImageLabel(value))
+      .filter((value) => !isGenericThemeStopWord(value)),
+  );
+  const sessionTitles = uniqueStrings(
+    (material.sessionTitles ?? [])
+      .filter((value) => !looksLikeImageLabel(value))
+      .filter((value) => !isGenericThemeStopWord(value)),
+  );
+  const photoAtmosphere = material.photoAtmosphere
+    ? material.photoAtmosphere
+    : material.mood && !looksLikeImageLabel(material.mood)
+      ? material.mood
+      : undefined;
+
+  return {
+    ...material,
+    eventThemes: eventThemes.length ? eventThemes : undefined,
+    sessionTitles: sessionTitles.length ? sessionTitles : undefined,
+    photoAtmosphere,
+    photoPostableDescription:
+      material.photoPostableDescription &&
+      !looksLikeImageLabel(material.photoPostableDescription)
+        ? material.photoPostableDescription
+        : undefined,
+    mood: photoAtmosphere,
+    mainTopics: uniqueStrings([...eventThemes, ...sessionTitles]).slice(0, 3),
+  };
+}
 function deriveAudienceContext(
   analysisSections: ActionRunAnalysisSection[],
   evidencePack?: PostGenerationEvidencePack,
@@ -677,10 +981,6 @@ function deriveSessionContext(
     return `${mainTopics.slice(0, 3).join("、")}を中心にお話しします。`;
   }
   return undefined;
-}
-
-function splitTopics(value: string): string[] {
-  return value.split(/[、,\/|;:\n\r\t\s-]+/u).filter(Boolean);
 }
 
 function sanitizeTopic(value: string): string {

@@ -25,7 +25,7 @@ import {
   buildImageCaption as buildSafeImageCaption,
   buildPostMaterial,
   buildPostQualityResult,
-  generatePostSuggestions,
+  generatePostSuggestionsWithDiagnostics,
   type PostMaterial,
 } from "./postCopyService";
 import {
@@ -135,10 +135,11 @@ export class ActionRunAnalysisService {
       analysisSections: fixedAnalysis.analysisSections,
       evidencePack: fixedAnalysis.evidencePack,
     });
-    const generatedPostSuggestions = generatePostSuggestions({
+    const generatedSuggestionsResult = generatePostSuggestionsWithDiagnostics({
       material: postMaterial,
       maxSuggestions: 3,
     });
+    const generatedPostSuggestions = generatedSuggestionsResult.suggestions;
     const normalizedGeneratedPostSuggestions =
       normalizeGeneratedPostSuggestions({
         suggestions: generatedPostSuggestions,
@@ -156,6 +157,18 @@ export class ActionRunAnalysisService {
     logInfo("postSuggestionGenerationCompleted", {
       postType: input.request.postType,
       suggestionCount: normalizedGeneratedPostSuggestions.length,
+      desiredVariantCount:
+        generatedSuggestionsResult.diagnostics.desiredVariantCount,
+      generatedCount: generatedSuggestionsResult.diagnostics.generatedCount,
+      excludedCount: generatedSuggestionsResult.diagnostics.excludedCount,
+      excludedReasons:
+        generatedSuggestionsResult.diagnostics.excludedReasons.map((item) => ({
+          variant: item.variant,
+          issueCodes: item.issues.map((issue) => issue.code),
+        })),
+      eventThemes: postMaterial.eventThemes ?? [],
+      sessionTitles: postMaterial.sessionTitles ?? [],
+      photoAtmosphere: postMaterial.photoAtmosphere ?? null,
       suggestionTextLengths: normalizedGeneratedPostSuggestions.map((item) =>
         countPostTextCharacters(item.text),
       ),
@@ -164,6 +177,15 @@ export class ActionRunAnalysisService {
       postType: input.request.postType,
       count: normalizedGeneratedPostSuggestions.length,
     });
+    if (generatedSuggestionsResult.diagnostics.generatedCount < 3) {
+      logInfo("postSuggestionGenerationShortfall", {
+        postType: input.request.postType,
+        desiredVariantCount:
+          generatedSuggestionsResult.diagnostics.desiredVariantCount,
+        generatedCount: generatedSuggestionsResult.diagnostics.generatedCount,
+        excludedCount: generatedSuggestionsResult.diagnostics.excludedCount,
+      });
+    }
 
     const prDraft = await runPrDraftAgent({
       request: input.request,
