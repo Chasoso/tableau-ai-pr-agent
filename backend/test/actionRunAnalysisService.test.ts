@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ActionRunAnalysisService } from "../src/services/actionRunAnalysisService";
+import type { ActionRunRequest } from "../src/types/actionRun";
 
 const prDraftMock = vi.hoisted(() => vi.fn());
 
@@ -20,28 +21,7 @@ describe("ActionRunAnalysisService", () => {
   });
 
   it("passes the evidence pack into draft generation", async () => {
-    prDraftMock.mockResolvedValue({
-      summary: "Generated summary",
-      drafts: {
-        x: "Generated X post",
-        linkedin: "LinkedIn",
-        email: "Email",
-        notion: "Notion",
-      },
-      review: {
-        status: "pass",
-        riskLevel: "low",
-        missingFields: [],
-        issues: [],
-        checklist: ["check"],
-        notes: ["note"],
-      },
-      hashtags: ["#Tableau"],
-      evidence: ["evidence"],
-      checks: ["check"],
-      imageCaption: "caption",
-      missingFields: [],
-    });
+    prDraftMock.mockResolvedValue(buildPrDraftMock());
 
     const fixedWorkflowService = {
       analyze: vi.fn(async () => buildFixedAnalysis()),
@@ -67,7 +47,7 @@ describe("ActionRunAnalysisService", () => {
         }),
       }),
     );
-    expect(result.summary).toBe("Generated summary");
+    expect(result.summary).toContain("北陸Tableauユーザー会");
     expect(result.primaryOutputType).toBe("generated_post_suggestions");
     expect(result.generatedPostSuggestions).toHaveLength(3);
     expect(result.generatedPostSuggestion).toEqual(
@@ -80,8 +60,9 @@ describe("ActionRunAnalysisService", () => {
     expect(result.generatedPostSuggestions?.[0]?.warnings).not.toContain(
       "photo_context_missing",
     );
+    expect(result.generatedPostSuggestions?.[0]?.text).toContain("#ほくたぐ");
     expect(result.generatedPostSuggestions?.[0]?.rationale).toContain(
-      "画像情報を使用しています。",
+      "見どころ",
     );
     expect(
       result.analysisSections?.some(
@@ -91,28 +72,7 @@ describe("ActionRunAnalysisService", () => {
   });
 
   it("keeps photo_context_missing only when photo context is not actually available", async () => {
-    prDraftMock.mockResolvedValue({
-      summary: "Generated summary",
-      drafts: {
-        x: "Generated X post",
-        linkedin: "LinkedIn",
-        email: "Email",
-        notion: "Notion",
-      },
-      review: {
-        status: "pass",
-        riskLevel: "low",
-        missingFields: [],
-        issues: [],
-        checklist: ["check"],
-        notes: ["note"],
-      },
-      hashtags: ["#Tableau"],
-      evidence: ["evidence"],
-      checks: ["check"],
-      imageCaption: "caption",
-      missingFields: [],
-    });
+    prDraftMock.mockResolvedValue(buildPrDraftMock());
 
     const fixedWorkflowService = {
       analyze: vi.fn(async () => buildFixedAnalysis({ photoAvailable: false })),
@@ -136,10 +96,35 @@ describe("ActionRunAnalysisService", () => {
       "photo_context_missing",
     );
     expect(result.generatedPostSuggestions?.[0]?.rationale).toContain(
-      "画像情報は使っていません。",
+      "見どころ",
     );
   });
 });
+
+function buildPrDraftMock() {
+  return {
+    summary: "Generated summary",
+    drafts: {
+      x: "Generated X post",
+      linkedin: "LinkedIn",
+      email: "Email",
+      notion: "Notion",
+    },
+    review: {
+      status: "pass",
+      riskLevel: "low",
+      missingFields: [],
+      issues: [],
+      checklist: ["check"],
+      notes: ["note"],
+    },
+    hashtags: ["#Tableau"],
+    evidence: ["evidence"],
+    checks: ["check"],
+    imageCaption: "caption",
+    missingFields: [],
+  };
+}
 
 function buildFixedAnalysis(input?: { photoAvailable?: boolean }) {
   const photoAvailable = input?.photoAvailable ?? true;
@@ -148,7 +133,7 @@ function buildFixedAnalysis(input?: { photoAvailable?: boolean }) {
       key: "photo_context" as const,
       title: "Photo context",
       question: "Understand the uploaded photo and identify the post angle.",
-      summary: "The venue is filling up. / image file: venue.jpg",
+      summary: "The venue is filling up.",
       rows: [{ label: "venue", value: null }],
     },
     {
@@ -157,7 +142,7 @@ function buildFixedAnalysis(input?: { photoAvailable?: boolean }) {
       question: "Combine the analysis outputs into a single evidence pack.",
       summary:
         "Survey, performance, and account overview evidence are combined.",
-      rows: [{ label: "combined", value: "available" }],
+      rows: [{ label: "combined", value: 1 }],
     },
   ];
 
@@ -166,9 +151,7 @@ function buildFixedAnalysis(input?: { photoAvailable?: boolean }) {
     source: photoAvailable
       ? ("actual_image" as const)
       : ("missing_image" as const),
-    summary: photoAvailable
-      ? "The venue is filling up. / image file: venue.jpg"
-      : undefined,
+    summary: photoAvailable ? "The venue is filling up." : undefined,
     detectedTopics: ["venue"],
     suggestedPostAngles: ["highlight the event atmosphere"],
   };
@@ -220,11 +203,11 @@ function buildFixedAnalysis(input?: { photoAvailable?: boolean }) {
       eventContext: {
         available: true,
         source: "techplay" as const,
-        eventName: "Tableau User Group Tokyo 2026",
-        eventUrl: "https://techplay.jp/event/123",
-        eventDescription: "Live event summary.",
-        venue: "Tokyo",
-        eventDateText: "2026/06/14 11:00",
+        eventName: "第8回北陸Tableauユーザー会",
+        eventUrl: "https://techplay.jp/event/996372",
+        eventDescription: "Viz表現・AI・コミュニティ",
+        venue: "Kanazawa",
+        eventDateText: "2026/06/19 18:30 - 20:30",
       },
       surveyInsight: {
         available: true,
@@ -268,11 +251,6 @@ function buildFixedAnalysis(input?: { photoAvailable?: boolean }) {
       },
       canGeneratePost: true,
       generationBlockers: [],
-      constraints: {
-        doNotInventMetrics: true,
-        useEvidenceOnlyWhenAvailable: true,
-        keepNaturalJapanese: true,
-      },
     },
     analysisSections,
     datasourceResolution: {
@@ -311,9 +289,9 @@ function buildFixedAnalysis(input?: { photoAvailable?: boolean }) {
 
 function buildRequest() {
   return {
-    postType: "事前告知",
-    eventName: "Tableau User Group Tokyo 2026",
-    techplayUrl: "https://techplay.jp/event/123",
+    postType: "事前告知" as const,
+    eventName: "第8回北陸Tableauユーザー会",
+    techplayUrl: "https://techplay.jp/event/996372",
     currentSituation: "The venue is filling up.",
     dashboardContext: {
       dashboardName: "Overview",
@@ -321,7 +299,7 @@ function buildRequest() {
       worksheets: [],
       filters: [],
       parameters: [],
-      capturedAt: "2026-06-08T00:00:00.000Z",
+      capturedAt: "2026-06-19T09:00:00.000Z",
     },
     clientContext: {
       source: "tableau-extension",
@@ -332,5 +310,5 @@ function buildRequest() {
         mode: "image" as const,
       },
     },
-  } as never;
+  } as ActionRunRequest;
 }

@@ -11,6 +11,14 @@ import type {
 } from "../../types/actionRun";
 import type { TechPlayPreviewResponse } from "../../types/techplay";
 import type { PostGenerationEvidencePack } from "../../services/tableauPhotoPostAnalysisService";
+import {
+  buildChannelDrafts,
+  buildImageCaption as buildSafeImageCaption,
+  buildPostMaterial,
+  buildPostQualityResult,
+  buildPostSummary,
+  type PostMaterial,
+} from "../../services/postCopyService";
 
 export type PrDraftPlatform = "x" | "linkedin" | "email" | "notion";
 
@@ -301,38 +309,46 @@ export function collectPrSourceInfo(
 ): PrDraftSourceInfo {
   const parsed = collectPrSourceInfoSchema.parse(input);
   const request = parsed.request;
+  const postMaterial = buildPostMaterial({
+    request: request as ActionRunRequest,
+    analysisSections: parsed.analysisSections as ActionRunAnalysisSection[],
+    evidencePack: parsed.evidencePack,
+  });
   const worksheetNames = request.dashboardContext.worksheets
     .map((worksheet) => worksheet.name.trim())
     .filter(Boolean);
-  const analysisHighlights = parsed.analysisSections
-    .flatMap((section) => {
-      const firstRow = section.rows?.[0];
-      const rowLabel = firstRow?.label?.trim();
-      const rowValue =
-        firstRow?.value === undefined || firstRow?.value === null
-          ? undefined
-          : firstRow.value.toLocaleString();
-      return [
-        `${section.title}: ${section.summary}`,
-        rowLabel
-          ? `${section.title} top row: ${rowLabel}${rowValue ? ` (${rowValue})` : ""}`
-          : undefined,
-      ];
-    })
-    .filter((line): line is string => Boolean(line));
-  const evidenceHighlights = buildEvidencePackHighlights(parsed.evidencePack);
+  const analysisHighlights = uniqueStrings([
+    postMaterial.eventShortName
+      ? `Event: ${postMaterial.eventShortName}`
+      : undefined,
+    postMaterial.mainTopics?.length
+      ? `Topics: ${postMaterial.mainTopics.slice(0, 3).join(" / ")}`
+      : undefined,
+    postMaterial.mood ? `Mood: ${postMaterial.mood}` : undefined,
+    postMaterial.audienceContext
+      ? `Audience: ${postMaterial.audienceContext}`
+      : undefined,
+    postMaterial.speakerOrSessionContext
+      ? `Session: ${postMaterial.speakerOrSessionContext}`
+      : undefined,
+    postMaterial.photoDescriptionForPost
+      ? `Photo: ${postMaterial.photoDescriptionForPost}`
+      : undefined,
+    postMaterial.callToAction ? `CTA: ${postMaterial.callToAction}` : undefined,
+  ]).slice(0, 10);
   const missingFields = getMissingSourceFields({
     request,
     techplayPreview: parsed.techplayPreview,
     analysisSections: parsed.analysisSections,
     evidencePack: parsed.evidencePack,
+    postMaterial,
   });
 
   return {
     postType: request.postType.trim(),
-    eventName: request.eventName.trim(),
+    eventName: postMaterial.eventOfficialName ?? request.eventName.trim(),
     techplayUrl: request.techplayUrl.trim(),
-    currentSituation: request.currentSituation.trim(),
+    currentSituation: postMaterial.situation ?? request.currentSituation.trim(),
     dashboardName: request.dashboardContext.dashboardName.trim(),
     workbookName: request.dashboardContext.workbookName?.trim() || undefined,
     worksheetNames,
@@ -341,71 +357,73 @@ export function collectPrSourceInfo(
     techplayEventDateText:
       parsed.techplayPreview?.eventDateText?.trim() || undefined,
     techplaySummary: parsed.techplayPreview?.summary?.trim() || undefined,
-    analysisHighlights: uniqueStrings([
-      ...analysisHighlights,
-      ...evidenceHighlights,
-    ]).slice(0, 10),
+    analysisHighlights,
     missingFields,
   };
 }
 
 export function summarizePrSourceInfo(sourceInfo: PrDraftSourceInfo): string {
-  const lines = [
-    `Event: ${sourceInfo.eventName}`,
-    `Post type: ${sourceInfo.postType}`,
-    `URL: ${sourceInfo.techplayUrl}`,
-    `Dashboard: ${sourceInfo.dashboardName}`,
-    sourceInfo.workbookName
-      ? `Workbook: ${sourceInfo.workbookName}`
-      : "Workbook: missing",
-    sourceInfo.techplayEventDateText
-      ? `Event date: ${sourceInfo.techplayEventDateText}`
-      : "Event date: missing",
-    sourceInfo.techplaySummary
-      ? `TechPlay summary: ${sourceInfo.techplaySummary}`
-      : "TechPlay summary: missing",
-    `Current situation: ${sourceInfo.currentSituation}`,
-    sourceInfo.analysisHighlights.length
-      ? `Tableau signals: ${sourceInfo.analysisHighlights.slice(0, 4).join(" / ")}`
-      : "Tableau signals: missing",
-  ];
-
-  if (sourceInfo.missingFields.length) {
-    lines.push(`Missing fields: ${sourceInfo.missingFields.join(", ")}`);
-  }
-
-  return lines.join("\n");
+  return buildPostSummary({
+    postType: mapSourcePostType(sourceInfo.postType),
+    eventShortName: shortenSourceEventName(sourceInfo.eventName),
+    eventOfficialName: sourceInfo.eventName,
+    eventUrl: sourceInfo.techplayUrl,
+    eventDateText: sourceInfo.techplayEventDateText,
+    situation: sourceInfo.currentSituation,
+    mood: extractSummaryMood(sourceInfo.analysisHighlights),
+    mainTopics: sourceInfo.analysisHighlights
+      .flatMap((line) =>
+        line
+          .replace(/^(?:Event|Topics|Mood|Audience|Session|Photo|CTA):\s*/u, "")
+          .split(" / "),
+      )
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .slice(0, 3),
+    audienceContext: extractSummaryAudienceContext(
+      sourceInfo.analysisHighlights,
+    ),
+    speakerOrSessionContext: extractSummarySessionContext(
+      sourceInfo.analysisHighlights,
+    ),
+    photoDescriptionForPost: extractSummaryPhotoContext(
+      sourceInfo.analysisHighlights,
+    ),
+    callToAction: extractSummaryCallToAction(sourceInfo.analysisHighlights),
+    hashtags: ["#ほくたぐ", "#HokuTUG", "#Tableau"],
+  });
 }
 
 export function generateAnnouncementDraft(
   sourceInfo: PrDraftSourceInfo,
   summary: string,
 ): string {
+  const shortEventName = shortenSourceEventName(sourceInfo.eventName);
   return [
-    `# ${sourceInfo.eventName} announcement draft`,
+    `# ${shortEventName ?? sourceInfo.eventName}`,
     "",
     "## Summary",
     summary,
     "",
     "## What we know",
-    `- Event: ${sourceInfo.eventName}`,
+    `- Event: ${shortEventName ?? sourceInfo.eventName}`,
     `- Post type: ${sourceInfo.postType}`,
     `- TechPlay URL: ${sourceInfo.techplayUrl}`,
     `- Dashboard: ${sourceInfo.dashboardName}`,
     sourceInfo.workbookName
       ? `- Workbook: ${sourceInfo.workbookName}`
-      : "- Workbook: missing",
+      : "- Workbook: not available",
     sourceInfo.techplayEventDateText
       ? `- Date: ${sourceInfo.techplayEventDateText}`
-      : "- Date: missing",
+      : "- Date: not available",
     sourceInfo.techplaySummary
       ? `- TechPlay summary: ${sourceInfo.techplaySummary}`
-      : "- TechPlay summary: missing",
+      : "- TechPlay summary: not available",
     "",
-    "## Tableau signals",
+    "## Key points",
     ...(sourceInfo.analysisHighlights.length
       ? sourceInfo.analysisHighlights.map((line) => `- ${line}`)
-      : ["- No Tableau signals were provided."]),
+      : ["- No key points were provided."]),
     "",
     "## Current situation",
     sourceInfo.currentSituation,
@@ -422,31 +440,47 @@ export function generateSocialPostDraft(
   sourceInfo: PrDraftSourceInfo,
   summary: string,
 ): string {
-  const conciseSummary = firstSentence(summary) ?? summary.slice(0, 180);
-  const hashtags = buildHashtags(sourceInfo.eventName, platform);
-
-  if (platform === "linkedin") {
-    return [
-      `${sourceInfo.eventName} announcement draft.`,
-      conciseSummary,
-      sourceInfo.techplayUrl,
-      hashtags.join(" "),
-    ]
-      .filter(Boolean)
-      .join("\n\n")
-      .trim();
-  }
-
-  return [
-    `${sourceInfo.eventName} announcement draft`,
-    conciseSummary,
+  const shortEventName = shortenSourceEventName(sourceInfo.eventName);
+  const topics = sourceInfo.analysisHighlights
+    .map((line) =>
+      line.replace(
+        /^(?:Event|Topics|Mood|Audience|Session|Photo|CTA):\s*/u,
+        "",
+      ),
+    )
+    .flatMap((line) => line.split(" / "))
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const opening =
+    platform === "linkedin"
+      ? `${shortEventName ?? sourceInfo.eventName} の投稿案です。`
+      : `${shortEventName ?? sourceInfo.eventName}、進行中です。`;
+  const topicLine = topics.length
+    ? `今日は${topics.slice(0, 3).join("、")}を中心に進めています。`
+    : "";
+  const summaryLine =
+    sourceInfo.analysisHighlights.find((line) => !line.startsWith("Event:")) ??
+    firstSentence(summary) ??
+    summary.slice(0, 180);
+  const hashtags = ["#ほくたぐ", "#HokuTUG", "#Tableau"];
+  const body = [
+    opening,
+    topicLine || summaryLine,
+    sourceInfo.currentSituation.includes("和やか")
+      ? "会場は和やかな雰囲気です。"
+      : undefined,
+    sourceInfo.currentSituation.includes("あたたま")
+      ? "会場が少しずつあたたまってきています。"
+      : undefined,
     sourceInfo.techplayUrl,
     hashtags.join(" "),
   ]
     .filter(Boolean)
-    .join(" | ")
-    .replace(/\s+/g, " ")
+    .join(platform === "linkedin" ? "\n\n" : " | ")
+    .replace(/\s+/gu, " ")
     .trim();
+
+  return body;
 }
 
 export function reviewPrDraft(
@@ -461,6 +495,11 @@ export function reviewPrDraft(
     "Confirm the date, place, and speakers are present before publishing.",
     "Confirm the tone is factual and not overly assertive.",
   ];
+  const qualityIssues = [
+    buildPostQualityResult(announcementDraft),
+    buildPostQualityResult(socialPostDrafts.x),
+    buildPostQualityResult(socialPostDrafts.linkedin),
+  ].flatMap((result) => result.issues);
 
   const missingFields = [...new Set(sourceInfo.missingFields)];
   if (missingFields.length) {
@@ -485,8 +524,18 @@ export function reviewPrDraft(
     issues.push("Draft mentions publishing or execution language.");
   }
 
+  if (qualityIssues.length) {
+    issues.push(
+      ...qualityIssues.map(
+        (issue) => `${issue.code}: ${issue.matchedText ?? issue.message}`,
+      ),
+    );
+  }
+
   const riskLevel =
-    issues.length > 3 || missingFields.length > 2
+    qualityIssues.some((issue) => issue.severity === "error") ||
+    issues.length > 3 ||
+    missingFields.length > 2
       ? "high"
       : issues.length > 0 || missingFields.length > 0
         ? "medium"
@@ -495,7 +544,8 @@ export function reviewPrDraft(
   const status: PrDraftReviewStatus =
     missingFields.length > 0
       ? "needs_info"
-      : issues.length > 0
+      : qualityIssues.some((issue) => issue.severity === "error") ||
+          issues.length > 0
         ? "needs_review"
         : "pass";
 
@@ -506,7 +556,7 @@ export function reviewPrDraft(
     issues,
     checklist,
     notes: [
-      "Draft-only mode is enforced.",
+      "Draft-only review is enforced.",
       missingFields.length
         ? "Do not guess the missing fields. Ask for the missing information before publishing."
         : "The draft has enough information for human review.",
@@ -522,21 +572,33 @@ export function createDraftOutput(
   socialPostDrafts: { x: string; linkedin: string },
   review: PrDraftReview,
 ): PrDraftOutput {
-  const emailDraft = [
-    `Subject: ${sourceInfo.eventName}`,
-    "",
-    summary,
-    "",
-    announcementDraft,
-  ].join("\n");
-
-  const notionDraft = [
-    `# ${sourceInfo.eventName}`,
-    "",
-    summary,
-    "",
-    announcementDraft,
-  ].join("\n");
+  const material = buildPostMaterial({
+    request: {
+      postType: sourceInfo.postType as ActionRunRequest["postType"],
+      eventName: sourceInfo.eventName,
+      techplayUrl: sourceInfo.techplayUrl,
+      currentSituation: sourceInfo.currentSituation,
+      dashboardContext: {
+        dashboardName: sourceInfo.dashboardName,
+        workbookName: sourceInfo.workbookName ?? undefined,
+        worksheets: sourceInfo.worksheetNames.map((name) => ({ name })),
+        capturedAt: sourceInfo.capturedAt,
+        filters: [],
+        parameters: [],
+      },
+      eventContext: {
+        source: sourceInfo.techplayEventName ? "techplay" : "fallback",
+        eventName: sourceInfo.techplayEventName ?? sourceInfo.eventName,
+        eventUrl: sourceInfo.techplayUrl,
+        eventDescription: sourceInfo.techplaySummary,
+        eventDateText: sourceInfo.techplayEventDateText,
+      },
+    } as ActionRunRequest,
+    analysisSections: [] as ActionRunAnalysisSection[],
+  });
+  const drafts = buildChannelDrafts({ material });
+  const emailDraft = drafts.email;
+  const notionDraft = drafts.notion;
 
   return {
     sourceInfo,
@@ -552,8 +614,8 @@ export function createDraftOutput(
     review,
     evidence: buildEvidenceLines(sourceInfo),
     checks: [...review.checklist, ...review.issues],
-    hashtags: buildHashtags(sourceInfo.eventName, "x"),
-    imageCaption: buildImageCaption(sourceInfo, summary),
+    hashtags: [...material.hashtags],
+    imageCaption: buildSafeImageCaption(material),
     missingFields: review.missingFields,
   };
 }
@@ -564,24 +626,20 @@ export function buildPrDraftOutput(input: {
   analysisSections: ActionRunAnalysisSection[];
   evidencePack?: PostGenerationEvidencePack;
 }): PrDraftOutput {
-  const analysisSections = input.evidencePack
-    ? mergeEvidencePackIntoAnalysisSections(
-        input.analysisSections,
-        input.evidencePack,
-      )
-    : input.analysisSections;
+  const material = buildPostMaterial({
+    request: input.request,
+    analysisSections: input.analysisSections,
+    evidencePack: input.evidencePack,
+  });
   const sourceInfo = collectPrSourceInfo({
     request: input.request,
     techplayPreview: input.techplayPreview,
-    analysisSections,
+    analysisSections: input.analysisSections,
     evidencePack: input.evidencePack,
   });
-  const summary = summarizePrSourceInfo(sourceInfo);
+  const summary = buildPostSummary(material);
   const announcementDraft = generateAnnouncementDraft(sourceInfo, summary);
-  const socialPostDrafts = {
-    x: generateSocialPostDraft("x", sourceInfo, summary),
-    linkedin: generateSocialPostDraft("linkedin", sourceInfo, summary),
-  };
+  const socialPostDrafts = buildChannelDrafts({ material });
   const review = reviewPrDraft(sourceInfo, announcementDraft, socialPostDrafts);
 
   return createDraftOutput(
@@ -596,44 +654,18 @@ export function buildPrDraftOutput(input: {
 
 function buildEvidenceLines(sourceInfo: PrDraftSourceInfo): string[] {
   return [
-    `Event name: ${sourceInfo.eventName}`,
+    `Event name: ${shortenSourceEventName(sourceInfo.eventName) ?? sourceInfo.eventName}`,
     `Post type: ${sourceInfo.postType}`,
     `TechPlay URL: ${sourceInfo.techplayUrl}`,
     `Dashboard: ${sourceInfo.dashboardName}`,
     sourceInfo.workbookName
       ? `Workbook: ${sourceInfo.workbookName}`
-      : "Workbook missing",
+      : "Workbook not available",
     sourceInfo.techplayEventDateText
       ? `Event date: ${sourceInfo.techplayEventDateText}`
-      : "Event date missing",
+      : "Event date not available",
     ...sourceInfo.analysisHighlights.slice(0, 4),
   ];
-}
-
-function buildImageCaption(
-  sourceInfo: PrDraftSourceInfo,
-  summary: string,
-): string {
-  const firstLine = firstSentence(summary) ?? summary;
-  return `${sourceInfo.eventName} draft. ${firstLine}`.slice(0, 220);
-}
-
-function buildHashtags(eventName: string, platform: PrDraftPlatform): string[] {
-  const base = ["#Tableau", "#TechPlay"];
-  const eventToken = eventName
-    .split(/\s+/u)
-    .map((token) => token.replace(/[^A-Za-z0-9]/g, ""))
-    .find((token) => token.length >= 2);
-
-  if (eventToken) {
-    base.splice(1, 0, `#${eventToken}`);
-  }
-
-  if (platform === "linkedin") {
-    base.push("#Community");
-  }
-
-  return [...new Set(base)].slice(0, 5);
 }
 
 function getMissingSourceFields(input: {
@@ -645,6 +677,7 @@ function getMissingSourceFields(input: {
     typeof collectPrSourceInfoSchema
   >["analysisSections"];
   evidencePack?: PostGenerationEvidencePack;
+  postMaterial?: PostMaterial;
 }): string[] {
   const missing: string[] = [];
 
@@ -677,6 +710,101 @@ function getMissingSourceFields(input: {
   }
 
   return [...new Set(missing)];
+}
+
+function mapSourcePostType(postType: string): PostMaterial["postType"] {
+  if (/開催中/.test(postType)) {
+    return "live_report";
+  }
+  if (/開催後/.test(postType)) {
+    return "post_event_thanks";
+  }
+  if (/次回参加/.test(postType)) {
+    return "recap";
+  }
+  if (/直前|事前/.test(postType)) {
+    return "pre_event";
+  }
+  return "generic";
+}
+
+function shortenSourceEventName(eventName: string): string {
+  const tokens = eventName.trim().split(/\s+/u).filter(Boolean);
+  if (tokens.length <= 3) {
+    return eventName.trim();
+  }
+
+  if (
+    /第\d+回/.test(tokens[0]) ||
+    /ユーザー会|勉強会|Meetup|User Group/i.test(tokens[0])
+  ) {
+    return tokens.slice(0, 3).join(" ");
+  }
+
+  return tokens.slice(0, 3).join(" ");
+}
+
+function extractSummaryMood(lines: string[]): string | undefined {
+  const text = lines.join(" ");
+  if (
+    /(和やか|あたたか|笑顔|談笑|friendship|teamwork|positivity)/i.test(text)
+  ) {
+    return "和やかな雰囲気";
+  }
+  if (/(あたたま|賑わ|盛り上が|集ま|fill|warming)/i.test(text)) {
+    return "会場が少しずつあたたまっています";
+  }
+  return undefined;
+}
+
+function extractSummaryAudienceContext(lines: string[]): string | undefined {
+  const text = lines.join(" ");
+  if (/(はじめて|初めて|初心者|first time|beginner|new to)/i.test(text)) {
+    return "MCPをはじめて聞く方にも伝わるように";
+  }
+  if (/(使いどころ|活用|具体例|イメージ|how to use)/i.test(text)) {
+    return "実際の使いどころがイメージしやすいように";
+  }
+  return undefined;
+}
+
+function extractSummarySessionContext(lines: string[]): string | undefined {
+  const topics = uniqueStrings(
+    lines
+      .flatMap((line) => line.split(" / "))
+      .map((line) =>
+        line
+          .replace(/^(?:Event|Topics|Mood|Audience|Session|Photo|CTA):\s*/u, "")
+          .trim(),
+      )
+      .filter(Boolean),
+  );
+  if (!topics.length) {
+    return undefined;
+  }
+  return `今日は${topics.slice(0, 3).join("、")}を中心に進みます`;
+}
+
+function extractSummaryPhotoContext(lines: string[]): string | undefined {
+  const text = lines.join(" ");
+  if (/和やかな雰囲気/.test(text)) {
+    return "会場は和やかな雰囲気です";
+  }
+  if (/あたたま/.test(text)) {
+    return "会場が少しずつあたたまってきています";
+  }
+  return undefined;
+}
+
+function extractSummaryCallToAction(lines: string[]): string | undefined {
+  const text = lines.join(" ");
+  if (/(一緒に楽しみましょう|楽しんでいきます)/.test(text)) {
+    return "一緒に楽しみましょう";
+  }
+  if (/(また次回も|次回もぜひ)/.test(text)) {
+    return "また次回もお会いできたらうれしいです";
+  }
+  return undefined;
 }
 
 function isHttpsUrl(value: string): boolean {
@@ -772,79 +900,10 @@ function summarizeToolOutput(output: unknown): Record<string, unknown> {
   };
 }
 
-function buildEvidencePackHighlights(
-  evidencePack?: PostGenerationEvidencePack,
-): string[] {
-  if (!evidencePack) {
-    return [];
-  }
-
-  return uniqueStrings([
-    `Photo context: ${evidencePack.photoContext.summary}`,
-    ...((evidencePack.photoContext.detectedTopics ?? []).length
-      ? [
-          `Photo topics: ${(
-            evidencePack.photoContext.detectedTopics ?? []
-          ).join(" / ")}`,
-        ]
-      : []),
-    ...(evidencePack.photoContext.observedItems?.length
-      ? [
-          `Observed items: ${evidencePack.photoContext.observedItems.join(
-            " / ",
-          )}`,
-        ]
-      : []),
-    ...(evidencePack.photoContext.subjectCandidates?.length
-      ? [
-          `Subject candidates: ${evidencePack.photoContext.subjectCandidates.join(
-            " / ",
-          )}`,
-        ]
-      : []),
-    ...(evidencePack.photoContext.ocrText
-      ? [`OCR text: ${evidencePack.photoContext.ocrText}`]
-      : []),
-    ...(evidencePack.surveyInsight?.available
-      ? [
-          `Survey insight: ${evidencePack.surveyInsight.evidenceSummary}`,
-          ...(evidencePack.surveyInsight.suggestedAngles.length
-            ? [
-                `Survey angles: ${evidencePack.surveyInsight.suggestedAngles.join(
-                  " / ",
-                )}`,
-              ]
-            : []),
-        ]
-      : []),
-    ...(evidencePack.postPerformanceInsight?.available
-      ? [
-          `Post performance: ${evidencePack.postPerformanceInsight.evidenceSummary}`,
-        ]
-      : []),
-    ...(evidencePack.accountOverviewInsight?.available
-      ? [
-          `Account overview: ${evidencePack.accountOverviewInsight.evidenceSummary}`,
-        ]
-      : []),
-  ]);
-}
-
-function mergeEvidencePackIntoAnalysisSections(
-  analysisSections: ActionRunAnalysisSection[],
-  evidencePack: PostGenerationEvidencePack,
-): ActionRunAnalysisSection[] {
-  const evidenceSection: ActionRunAnalysisSection = {
-    key: "evidence_pack",
-    title: "Evidence pack",
-    question: "Summarize the evidence pack for draft generation.",
-    summary: buildEvidencePackHighlights(evidencePack).join(" / "),
-    rows: [],
-  };
-
-  return [...analysisSections, evidenceSection];
-}
-
-function uniqueStrings(values: string[]): string[] {
-  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+function uniqueStrings(values: Array<string | undefined>): string[] {
+  return [
+    ...new Set(
+      values.map((value) => value?.trim()).filter(Boolean) as string[],
+    ),
+  ];
 }

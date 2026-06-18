@@ -182,6 +182,7 @@ export type PostGenerationEvidencePack = {
     eventDescription?: string;
     venue?: string;
     eventDateText?: string;
+    hashtags?: string[];
     skippedReason?: string;
   };
   surveyInsight: SurveyInsight;
@@ -2976,6 +2977,9 @@ function buildEventContext(
     const eventDescription = readString(context.eventDescription);
     const venue = readString(context.venue);
     const eventDateText = readString(context.eventDateText);
+    const hashtags = uniqueStrings(
+      (context as { hashtags?: string[] }).hashtags ?? [],
+    );
     return {
       available: Boolean(eventName || eventUrl || eventDescription || venue),
       source: context.source,
@@ -2984,6 +2988,7 @@ function buildEventContext(
       ...(eventDescription ? { eventDescription } : {}),
       ...(venue ? { venue } : {}),
       ...(eventDateText ? { eventDateText } : {}),
+      ...(hashtags.length ? { hashtags } : {}),
       ...(context.source === "not_found"
         ? { skippedReason: "event_context_not_found" }
         : {}),
@@ -2993,6 +2998,10 @@ function buildEventContext(
   const fallbackEventName = normalizeMeaningfulText(request.eventName);
   const fallbackEventUrl = readString(request.eventUrl ?? request.techplayUrl);
   const fallbackDescription = readString(request.venueMemo);
+  const fallbackHashtags = uniqueStrings(
+    (request.eventContext as { hashtags?: string[] } | undefined)?.hashtags ??
+      [],
+  );
   const fallbackSource: PostGenerationEvidencePack["eventContext"]["source"] =
     fallbackEventName || fallbackEventUrl ? "fallback" : "not_found";
   return {
@@ -3003,6 +3012,7 @@ function buildEventContext(
     ...(fallbackEventName ? { eventName: fallbackEventName } : {}),
     ...(fallbackEventUrl ? { eventUrl: fallbackEventUrl } : {}),
     ...(fallbackDescription ? { eventDescription: fallbackDescription } : {}),
+    ...(fallbackHashtags.length ? { hashtags: fallbackHashtags } : {}),
     ...(fallbackSource === "not_found"
       ? { skippedReason: "event_context_not_found" }
       : {}),

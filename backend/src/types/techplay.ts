@@ -9,5 +9,6 @@ export type TechPlayPreviewResponse = {
   summary: string;
   sourceTitle?: string;
   sourceDescription?: string;
+  hashtags?: string[];
   extractedFrom: "jsonld" | "meta" | "text";
 };

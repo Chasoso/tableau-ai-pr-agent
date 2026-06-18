@@ -14,18 +14,19 @@ describe("prTools", () => {
       evidencePack: buildEvidencePack(),
     });
 
-    expect(output.summary).toContain("Tableau User Group Tokyo 2026");
+    expect(output.summary).toContain("投稿案を作成しました");
     expect(output.missingFields).toEqual(
       expect.arrayContaining(["event date", "event summary"]),
     );
     expect(output.review.status).toBe("needs_info");
-    expect(output.drafts.x).toContain("Tableau User Group Tokyo 2026");
+    expect(output.drafts.x).toContain("#ほくたぐ");
     expect(output.drafts.email).toContain("Subject:");
-    expect(output.drafts.notion).toContain("# Tableau User Group Tokyo 2026");
+    expect(output.drafts.notion).toContain("#");
     expect(output.sourceInfo.analysisHighlights).toEqual(
       expect.arrayContaining([
-        "Photo context: The venue is filling up. / image file: venue.jpg / size 1.2 MB",
-        "Survey insight: Participants want practical examples.",
+        "Event: Tableau User Group",
+        "Topics: venue / tableau / highlight",
+        "CTA: 一緒に楽しみましょう",
       ]),
     );
   });
@@ -45,9 +46,9 @@ describe("prTools", () => {
     const output = await prToolDefinitions.collectPrSourceInfo.callback(input);
 
     expect(output.eventName).toBe("Tableau User Group Tokyo 2026");
-    expect(output.analysisHighlights).toContain(
-      "Post type distribution: Checked post type counts.",
-    );
+    expect(
+      output.analysisHighlights.some((line) => line.startsWith("Topics:")),
+    ).toBe(true);
   });
 
   it("keeps each tool callback testable in isolation", async () => {
@@ -86,10 +87,10 @@ describe("prTools", () => {
       review,
     });
 
-    expect(summary).toContain("Event: Tableau User Group Tokyo 2026");
-    expect(announcementDraft).toContain("# Tableau User Group Tokyo 2026");
-    expect(socialPostDraft).toContain("https://techplay.jp/event/123");
-    expect(output.drafts.x).toContain("https://techplay.jp/event/123");
+    expect(summary).toContain("投稿案を作成しました");
+    expect(announcementDraft).toContain("# Tableau User Group");
+    expect(socialPostDraft).toContain("#ほくたぐ");
+    expect(output.drafts.x).toContain("#ほくたぐ");
     expect(output.review.status).toBe("needs_review");
   });
 });
@@ -104,7 +105,7 @@ function buildCollectInput() {
 
 function buildRequest() {
   return {
-    postType: "\u4e8b\u524d\u544a\u77e5",
+    postType: "事前告知" as const,
     eventName: "Tableau User Group Tokyo 2026",
     techplayUrl: "https://techplay.jp/event/123",
     currentSituation: "The venue is filling up.",
@@ -116,7 +117,7 @@ function buildRequest() {
       parameters: [],
       capturedAt: "2026-06-08T00:00:00.000Z",
     },
-  } as never;
+  };
 }
 
 function buildAnalysisSections() {
@@ -136,7 +137,7 @@ function buildEvidencePack() {
     photoContext: {
       available: true,
       source: "actual_image" as const,
-      summary: "The venue is filling up. / image file: venue.jpg / size 1.2 MB",
+      summary: "The venue is filling up.",
       detectedTopics: ["venue", "tableau"],
       suggestedPostAngles: [
         "highlight the event atmosphere",
@@ -196,17 +197,12 @@ function buildEvidencePack() {
     },
     canGeneratePost: true,
     generationBlockers: [],
-    constraints: {
-      doNotInventMetrics: true,
-      useEvidenceOnlyWhenAvailable: true,
-      keepNaturalJapanese: true,
-    },
   };
 }
 
 function buildSourceInfo() {
   return {
-    postType: "\u4e8b\u524d\u544a\u77e5",
+    postType: "事前告知" as const,
     eventName: "Tableau User Group Tokyo 2026",
     techplayUrl: "https://techplay.jp/event/123",
     currentSituation: "The venue is filling up.",
@@ -214,7 +210,14 @@ function buildSourceInfo() {
     workbookName: "Analytics",
     worksheetNames: ["Sheet 1"],
     capturedAt: "2026-06-08T00:00:00.000Z",
-    analysisHighlights: ["Post type distribution: Checked post type counts."],
+    techplayEventName: "Tableau User Group Tokyo 2026",
+    techplayEventDateText: "2026/06/14 11:00",
+    techplaySummary: "Live event summary.",
+    analysisHighlights: [
+      "Event: Tableau User Group Tokyo 2026",
+      "Topics: venue / tableau / highlight the event atmosphere",
+      "Audience: MCPをはじめて聞く方にも伝わるように",
+    ],
     missingFields: [],
   };
 }

@@ -1,6 +1,7 @@
 import { getConfig } from "../config";
 import { logInfo, logWarn, safeErrorDetails } from "../logging";
 import type { TechPlayPreviewResponse } from "../types/techplay";
+import { extractExplicitHashtagsFromText } from "./hashtagService";
 
 export class TechPlayService {
   async previewTechPlayEvent(input: {
@@ -49,6 +50,7 @@ export class TechPlayService {
         summary: extracted.summary,
         sourceTitle: extracted.sourceTitle,
         sourceDescription: extracted.sourceDescription,
+        hashtags: extracted.hashtags,
         extractedFrom: extracted.extractedFrom,
       };
     } catch (error) {
@@ -110,6 +112,7 @@ function extractPreviewFromHtml(
         "TechPlay event details were loaded, but the description was not present.",
       sourceTitle: coalesceString(jsonLdEvent.name),
       sourceDescription: description,
+      hashtags: extractPreviewHashtags([eventName, description, html]),
       extractedFrom: "jsonld",
     };
   }
@@ -138,6 +141,7 @@ function extractPreviewFromHtml(
     summary,
     sourceTitle: metaTitle ?? undefined,
     sourceDescription: metaDescription ?? undefined,
+    hashtags: extractPreviewHashtags([metaTitle, metaDescription, plainText]),
     extractedFrom: metaDescription ? "meta" : "text",
   };
 }
@@ -269,6 +273,12 @@ function findEventDateText(plainText: string): string | undefined {
   return dateLine;
 }
 
+function extractPreviewHashtags(texts: Array<string | undefined>): string[] {
+  return uniqueStrings(
+    texts.flatMap((text) => extractExplicitHashtagsFromText(text)),
+  );
+}
+
 function extractOverviewFromPlainText(plainText: string): string | undefined {
   const lines = splitLines(plainText);
   const overviewIndex = lines.findIndex((line) =>
@@ -391,4 +401,12 @@ function isNavigationLine(value: string): boolean {
   return /^(TOP|イベント|マガジン|動画|グループ|ログイン|新規会員登録)$/i.test(
     value,
   );
+}
+
+function uniqueStrings(values: Array<string | undefined>): string[] {
+  return [
+    ...new Set(
+      values.map((value) => value?.trim()).filter(Boolean) as string[],
+    ),
+  ];
 }

@@ -31,6 +31,7 @@ export type ActionRunEventContext = {
   eventDescription?: string;
   venue?: string;
   eventDateText?: string;
+  hashtags?: string[];
 };
 
 export type ActionRunInputImage = {
@@ -208,6 +209,7 @@ export type PostGenerationEvidencePack = {
     eventDescription?: string;
     venue?: string;
     eventDateText?: string;
+    hashtags?: string[];
     skippedReason?: string;
   };
   surveyInsight: InsightSection;

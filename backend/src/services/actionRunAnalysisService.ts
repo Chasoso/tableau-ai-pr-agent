@@ -1,5 +1,5 @@
 import { getConfig } from "../config";
-import { logInfo, logWarn } from "../logging";
+import { logInfo } from "../logging";
 import { buildActionRunPublicImageUrl } from "./actionRunImageUrlService";
 import { DirectTableauApiContextProvider } from "../tableau/directTableauApiContextProvider";
 import { MockTableauContextProvider } from "../tableau/mockTableauContextProvider";
@@ -21,13 +21,17 @@ import {
   truncatePostText,
 } from "../utils/postText";
 import {
+  buildChannelDrafts,
+  buildImageCaption as buildSafeImageCaption,
+  buildPostMaterial,
+  buildPostQualityResult,
+  generatePostSuggestions,
+  type PostMaterial,
+} from "./postCopyService";
+import {
   TableauPhotoPostAnalysisService,
-  type AccountOverviewInsight,
-  type PostPerformanceInsight,
   type PhotoPostAnalysisResult,
-  type SurveyInsight,
 } from "./tableauPhotoPostAnalysisService";
-
 export class ActionRunAnalysisService {
   private readonly fixedWorkflowService: TableauPhotoPostAnalysisService;
 
@@ -126,21 +130,29 @@ export class ActionRunAnalysisService {
       evidencePackAvailable: true,
     });
 
-    const generatedPostSuggestions =
-      await generatePostSuggestionsFromEvidencePack({
-        evidencePack: fixedAnalysis.evidencePack,
-        postType: input.request.postType,
-        tone: "natural",
-        maxSuggestions: 3,
-      });
-
+    const postMaterial = buildPostMaterial({
+      request: input.request,
+      analysisSections: fixedAnalysis.analysisSections,
+      evidencePack: fixedAnalysis.evidencePack,
+    });
+    const generatedPostSuggestions = generatePostSuggestions({
+      material: postMaterial,
+      maxSuggestions: 3,
+    });
     const normalizedGeneratedPostSuggestions =
       normalizeGeneratedPostSuggestions({
         suggestions: generatedPostSuggestions,
         evidencePack: fixedAnalysis.evidencePack,
       });
-
+    const channelDrafts = buildChannelDrafts({ material: postMaterial });
     const primarySuggestion = normalizedGeneratedPostSuggestions[0];
+    const primarySuggestionQuality = primarySuggestion
+      ? buildPostQualityResult(primarySuggestion.text, {
+          hashtags: postMaterial.hashtags,
+          hashtagCandidates: postMaterial.hashtagCandidates,
+          channel: "x",
+        })
+      : { ok: true, issues: [] };
     logInfo("postSuggestionGenerationCompleted", {
       postType: input.request.postType,
       suggestionCount: normalizedGeneratedPostSuggestions.length,
@@ -153,7 +165,7 @@ export class ActionRunAnalysisService {
       count: normalizedGeneratedPostSuggestions.length,
     });
 
-    let prDraft = await runPrDraftAgent({
+    const prDraft = await runPrDraftAgent({
       request: input.request,
       analysisSections: fixedAnalysis.analysisSections,
       evidencePack: fixedAnalysis.evidencePack,
@@ -161,56 +173,23 @@ export class ActionRunAnalysisService {
       postCopyLimitChars: POST_TEXT_LIMIT,
       copyGenerationAttempt: 1,
     });
-
-    if (
-      !isWithinPostTextLimit(
-        prDraft.drafts.x || primarySuggestion?.text || "",
-        POST_TEXT_LIMIT,
-      )
-    ) {
-      logWarn("postSuggestionRetryRequested", {
-        postType: input.request.postType,
-        limit: POST_TEXT_LIMIT,
-        draftLength: countPostTextCharacters(prDraft.drafts.x || ""),
-        suggestionLength: primarySuggestion
-          ? countPostTextCharacters(primarySuggestion.text)
-          : 0,
-      });
-      const retriedDraft = await runPrDraftAgent({
-        request: input.request,
-        analysisSections: fixedAnalysis.analysisSections,
-        evidencePack: fixedAnalysis.evidencePack,
-        photoContext: fixedAnalysis.photoContext,
-        postCopyLimitChars: POST_TEXT_LIMIT,
-        copyGenerationAttempt: 2,
-      });
-      if (
-        countPostTextCharacters(retriedDraft.drafts.x) <
-        countPostTextCharacters(prDraft.drafts.x)
-      ) {
-        prDraft = retriedDraft;
-      }
-    }
-
-    const summary =
-      prDraft.summary || buildSummary(input.request, fixedAnalysis);
-    const evidence = prDraft.evidence.length
-      ? prDraft.evidence
-      : buildEvidenceLines(input.request, fixedAnalysis);
-    const checks = prDraft.checks.length
-      ? prDraft.checks
-      : buildChecks(input.request);
-    const hashtags = prDraft.hashtags.length
-      ? prDraft.hashtags
-      : buildHashtags(input.request);
-    const imageCaption =
-      prDraft.imageCaption ||
-      buildImageCaption(input.request, fixedAnalysis.analysisSections);
+    const summary = buildSummaryFromMaterial(postMaterial);
+    const evidence = buildEvidenceLinesFromMaterial(
+      input.request,
+      fixedAnalysis,
+      postMaterial,
+    );
+    const checks = buildChecks(input.request);
+    const hashtags = postMaterial.hashtags;
+    const imageCaption = buildSafeImageCaption(postMaterial);
     const warnings = collectWarnings(fixedAnalysis);
     const primaryOutputType = "generated_post_suggestions" as const;
     const suggestedSlackPostText = resolveSharedPostText({
-      primarySuggestionText: primarySuggestion?.text?.trim(),
-      fallbackText: prDraft.drafts.x.trim(),
+      primarySuggestionText:
+        primarySuggestionQuality.ok && primarySuggestion
+          ? primarySuggestion.text.trim()
+          : undefined,
+      fallbackText: channelDrafts.x.trim(),
       limit: POST_TEXT_LIMIT,
     });
     const attachedImage = buildAttachedInputImage(input.request);
@@ -228,7 +207,7 @@ export class ActionRunAnalysisService {
     const result: ActionRunResult = {
       summary,
       suggestedSlackPostText,
-      draftVariants: prDraft.drafts,
+      draftVariants: channelDrafts,
       draftReview: prDraft.review,
       hashtags,
       evidence,
@@ -292,249 +271,6 @@ export class ActionRunAnalysisService {
   }
 }
 
-async function generatePostSuggestionsFromEvidencePack(input: {
-  evidencePack: PostGenerationEvidencePack;
-  postType: ActionRunRequest["postType"];
-  tone?: string;
-  maxSuggestions?: number;
-}): Promise<GeneratedPostSuggestion[]> {
-  const maxSuggestions = Math.max(1, Math.min(input.maxSuggestions ?? 3, 5));
-  const photoContext = input.evidencePack.photoContext;
-  const photoContextAvailable = isMeaningfulPhotoContext(photoContext);
-  logInfo("postSuggestionPhotoContextReceived", {
-    photoContextAvailable,
-    photoContextSource: photoContext.source,
-    photoContextSummaryPresent: Boolean(photoContext.summary?.trim()),
-    photoContextSummaryLength: photoContext.summary?.trim().length ?? 0,
-    photoContextDetectedTopicCount: photoContext.detectedTopics?.length ?? 0,
-    photoContextObservedItemCount: photoContext.observedItems?.length ?? 0,
-  });
-  const prompt = buildPostSuggestionPromptV2(input);
-  logInfo("postSuggestionPromptBuilt", {
-    postType: input.postType,
-    promptChars: prompt.length,
-  });
-  logInfo("postSuggestionPromptChars", {
-    postType: input.postType,
-    promptChars: prompt.length,
-  });
-  logInfo("postSuggestionEvidenceAvailability", {
-    postType: input.postType,
-    photo: photoContextAvailable,
-    eventContextAvailable: input.evidencePack.eventContext.available,
-    survey: input.evidencePack.surveyInsight.available,
-    postPerformance: input.evidencePack.postPerformanceInsight.available,
-    accountOverview: input.evidencePack.accountOverviewInsight.available,
-  });
-
-  const eventName = normalizeMeaningfulText(
-    input.evidencePack.eventContext.eventName,
-  );
-  const eventDateText = normalizeMeaningfulText(
-    input.evidencePack.eventContext.eventDateText,
-  );
-  const eventDescription = normalizeMeaningfulText(
-    input.evidencePack.eventContext.eventDescription,
-  );
-  const venue = normalizeMeaningfulText(input.evidencePack.eventContext.venue);
-  const photoSummary = normalizeMeaningfulText(
-    input.evidencePack.photoContext.summary,
-  );
-  const photoTopics = uniqueStrings(
-    input.evidencePack.photoContext.detectedTopics ?? [],
-  );
-  const photoObservedItems = uniqueStrings(
-    input.evidencePack.photoContext.observedItems ?? [],
-  );
-  const photoPostableElements = uniqueStrings(
-    input.evidencePack.photoContext.postableElements ?? [],
-  );
-  const photoSubjectCandidates = uniqueStrings(
-    input.evidencePack.photoContext.subjectCandidates ?? [],
-  );
-  const photoOcrText = normalizeMeaningfulText(
-    input.evidencePack.photoContext.ocrText,
-  );
-  const surveyInsight = input.evidencePack
-    .surveyInsight as Partial<SurveyInsight>;
-  const postPerformanceInsight = input.evidencePack
-    .postPerformanceInsight as Partial<PostPerformanceInsight>;
-  const accountOverviewInsight = input.evidencePack
-    .accountOverviewInsight as Partial<AccountOverviewInsight>;
-  const surveyThemes = uniqueStrings([
-    ...((surveyInsight.keyExpectations as string[] | undefined) ?? []),
-    ...((surveyInsight.keyInterests as string[] | undefined) ?? []),
-    ...((surveyInsight.suggestedAngles as string[] | undefined) ?? []),
-  ]);
-  const performanceThemes = uniqueStrings([
-    ...((postPerformanceInsight.highPerformingThemes as string[] | undefined) ??
-      []),
-    ...((postPerformanceInsight.recommendedStructure as string[] | undefined) ??
-      []),
-    ...((postPerformanceInsight.recommendedTone as string[] | undefined) ?? []),
-  ]);
-  const accountThemes = uniqueStrings([
-    ...((accountOverviewInsight.notableChanges as string[] | undefined) ?? []),
-    ...((accountOverviewInsight.timingHints as string[] | undefined) ?? []),
-  ]);
-  const hashtags = buildHashtagsForSuggestion(eventName, input.postType);
-
-  const suggestions: GeneratedPostSuggestion[] = [];
-  const variants = [
-    buildSuggestionVariant({
-      variant: "opening",
-      eventName,
-      eventDateText,
-      eventDescription,
-      venue,
-      photoContextAvailable,
-      photoContextSource: photoContext.source,
-      photoSummary,
-      photoTopics,
-      photoObservedItems,
-      photoPostableElements,
-      photoSubjectCandidates,
-      photoOcrText,
-      surveyThemes,
-      performanceThemes,
-      accountThemes,
-      hashtags,
-      tone: input.tone ?? "natural",
-    }),
-    buildSuggestionVariant({
-      variant: "community",
-      eventName,
-      eventDateText,
-      eventDescription,
-      venue,
-      photoContextAvailable,
-      photoContextSource: photoContext.source,
-      photoSummary,
-      photoTopics,
-      photoObservedItems,
-      photoPostableElements,
-      photoSubjectCandidates,
-      photoOcrText,
-      surveyThemes,
-      performanceThemes,
-      accountThemes,
-      hashtags,
-      tone: input.tone ?? "natural",
-    }),
-    buildSuggestionVariant({
-      variant: "invitation",
-      eventName,
-      eventDateText,
-      eventDescription,
-      venue,
-      photoContextAvailable,
-      photoContextSource: photoContext.source,
-      photoSummary,
-      photoTopics,
-      photoObservedItems,
-      photoPostableElements,
-      photoSubjectCandidates,
-      photoOcrText,
-      surveyThemes,
-      performanceThemes,
-      accountThemes,
-      hashtags,
-      tone: input.tone ?? "natural",
-    }),
-  ].slice(0, maxSuggestions);
-
-  for (const variant of variants) {
-    suggestions.push(variant);
-  }
-
-  return suggestions;
-}
-
-function summarizeEvidencePack(
-  evidencePack: PostGenerationEvidencePack,
-): Record<string, unknown> {
-  return {
-    photoContext: {
-      available: evidencePack.photoContext.available,
-      source: evidencePack.photoContext.source,
-      summary: evidencePack.photoContext.summary,
-      detectedTopics: evidencePack.photoContext.detectedTopics ?? [],
-      observedItems: evidencePack.photoContext.observedItems ?? [],
-      sceneInference: evidencePack.photoContext.sceneInference,
-      eventFeel: evidencePack.photoContext.eventFeel,
-      postableElements: evidencePack.photoContext.postableElements ?? [],
-      subjectCandidates: evidencePack.photoContext.subjectCandidates ?? [],
-      ocrText: evidencePack.photoContext.ocrText,
-    },
-    eventContext: {
-      available: evidencePack.eventContext.available,
-      source: evidencePack.eventContext.source,
-      eventName: evidencePack.eventContext.eventName,
-      eventDateText: evidencePack.eventContext.eventDateText,
-      venue: evidencePack.eventContext.venue,
-    },
-    surveyInsight: {
-      available: evidencePack.surveyInsight.available,
-      sourceStatus: evidencePack.surveyInsight.sourceStatus,
-      summary: evidencePack.surveyInsight.summary,
-      keyFindings: evidencePack.surveyInsight.keyFindings ?? [],
-    },
-    postPerformanceInsight: {
-      available: evidencePack.postPerformanceInsight.available,
-      sourceStatus: evidencePack.postPerformanceInsight.sourceStatus,
-      summary: evidencePack.postPerformanceInsight.summary,
-      keyFindings: evidencePack.postPerformanceInsight.keyFindings ?? [],
-    },
-    accountOverviewInsight: {
-      available: evidencePack.accountOverviewInsight.available,
-      sourceStatus: evidencePack.accountOverviewInsight.sourceStatus,
-      summary: evidencePack.accountOverviewInsight.summary,
-      keyFindings: evidencePack.accountOverviewInsight.keyFindings ?? [],
-    },
-  };
-}
-
-function buildPostSuggestionPromptV2(input: {
-  evidencePack: PostGenerationEvidencePack;
-  postType: ActionRunRequest["postType"];
-  tone?: string;
-  maxSuggestions?: number;
-}): string {
-  const photoContext = input.evidencePack.photoContext;
-  const photoSummary = normalizeMeaningfulText(photoContext.summary);
-  const photoTopics = uniqueStrings(photoContext.detectedTopics ?? []);
-  const photoObservedItems = uniqueStrings(photoContext.observedItems ?? []);
-  const photoPostableElements = uniqueStrings(
-    photoContext.postableElements ?? [],
-  );
-  const photoSubjectCandidates = uniqueStrings(
-    photoContext.subjectCandidates ?? [],
-  );
-
-  return [
-    "あなたはSNS投稿文のライターです。",
-    "入力画像は実際に投稿へ添付されます。",
-    "画像分析結果は、投稿文の現場感・雰囲気・文脈を補うために自然に使ってください。",
-    "ただし、画像を説明するだけの文章にはしないでください。",
-    "",
-    `postType: ${input.postType}`,
-    `tone: ${input.tone ?? "natural"}`,
-    `maxSuggestions: ${input.maxSuggestions ?? 3}`,
-    "",
-    "画像分析結果:",
-    `- photoContextAvailable: ${photoContext.available}`,
-    `- photoContextSource: ${photoContext.source}`,
-    `- photoContextSummary: ${photoSummary ?? "unavailable"}`,
-    `- detectedTopics: ${photoTopics.length ? photoTopics.join(", ") : "none"}`,
-    `- observedItems: ${photoObservedItems.length ? photoObservedItems.join(", ") : "none"}`,
-    `- postableElements: ${photoPostableElements.length ? photoPostableElements.join(", ") : "none"}`,
-    `- subjectCandidates: ${photoSubjectCandidates.length ? photoSubjectCandidates.join(", ") : "none"}`,
-    `- ocrText: ${photoContext.ocrText?.trim() || "unavailable"}`,
-    "",
-    "生成するのは画像解析レポートではなく、Xにそのまま投稿できる文章です。",
-    JSON.stringify(summarizeEvidencePack(input.evidencePack), null, 2),
-  ].join("\n");
-}
 function normalizeGeneratedPostSuggestions(input: {
   suggestions: GeneratedPostSuggestion[];
   evidencePack: PostGenerationEvidencePack;
@@ -594,7 +330,7 @@ function normalizeGeneratedPostSuggestions(input: {
       ...suggestion,
       usedEvidence: {
         ...suggestion.usedEvidence,
-        photo: photoContextAvailable ? true : suggestion.usedEvidence.photo,
+        photo: photoContextAvailable,
       },
       warnings: normalizedWarnings,
     };
@@ -667,317 +403,45 @@ function normalizeContentType(value?: string): string | undefined {
   return normalized || undefined;
 }
 
-function buildSuggestionVariant(input: {
-  variant: "opening" | "community" | "invitation";
-  eventName?: string;
-  eventDateText?: string;
-  eventDescription?: string;
-  venue?: string;
-  photoContextAvailable: boolean;
-  photoContextSource: PostGenerationEvidencePack["photoContext"]["source"];
-  photoSummary?: string;
-  photoTopics: string[];
-  photoObservedItems: string[];
-  photoPostableElements: string[];
-  photoSubjectCandidates: string[];
-  photoOcrText?: string;
-  surveyThemes: string[];
-  performanceThemes: string[];
-  accountThemes: string[];
-  hashtags: string[];
-  tone: string;
-}): GeneratedPostSuggestion {
-  const lines: string[] = [];
-  const hasEvent = Boolean(input.eventName);
-  const hasPhoto = input.photoContextAvailable;
-  const hasSurvey = input.surveyThemes.length > 0;
-  const hasPerformance = input.performanceThemes.length > 0;
-  const hasAccount = input.accountThemes.length > 0;
-  const photoLead =
-    input.photoSummary ??
-    input.photoOcrText ??
-    input.photoObservedItems[0] ??
-    input.photoPostableElements[0] ??
-    input.photoSubjectCandidates[0] ??
-    input.photoTopics[0];
-
-  const openingLine = buildOpeningLine(
-    input.variant,
-    input.eventName,
-    input.eventDateText,
-  );
-  if (openingLine) {
-    lines.push(openingLine);
-  }
-
-  if (input.variant === "opening") {
-    if (photoLead) {
-      lines.push(stripAnalysisLanguage(photoLead));
-    }
-    if (input.eventDescription) {
-      lines.push(stripAnalysisLanguage(input.eventDescription));
-    }
-    if (input.venue) {
-      lines.push(
-        `${input.venue}の開催地は落ち着いた雰囲気で、写真からも会場の空気感が伝わります。`,
-      );
-    }
-  }
-
-  if (input.variant === "community") {
-    const surveyHint = input.surveyThemes[0];
-    const performanceHint = input.performanceThemes[0];
-    const accountHint = input.accountThemes[0];
-    const middleParts = [
-      surveyHint
-        ? `参加者が気にしそうな点として ${surveyHint} を自然に織り込みます。`
-        : undefined,
-      performanceHint
-        ? `伸びやすい表現として ${performanceHint} の流れを取り入れます。`
-        : undefined,
-      accountHint
-        ? `アカウントの文脈に合わせて ${accountHint} を反映します。`
-        : undefined,
-    ].filter((value): value is string => Boolean(value));
-    if (middleParts.length) {
-      lines.push(middleParts[0]);
-    }
-    if (input.photoTopics.length && lines.length < 3) {
-      lines.push(
-        `${input.photoTopics[0]}の要素を、自然な表現で投稿文に取り込みます。`,
-      );
-    }
-  }
-
-  if (input.variant === "invitation") {
-    if (input.eventName) {
-      lines.push(`ぜひ ${input.eventName} に参加してみてください。`);
-    }
-    lines.push(
-      "会場の雰囲気や参加メリットが伝わるように、読みやすく案内します。",
-    );
-    if (input.eventDateText) {
-      lines.push(`開催日は ${input.eventDateText} です。`);
-    }
-  }
-
-  if (!lines.length) {
-    lines.push(
-      hasEvent
-        ? `${input.eventName} の告知として、現場感が伝わる一文を中心にまとめます。`
-        : "現場感が伝わる一文を中心にまとめます。",
-    );
-  }
-
-  const body = uniqueStrings(lines).join("\n\n").trim();
-  const hashtags = input.hashtags.slice(0, 3).join(" ");
-  const text = hashtags ? `${body}\n\n${hashtags}` : body;
-
-  return {
-    text: limitPostLength(text),
-    rationale: buildRationaleV2({
-      hasEvent,
-      hasPhoto,
-      hasSurvey,
-      hasPerformance,
-      hasAccount,
-      variant: input.variant,
-    }),
-    usedEvidence: {
-      photo: hasPhoto,
-      event: hasEvent,
-      survey: hasSurvey,
-      postPerformance: hasPerformance,
-      accountOverview: hasAccount,
-    },
-    warnings: buildSuggestionWarnings({
-      eventName: input.eventName,
-      photoContextAvailable: input.photoContextAvailable,
-      photoSummary: photoLead,
-    }),
-  };
-}
-function buildOpeningLine(
-  variant: "opening" | "community" | "invitation",
-  eventName?: string,
-  eventDateText?: string,
-): string {
-  if (variant === "invitation") {
-    return eventName
-      ? `${eventName}、ぜひ参加してみてください。`
-      : "ぜひ参加してみてください。";
-  }
-
-  if (variant === "community") {
-    return eventName
-      ? `${eventName}の現場は、少しずつ熱気が高まってきています。`
-      : "現場の熱気が少しずつ高まってきています。";
-  }
-
-  if (eventName) {
-    return eventDateText
-      ? `${eventName}・${eventDateText}の告知を、現場感を込めてお届けします。`
-      : `${eventName}の告知を、現場感を込めてお届けします。`;
-  }
-
-  return "Untitled event";
-}
-
-function buildRationaleV2(input: {
-  hasEvent: boolean;
-  hasPhoto: boolean;
-  hasSurvey: boolean;
-  hasPerformance: boolean;
-  hasAccount: boolean;
-  variant: "opening" | "community" | "invitation";
-}): string {
+function buildSummaryFromMaterial(material: PostMaterial): string {
+  const shortName =
+    material.eventShortName ?? material.eventOfficialName ?? "イベント";
+  const topics = material.mainTopics?.slice(0, 3).join("、");
   const parts = [
-    input.hasPhoto
-      ? "画像情報を使用しています。"
-      : "画像情報は使っていません。",
-    input.hasEvent
-      ? "イベント情報を使用しています。"
-      : "イベント情報は未取得です。",
-    input.hasSurvey
-      ? "参加者アンケートを反映しています。"
-      : "参加者アンケートは未取得です。",
-    input.hasPerformance
-      ? "過去投稿の傾向を反映しています。"
-      : "過去投稿の傾向は未取得です。",
-    input.hasAccount
-      ? "アカウント概要を反映しています。"
-      : "アカウント概要は未取得です。",
-    `variant: ${input.variant}`,
-  ];
+    `${shortName}の投稿案を作成しました。`,
+    topics ? `見どころは${topics}です。` : undefined,
+    material.audienceContext ? material.audienceContext : undefined,
+  ].filter((value): value is string => Boolean(value));
+
   return parts.join(" ");
 }
 
-function buildSuggestionWarnings(input: {
-  eventName?: string;
-  photoContextAvailable: boolean;
-  photoSummary?: string;
-}): string[] {
-  const warnings: string[] = [];
-  if (!input.eventName) {
-    warnings.push("event_context_missing");
-  }
-  if (!input.photoContextAvailable) {
-    warnings.push("photo_context_missing");
-  } else if (!input.photoSummary) {
-    // Photo context exists even when the summary is sparse; do not add a warning.
-  }
-  return warnings;
-}
-
-function limitPostLength(text: string): string {
-  return truncatePostText(text, POST_TEXT_LIMIT);
-}
-
-function resolveSharedPostText(input: {
-  primarySuggestionText?: string;
-  fallbackText: string;
-  limit: number;
-}): string {
-  const candidates = [
-    input.primarySuggestionText?.trim(),
-    input.fallbackText.trim(),
-  ].filter((value): value is string => Boolean(value));
-
-  const withinLimit = candidates.find((value) =>
-    isWithinPostTextLimit(value, input.limit),
-  );
-  if (withinLimit) {
-    return withinLimit;
-  }
-
-  return truncatePostText(candidates[0] ?? input.fallbackText, input.limit);
-}
-
-function stripAnalysisLanguage(text: string): string {
-  return text
-    .replace(/^Photo context:\s*/iu, "")
-    .replace(/^Event description:\s*/iu, "")
-    .replace(/image file:\s*/iu, "")
-    .replace(/\s+/gu, " ")
-    .trim();
-}
-
-function buildHashtagsForSuggestion(
-  eventName?: string,
-  postType?: ActionRunRequest["postType"],
-): string[] {
-  const tags = new Set<string>(["#Tableau"]);
-  if (postType === "事前告知") {
-    tags.add("#HokuTUG");
-  }
-  if (eventName) {
-    const token = eventName
-      .split(/\s+/u)
-      .map((value) => value.replace(/[^A-Za-z0-9]/gu, ""))
-      .find((value) => value.length >= 2);
-    if (token) {
-      tags.add(`#${token}`);
-    }
-  }
-  return [...tags].slice(0, 4);
-}
-
-function uniqueStrings(values: string[]): string[] {
-  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
-}
-
-function createTableauContextProvider(): TableauContextProvider {
-  switch (getConfig().tableau.contextProvider) {
-    case "direct-api":
-      return new DirectTableauApiContextProvider();
-    case "mcp":
-      return new TableauMcpContextProvider();
-    case "mock":
-    default:
-      return new MockTableauContextProvider();
-  }
-}
-
-function buildSummary(
+function buildEvidenceLinesFromMaterial(
   request: ActionRunRequest,
   fixedAnalysis: PhotoPostAnalysisResult,
-): string {
-  const eventName = getEffectiveEventName(request);
-  const insightSummary = [
-    fixedAnalysis.photoContext.summary,
-    fixedAnalysis.evidencePack.eventContext.eventName,
-    fixedAnalysis.surveyInsight?.evidenceSummary,
-    fixedAnalysis.postPerformanceInsight?.evidenceSummary,
-    fixedAnalysis.accountOverviewInsight?.evidenceSummary,
-  ]
-    .filter((value): value is string => Boolean(value))
-    .join(" / ");
-
-  return `${eventName} ${request.postType} draft prepared. ${insightSummary}`.trim();
-}
-
-function buildEvidenceLines(
-  request: ActionRunRequest,
-  fixedAnalysis: PhotoPostAnalysisResult,
+  material: PostMaterial,
 ): string[] {
-  const eventName = getEffectiveEventName(request);
   return [
-    `Event name: ${eventName}`,
-    `Current situation: ${request.currentSituation}`,
-    `Photo context: ${fixedAnalysis.photoContext.summary}`,
-    fixedAnalysis.evidencePack.eventContext.eventDescription
-      ? `Event description: ${fixedAnalysis.evidencePack.eventContext.eventDescription}`
-      : "Event description: unavailable",
-    fixedAnalysis.surveyInsight
-      ? `Survey insight: ${fixedAnalysis.surveyInsight.evidenceSummary}`
-      : "Survey insight: unavailable",
-    fixedAnalysis.postPerformanceInsight
-      ? `Post performance insight: ${fixedAnalysis.postPerformanceInsight.evidenceSummary}`
-      : "Post performance insight: unavailable",
-    fixedAnalysis.accountOverviewInsight
-      ? `Account overview insight: ${fixedAnalysis.accountOverviewInsight.evidenceSummary}`
-      : "Account overview insight: unavailable",
-  ];
+    `Event name: ${material.eventShortName ?? material.eventOfficialName ?? getEffectiveEventName(request)}`,
+    `Post type: ${material.postType}`,
+    `Current situation: ${material.situation ?? request.currentSituation}`,
+    material.photoDescriptionForPost
+      ? `Photo: ${material.photoDescriptionForPost}`
+      : undefined,
+    material.mood ? `Mood: ${material.mood}` : undefined,
+    material.audienceContext
+      ? `Audience: ${material.audienceContext}`
+      : undefined,
+    material.speakerOrSessionContext
+      ? `Session: ${material.speakerOrSessionContext}`
+      : undefined,
+    material.mainTopics?.length
+      ? `Topics: ${material.mainTopics.slice(0, 3).join(" / ")}`
+      : undefined,
+    fixedAnalysis.evidencePack.eventContext.eventUrl
+      ? "Event URL available"
+      : undefined,
+  ].filter((value): value is string => Boolean(value));
 }
 
 function buildChecks(request: ActionRunRequest): string[] {
@@ -1005,25 +469,6 @@ function buildSafetyReview(input: {
       ...input.warnings.map((warning) => `Tableau warning: ${warning}`),
     ],
   };
-}
-
-function buildImageCaption(
-  request: ActionRunRequest,
-  analysisSections: ActionRunAnalysisSection[],
-): string {
-  const topLabel = collectTableauSignals(analysisSections)[0] ?? "in progress";
-  return `${getEffectiveEventName(request)} ${request.postType} image draft. Emphasize ${topLabel}.`;
-}
-
-function buildHashtags(request: ActionRunRequest): string[] {
-  const hashtags = new Set<string>(["#Tableau", "#TechPlay"]);
-  for (const token of getEffectiveEventName(request).split(/\s+/u)) {
-    const cleaned = token.replace(/[^A-Za-z0-9]/g, "").trim();
-    if (cleaned.length >= 2) {
-      hashtags.add(`#${cleaned}`);
-    }
-  }
-  return [...hashtags].slice(0, 5);
 }
 
 function collectWarnings(input: PhotoPostAnalysisResult): string[] {
@@ -1094,4 +539,44 @@ function normalizeMeaningfulText(value?: string): string | undefined {
   }
 
   return text;
+}
+
+function resolveSharedPostText(input: {
+  primarySuggestionText?: string;
+  fallbackText: string;
+  limit: number;
+}): string {
+  const candidates = [
+    input.primarySuggestionText?.trim(),
+    input.fallbackText.trim(),
+  ].filter((value): value is string => Boolean(value));
+
+  const withinLimit = candidates.find((value) =>
+    isWithinPostTextLimit(value, input.limit),
+  );
+  if (withinLimit) {
+    return withinLimit;
+  }
+
+  return truncatePostText(candidates[0] ?? input.fallbackText, input.limit);
+}
+
+function uniqueStrings(values: Array<string | undefined>): string[] {
+  return [
+    ...new Set(
+      values.map((value) => value?.trim()).filter(Boolean) as string[],
+    ),
+  ];
+}
+
+function createTableauContextProvider(): TableauContextProvider {
+  switch (getConfig().tableau.contextProvider) {
+    case "direct-api":
+      return new DirectTableauApiContextProvider();
+    case "mcp":
+      return new TableauMcpContextProvider();
+    case "mock":
+    default:
+      return new MockTableauContextProvider();
+  }
 }
