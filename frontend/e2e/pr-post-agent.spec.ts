@@ -24,6 +24,9 @@ test.describe("PR post agent", () => {
     await page.getByRole("button", { name: "開催中の実況" }).click();
     await page.getByRole("button", { name: "ライブラリから選択" }).click();
     await uploadVenuePhoto(page);
+    await expect(
+      page.getByRole("region", { name: "回答生成ステータス" }),
+    ).toBeVisible();
 
     await expect(page.locator(".suggestion-card")).toHaveCount(3);
     await expect(page.locator(".suggestion-carousel")).toBeVisible();

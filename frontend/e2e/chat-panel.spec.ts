@@ -72,6 +72,9 @@ test.describe("PR投稿エージェント", () => {
 
     await expect(page.locator(".suggestion-carousel")).toBeVisible();
     await expect(page.locator(".suggestion-card")).toHaveCount(3);
+    await expect(
+      page.getByRole("region", { name: "回答生成ステータス" }),
+    ).toBeVisible();
     await expect(page.locator(".analysis-details-summary")).toHaveText(
       "詳細を見る",
     );

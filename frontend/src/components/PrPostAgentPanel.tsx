@@ -431,7 +431,6 @@ export default function PrPostAgentPanel({
 
     let cancelled = false;
     setGenerationStatus("generating");
-    setActionRunStatus(null);
 
     void (async () => {
       try {
@@ -464,17 +463,6 @@ export default function PrPostAgentPanel({
 
         setGeneratedDraft(draft);
         setGenerationStatus("generated");
-        setMessages((current) => [
-          ...current,
-          {
-            id: crypto.randomUUID(),
-            role: "assistant",
-            lines: [
-              "投稿案を生成しました。",
-              "必要なら Slack や Bluesky に投稿できます。",
-            ],
-          },
-        ]);
       } catch (draftError) {
         if (cancelled) {
           return;
@@ -861,43 +849,18 @@ export default function PrPostAgentPanel({
       ]);
 
       if (selectedPostType && nextCalendar) {
-        setWorkflow((current) => ({
-          ...current,
-          tableauAnalysisStatus: "fetching",
-        }));
-        const analysis = await analyzePastPostsWithTableau({
-          postType: selectedPostType!,
-          dashboardContext,
-          calendarResult: nextCalendar!,
-          authToken,
-          ownerToken: resolvedConnectionOwnerToken ?? undefined,
-          onProgress: (job) => {
-            setActionRunStatus(job);
-          },
+        void runTableauAnalysisIfReady({
+          workflowId: workflowIdRef.current,
+          postType: selectedPostType,
+          calendar: nextCalendar,
+          image: uploadedImage,
         });
-        setAnalysisResult(analysis);
-        setWorkflow((current) => ({
-          ...current,
-          tableauAnalysisStatus: "completed",
-        }));
-        setMessages((current) => [
-          ...current,
-          {
-            id: crypto.randomUUID(),
-            role: "assistant",
-            lines: analysis.result.canGeneratePost
-              ? ["画像を確認しました。会場情報と投稿案をまとめます。"]
-              : [
-                  "画像が見つかりませんでした。もう一度アップロードしてください",
-                ],
-          },
-        ]);
       }
-    } catch (manualError) {
+    } catch (analysisError) {
       setWorkflow((current) => ({ ...current, techPlayFetchStatus: "error" }));
       setError(
-        manualError instanceof Error
-          ? manualError.message
+        analysisError instanceof Error
+          ? analysisError.message
           : "TechPlay URLの取得に失敗しました。",
       );
       return;
@@ -956,16 +919,6 @@ export default function PrPostAgentPanel({
         ...current,
         tableauAnalysisStatus: "completed",
       }));
-      setMessages((current) => [
-        ...current,
-        {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          lines: analysis.result.canGeneratePost
-            ? ["画像とTableau分析をそろえて投稿案を作成しました。"]
-            : ["画像が不足しているため、投稿案の作成は保留しました。"],
-        },
-      ]);
     } catch (analysisError) {
       if (input.workflowId !== workflowIdRef.current) {
         return;
@@ -1429,6 +1382,52 @@ export default function PrPostAgentPanel({
           </section>
         ) : null}
 
+        {actionRunStatus ? (
+          <section
+            className="pr-post-agent-action-run-panel"
+            aria-label="回答生成ステータス"
+          >
+            <div className="pr-post-agent-action-run-header">
+              <strong>現在の回答生成ステータス</strong>
+              <span>{actionRunStatus.status}</span>
+            </div>
+            <dl className="pr-post-agent-action-run-meta">
+              <div>
+                <dt>Stage</dt>
+                <dd>{actionRunStatus.stage}</dd>
+              </div>
+              <div>
+                <dt>Action Run ID</dt>
+                <dd>{actionRunStatus.actionRunId}</dd>
+              </div>
+            </dl>
+            {actionRunStatus.progressMessages.length ? (
+              <ul className="pr-post-agent-action-run-progress-list">
+                {actionRunStatus.progressMessages.map((message) => (
+                  <li key={`${message.stage}-${message.at}`}>
+                    <span className="pr-post-agent-action-run-progress-stage">
+                      {message.stage}
+                    </span>
+                    <span className="pr-post-agent-action-run-progress-message">
+                      {message.message}
+                    </span>
+                    <time dateTime={message.at}>
+                      {new Date(message.at).toLocaleTimeString("ja-JP", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </time>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="pr-post-agent-inline-note">
+                現在の回答生成メッセージを取得中です。
+              </p>
+            )}
+          </section>
+        ) : null}
+
         {generatedPostSuggestions.length ? (
           <ChatBubble role="assistant" className="pr-post-agent-bubble--cards">
             <GeneratedPostSuggestionsPanel
@@ -1481,52 +1480,6 @@ export default function PrPostAgentPanel({
               </ul>
             </div>
           </ChatBubble>
-        ) : null}
-
-        {actionRunStatus ? (
-          <section
-            className="pr-post-agent-action-run-panel"
-            aria-label="回答生成ステータス"
-          >
-            <div className="pr-post-agent-action-run-header">
-              <strong>現在の回答生成ステータス</strong>
-              <span>{actionRunStatus.status}</span>
-            </div>
-            <dl className="pr-post-agent-action-run-meta">
-              <div>
-                <dt>Stage</dt>
-                <dd>{actionRunStatus.stage}</dd>
-              </div>
-              <div>
-                <dt>Action Run ID</dt>
-                <dd>{actionRunStatus.actionRunId}</dd>
-              </div>
-            </dl>
-            {actionRunStatus.progressMessages.length ? (
-              <ul className="pr-post-agent-action-run-progress-list">
-                {actionRunStatus.progressMessages.map((message) => (
-                  <li key={`${message.stage}-${message.at}`}>
-                    <span className="pr-post-agent-action-run-progress-stage">
-                      {message.stage}
-                    </span>
-                    <span className="pr-post-agent-action-run-progress-message">
-                      {message.message}
-                    </span>
-                    <time dateTime={message.at}>
-                      {new Date(message.at).toLocaleTimeString("ja-JP", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </time>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="pr-post-agent-inline-note">
-                現在の進捗メッセージを取得中です。
-              </p>
-            )}
-          </section>
         ) : null}
 
         {completedPosts.map((post) => (

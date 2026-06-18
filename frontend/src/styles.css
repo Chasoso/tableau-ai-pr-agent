@@ -880,8 +880,8 @@ a {
   max-width: 320px;
   box-sizing: border-box;
   display: grid;
-  gap: 8px;
-  padding: 12px 12px 10px;
+  gap: 6px;
+  padding: 12px 12px 8px;
   border: 1px solid #d3d7dc;
   border-radius: 10px;
   background: linear-gradient(180deg, #d9d9dc 0%, #d1d2d6 100%);
@@ -960,11 +960,13 @@ a {
   width: fit-content;
   justify-self: end;
   border-radius: 8px;
-  padding: 7px 12px;
+  margin-top: 2px;
+  padding: 6px 11px;
   background: #56585d;
   color: #fff;
   font-weight: 700;
   font-size: 12px;
+  line-height: 1.15;
 }
 
 .suggestion-accept-button:disabled {

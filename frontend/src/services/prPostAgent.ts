@@ -211,6 +211,7 @@ export async function analyzePastPostsWithTableau(
       input.authToken,
       input.ownerToken ?? ownerToken,
     );
+    input.onProgress?.(job);
     if (job.status === "completed" && job.result) {
       return {
         actionRunId: created.actionRunId,
