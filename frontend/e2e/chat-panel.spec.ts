@@ -94,15 +94,8 @@ test.describe("PR投稿エージェント", () => {
     ).toBeVisible();
     await expect(page.locator(".suggestion-card")).toHaveCount(1);
     await expect(page.locator(".pr-post-agent-approval-bar")).toBeVisible();
-    await expect(
-      page.getByRole("dialog").getByRole("textbox", { name: "投稿文" }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("dialog").getByRole("img", { name: "venue.jpg" }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("dialog").getByText("Tableau signals / Debug info"),
-    ).toBeVisible();
+    await expect(page.getByRole("dialog").getByRole("textbox")).toBeVisible();
+    await expect(page.getByRole("dialog").getByRole("img")).toHaveCount(0);
 
     await page
       .getByRole("dialog")

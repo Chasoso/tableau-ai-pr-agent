@@ -53,12 +53,7 @@ test.describe("PR post agent", () => {
     await expect(dialog).toBeVisible();
     await expect(page.locator(".suggestion-card")).toHaveCount(1);
     await expect(dialog.getByRole("textbox", { name: "投稿文" })).toBeVisible();
-    await expect(dialog.getByRole("img", { name: "venue.jpg" })).toBeVisible();
-    await expect(dialog.getByText("Evidence")).toBeVisible();
-    await expect(dialog.getByText("Checks")).toBeVisible();
-    await expect(
-      dialog.getByText("Tableau signals / Debug info"),
-    ).toBeVisible();
+    await expect(dialog.getByRole("img")).toHaveCount(0);
     await expect(
       dialog.getByRole("button", { name: "Slackに投稿" }),
     ).toBeEnabled();
@@ -170,8 +165,7 @@ test.describe("PR post agent", () => {
     await expect(dialog).toBeVisible();
     await expect(page.locator(".suggestion-card")).toHaveCount(1);
     await expect(dialog.getByRole("textbox", { name: "投稿文" })).toBeVisible();
-    await expect(dialog.getByRole("img", { name: "venue.jpg" })).toBeVisible();
-    await expect(dialog.getByText("Evidence")).toBeVisible();
+    await expect(dialog.getByRole("img")).toHaveCount(0);
 
     await page.unroute("**/api/action-runs/*/approval").catch(() => undefined);
     await page.route("**/api/action-runs/*/approval", async (route) => {
