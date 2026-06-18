@@ -208,14 +208,12 @@ describe("PrPostAgentPanel", () => {
     ).toBe(
       "【6/19(金)開催】第8回北陸Tableauユーザー会 広がるTableauの可能性〜Viz表現・AI・コミュニティから考える次の一歩〜\n\n2026/06/19 18:30 - 20:30の告知を、現場感を込めてお届けします。\n\nhttps://techplay.jp/event/996372\n#Tableau #HokuTUG",
     );
+    expect(within(approvalDialog).queryByRole("img")).toBeNull();
+    expect(within(approvalDialog).queryByText("Evidence")).toBeNull();
+    expect(within(approvalDialog).queryByText("Checks")).toBeNull();
     expect(
-      within(approvalDialog).getByRole("img", { name: "venue.jpg" }),
-    ).toBeTruthy();
-    expect(within(approvalDialog).getByText("Evidence")).toBeTruthy();
-    expect(within(approvalDialog).getByText("Checks")).toBeTruthy();
-    expect(
-      within(approvalDialog).getByText("Tableau signals / Debug info"),
-    ).toBeTruthy();
+      within(approvalDialog).queryByText("Tableau signals / Debug info"),
+    ).toBeNull();
 
     const postTextBox = screen.getByRole("textbox", { name: "投稿文" });
     await user.clear(postTextBox);

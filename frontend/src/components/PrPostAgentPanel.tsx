@@ -4,7 +4,6 @@ import { ensureChatJobOwnerToken } from "../api/chatJobOwnerToken";
 import type {
   ActionRunGetResponse,
   ActionRunPostType,
-  ActionRunResult,
 } from "../types/actionRun";
 import type {
   CalendarEventCandidate,
@@ -223,13 +222,6 @@ export default function PrPostAgentPanel({
   const isSlackPosting = slackPostStatus === "posting";
   const isBlueskyPosting = blueskyPostStatus === "posting";
   const activeBlueskySuggestion = approvedSuggestion ?? selectedSuggestion;
-  const approvalEvidenceLines =
-    analysisResult?.result.evidence?.slice(0, 5) ?? [];
-  const approvalCheckLines = analysisResult?.result.checks?.slice(0, 5) ?? [];
-  const approvalTableauSignals = buildApprovalTableauSignals(
-    analysisResult?.result.evidencePack,
-  );
-  const approvalDebugLines = buildApprovalDebugLines(analysisResult?.result);
   const slackApprovalTextLength = countPostTextCharacters(
     slackEditedText.trim() || selectedSuggestion?.suggestion.text.trim() || "",
   );
@@ -1604,61 +1596,6 @@ export default function PrPostAgentPanel({
                 setSlackEditedText(event.currentTarget.value)
               }
             />
-
-            {attachedImagePreviewUrl ? (
-              <figure className="pr-post-agent-approval-image">
-                <img
-                  src={attachedImagePreviewUrl}
-                  alt={attachedImagePreviewLabel}
-                />
-              </figure>
-            ) : null}
-
-            <details className="pr-post-agent-approval-details">
-              <summary>Evidence</summary>
-              {approvalEvidenceLines.length ? (
-                <ul>
-                  {approvalEvidenceLines.map((line) => (
-                    <li key={line}>{line}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p>なし</p>
-              )}
-            </details>
-
-            <details className="pr-post-agent-approval-details">
-              <summary>Checks</summary>
-              {approvalCheckLines.length ? (
-                <ul>
-                  {approvalCheckLines.map((line) => (
-                    <li key={line}>{line}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p>なし</p>
-              )}
-            </details>
-
-            <details className="pr-post-agent-approval-details">
-              <summary>Tableau signals / Debug info</summary>
-              {approvalTableauSignals.length ? (
-                <ul>
-                  {approvalTableauSignals.map((line) => (
-                    <li key={line}>{line}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p>なし</p>
-              )}
-              {approvalDebugLines.length ? (
-                <ul>
-                  {approvalDebugLines.map((line) => (
-                    <li key={line}>{line}</li>
-                  ))}
-                </ul>
-              ) : null}
-            </details>
           </div>
 
           <div className="pr-post-agent-approval-bar-actions">
@@ -1809,82 +1746,6 @@ function resolveConnectionOwnerToken(scopeKey?: string): string | undefined {
   }
 
   return scopeKey.slice("anon:".length) || undefined;
-}
-
-function buildApprovalTableauSignals(
-  evidencePack: ActionRunResult["evidencePack"] | undefined,
-): string[] {
-  if (!evidencePack) {
-    return [];
-  }
-
-  return [
-    describeInsightSection("Survey insight", evidencePack.surveyInsight),
-    describeInsightSection(
-      "Post performance insight",
-      evidencePack.postPerformanceInsight,
-    ),
-    describeInsightSection(
-      "Account overview insight",
-      evidencePack.accountOverviewInsight,
-    ),
-  ].filter((line): line is string => Boolean(line));
-}
-
-function buildApprovalDebugLines(
-  result: ActionRunResult | undefined,
-): string[] {
-  if (!result) {
-    return [];
-  }
-
-  const lines = [
-    result.primaryOutputType
-      ? `Primary output: ${result.primaryOutputType}`
-      : null,
-    result.generatedPostSuggestions?.length
-      ? `Generated suggestions: ${result.generatedPostSuggestions.length}`
-      : null,
-    result.draftReview
-      ? `Draft review: ${result.draftReview.status} / ${result.draftReview.riskLevel}`
-      : null,
-    result.safetyReview ? `Safety review: ${result.safetyReview.status}` : null,
-  ];
-
-  return lines.filter((line): line is string => Boolean(line));
-}
-
-function describeInsightSection(
-  label: string,
-  section:
-    | NonNullable<ActionRunResult["evidencePack"]>["surveyInsight"]
-    | NonNullable<ActionRunResult["evidencePack"]>["postPerformanceInsight"]
-    | NonNullable<ActionRunResult["evidencePack"]>["accountOverviewInsight"]
-    | undefined,
-): string | null {
-  if (!section) {
-    return null;
-  }
-
-  const parts = [
-    `${label}: ${section.available ? "available" : "unavailable"}`,
-    `status=${section.sourceStatus}`,
-    `rows=${section.queryRowCount}`,
-  ];
-
-  if (section.warnings.length) {
-    parts.push(`warnings=${section.warnings.join(", ")}`);
-  }
-
-  if (section.skippedReason) {
-    parts.push(`skipped=${section.skippedReason}`);
-  }
-
-  if (section.failedReason) {
-    parts.push(`failed=${section.failedReason}`);
-  }
-
-  return parts.join(" | ");
 }
 
 function blueskyPostUriToWebUrl(uri?: string): string | undefined {
