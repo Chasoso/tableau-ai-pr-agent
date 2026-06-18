@@ -4,6 +4,7 @@ import { ensureChatJobOwnerToken } from "../api/chatJobOwnerToken";
 import type {
   ActionRunGetResponse,
   ActionRunPostType,
+  ActionRunResult,
 } from "../types/actionRun";
 import type {
   CalendarEventCandidate,
@@ -154,6 +155,7 @@ export default function PrPostAgentPanel({
     useState<GeneratedPrPostDraft | null>(null);
   const [selectedSuggestion, setSelectedSuggestion] =
     useState<SelectedSuggestion | null>(null);
+  const [slackEditedText, setSlackEditedText] = useState("");
   const [approvedSuggestion, setApprovedSuggestion] =
     useState<SelectedSuggestion | null>(null);
   const [actionRunStatus, setActionRunStatus] =
@@ -226,6 +228,16 @@ export default function PrPostAgentPanel({
   const activeBlueskySuggestionLength = activeBlueskySuggestionText
     ? countPostTextCharacters(activeBlueskySuggestionText)
     : 0;
+  const approvalEvidenceLines =
+    analysisResult?.result.evidence?.slice(0, 5) ?? [];
+  const approvalCheckLines = analysisResult?.result.checks?.slice(0, 5) ?? [];
+  const approvalTableauSignals = buildApprovalTableauSignals(
+    analysisResult?.result.evidencePack,
+  );
+  const approvalDebugLines = buildApprovalDebugLines(analysisResult?.result);
+  const slackApprovalTextLength = countPostTextCharacters(
+    slackEditedText.trim() || selectedSuggestion?.suggestion.text.trim() || "",
+  );
 
   const canGenerate = useMemo(() => {
     if (!selectedPostType || generationStatus !== "idle") {
@@ -1031,6 +1043,7 @@ export default function PrPostAgentPanel({
       index: input.index,
       suggestion: input.suggestion,
     });
+    setSlackEditedText(input.suggestion.text);
     setApprovedSuggestion(null);
     setSlackPostError(null);
     setSlackPostStatus("idle");
@@ -1056,6 +1069,7 @@ export default function PrPostAgentPanel({
 
     setIsApprovalOpen(false);
     setSelectedSuggestion(null);
+    setSlackEditedText("");
     setApprovedSuggestion(null);
     setSlackPostError(null);
     setSlackPostStatus("idle");
@@ -1081,6 +1095,7 @@ export default function PrPostAgentPanel({
         accessToken: authToken,
         ownerToken: analysisResult.ownerToken,
         selectedSuggestionText: selectedSuggestion.suggestion.text,
+        editedText: slackEditedText,
       });
       setSlackPostStatus("posted");
       console.debug("ui.slackPost.completed", {
@@ -1091,7 +1106,7 @@ export default function PrPostAgentPanel({
         ...current,
         {
           channel: "slack",
-          text: selectedSuggestion.suggestion.text,
+          text: slackEditedText.trim() || selectedSuggestion.suggestion.text,
           openLabel: "Slackを開く",
           postedAt: new Date().toISOString(),
           url: response.slackWebhook.sent ? "https://slack.com" : undefined,
@@ -1108,6 +1123,7 @@ export default function PrPostAgentPanel({
       setIsApprovalOpen(false);
       setApprovedSuggestion(selectedSuggestion);
       setSelectedSuggestion(null);
+      setSlackEditedText("");
       setIsBlueskyApprovalOpen(true);
       setBlueskyPostError(null);
       setBlueskyPostStatus("idle");
@@ -1612,21 +1628,92 @@ export default function PrPostAgentPanel({
       {isApprovalOpen && selectedSuggestion ? (
         <section
           className="pr-post-agent-approval-bar"
-          aria-label="Slack投稿の承認"
+          aria-label="Slack post approval"
           role="dialog"
           aria-modal="false"
         >
           <div className="pr-post-agent-approval-bar-copy">
             <p className="pr-post-agent-approval-bar-title">
-              Slackへの投稿がリクエストされました
+              Slackに投稿しますか？
             </p>
             <p className="pr-post-agent-approval-bar-text">
-              この投稿案を Slack Incoming Webhook に送信します。
+              投稿文と添付画像を確認してから、Slack Incoming
+              Webhookへ送信します。
             </p>
             <p className="pr-post-agent-approval-bar-text">
-              本文 {activeBlueskySuggestionLength}/{POST_TEXT_LIMIT} 字。 画像は
-              1 枚を別添付します。
+              字数 {slackApprovalTextLength}/{POST_TEXT_LIMIT}。
             </p>
+
+            <label
+              className="pr-post-agent-approval-text-label"
+              htmlFor="slack-post-text"
+            >
+              投稿文
+            </label>
+            <textarea
+              id="slack-post-text"
+              className="pr-post-agent-approval-textarea"
+              rows={6}
+              value={slackEditedText}
+              onChange={(event) =>
+                setSlackEditedText(event.currentTarget.value)
+              }
+            />
+
+            {attachedImagePreviewUrl ? (
+              <figure className="pr-post-agent-approval-image">
+                <img
+                  src={attachedImagePreviewUrl}
+                  alt={attachedImagePreviewLabel}
+                />
+              </figure>
+            ) : null}
+
+            <details className="pr-post-agent-approval-details">
+              <summary>Evidence</summary>
+              {approvalEvidenceLines.length ? (
+                <ul>
+                  {approvalEvidenceLines.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p>なし</p>
+              )}
+            </details>
+
+            <details className="pr-post-agent-approval-details">
+              <summary>Checks</summary>
+              {approvalCheckLines.length ? (
+                <ul>
+                  {approvalCheckLines.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p>なし</p>
+              )}
+            </details>
+
+            <details className="pr-post-agent-approval-details">
+              <summary>Tableau signals / Debug info</summary>
+              {approvalTableauSignals.length ? (
+                <ul>
+                  {approvalTableauSignals.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p>なし</p>
+              )}
+              {approvalDebugLines.length ? (
+                <ul>
+                  {approvalDebugLines.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </details>
           </div>
 
           <div className="pr-post-agent-approval-bar-actions">
@@ -1777,6 +1864,82 @@ function resolveConnectionOwnerToken(scopeKey?: string): string | undefined {
   }
 
   return scopeKey.slice("anon:".length) || undefined;
+}
+
+function buildApprovalTableauSignals(
+  evidencePack: ActionRunResult["evidencePack"] | undefined,
+): string[] {
+  if (!evidencePack) {
+    return [];
+  }
+
+  return [
+    describeInsightSection("Survey insight", evidencePack.surveyInsight),
+    describeInsightSection(
+      "Post performance insight",
+      evidencePack.postPerformanceInsight,
+    ),
+    describeInsightSection(
+      "Account overview insight",
+      evidencePack.accountOverviewInsight,
+    ),
+  ].filter((line): line is string => Boolean(line));
+}
+
+function buildApprovalDebugLines(
+  result: ActionRunResult | undefined,
+): string[] {
+  if (!result) {
+    return [];
+  }
+
+  const lines = [
+    result.primaryOutputType
+      ? `Primary output: ${result.primaryOutputType}`
+      : null,
+    result.generatedPostSuggestions?.length
+      ? `Generated suggestions: ${result.generatedPostSuggestions.length}`
+      : null,
+    result.draftReview
+      ? `Draft review: ${result.draftReview.status} / ${result.draftReview.riskLevel}`
+      : null,
+    result.safetyReview ? `Safety review: ${result.safetyReview.status}` : null,
+  ];
+
+  return lines.filter((line): line is string => Boolean(line));
+}
+
+function describeInsightSection(
+  label: string,
+  section:
+    | NonNullable<ActionRunResult["evidencePack"]>["surveyInsight"]
+    | NonNullable<ActionRunResult["evidencePack"]>["postPerformanceInsight"]
+    | NonNullable<ActionRunResult["evidencePack"]>["accountOverviewInsight"]
+    | undefined,
+): string | null {
+  if (!section) {
+    return null;
+  }
+
+  const parts = [
+    `${label}: ${section.available ? "available" : "unavailable"}`,
+    `status=${section.sourceStatus}`,
+    `rows=${section.queryRowCount}`,
+  ];
+
+  if (section.warnings.length) {
+    parts.push(`warnings=${section.warnings.join(", ")}`);
+  }
+
+  if (section.skippedReason) {
+    parts.push(`skipped=${section.skippedReason}`);
+  }
+
+  if (section.failedReason) {
+    parts.push(`failed=${section.failedReason}`);
+  }
+
+  return parts.join(" | ");
 }
 
 function blueskyPostUriToWebUrl(uri?: string): string | undefined {

@@ -100,6 +100,14 @@ export type ActionRunResult = {
   hashtags: string[];
   evidence: string[];
   checks: string[];
+  draftReview?: {
+    status: "pass" | "needs_info" | "needs_review";
+    riskLevel: "low" | "medium" | "high";
+    missingFields: string[];
+    issues: string[];
+    checklist: string[];
+    notes: string[];
+  };
   imageCaption?: string;
   primaryOutputType?: "generated_post_suggestions" | "analysis_summary";
   generatedPostSuggestions?: GeneratedPostSuggestion[];
@@ -118,6 +126,7 @@ export type ActionRunResult = {
   canGeneratePost?: boolean;
   generationBlockers?: string[];
   analysisSections?: ActionRunAnalysisSection[];
+  safetyReview?: ActionRunSafetyReview;
   debug?: {
     source?: "stub";
     requestEcho?: Pick<
@@ -125,6 +134,21 @@ export type ActionRunResult = {
       "postType" | "eventName" | "techplayUrl" | "currentSituation"
     >;
   };
+};
+
+export type ActionRunSafetyReview = {
+  status:
+    | "pending_manual_review"
+    | "approved"
+    | "rejected"
+    | "sent_to_slack"
+    | "sent_to_bluesky";
+  required: true;
+  checklist: string[];
+  notes: string[];
+  reviewerNote?: string;
+  reviewedAt?: string;
+  sentAt?: string;
 };
 
 export type InsightSection = {
@@ -243,6 +267,7 @@ export type ActionRunApprovalRequest = {
   reviewerNote?: string;
   selectedSuggestionId?: string;
   selectedSuggestionText?: string;
+  editedText?: string;
 };
 
 export type ActionRunApprovalResponse = ActionRunGetResponse & {

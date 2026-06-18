@@ -26,7 +26,7 @@ describe("SlackWebhookService", () => {
     }
   });
 
-  it("posts a formatted payload to the Slack webhook", async () => {
+  it("posts only the approved post text and image to the Slack webhook", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -58,9 +58,59 @@ describe("SlackWebhookService", () => {
       text: string;
       blocks: Array<{ type: string; [key: string]: unknown }>;
     };
-    expect(payload.text).toContain("Tableau User Group Tokyo 2026");
-    expect(payload.blocks.length).toBeGreaterThan(0);
-    expect(payload.blocks.some((block) => block.type === "image")).toBe(true);
+    expect(payload.text).toBe("draft text");
+    expect(payload.blocks).toHaveLength(2);
+    expect(payload.blocks[0]).toEqual(
+      expect.objectContaining({
+        type: "section",
+        text: expect.objectContaining({
+          type: "mrkdwn",
+          text: "draft text",
+        }),
+      }),
+    );
+    expect(payload.blocks[1]).toEqual(
+      expect.objectContaining({
+        type: "image",
+        image_url:
+          "https://images.example.com/pr-action-images/action-run-1/poster.svg",
+        alt_text: expect.stringContaining("Tableau User Group Tokyo 2026"),
+      }),
+    );
+    expect(JSON.stringify(payload)).not.toContain("Draft post");
+    expect(JSON.stringify(payload)).not.toContain("Summary");
+    expect(JSON.stringify(payload)).not.toContain("Human review");
+    expect(JSON.stringify(payload)).not.toContain("Evidence");
+    expect(JSON.stringify(payload)).not.toContain("Checks");
+    expect(JSON.stringify(payload)).not.toContain("Tableau signals");
+  });
+
+  it("prefers edited text over the selected suggestion text", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+    });
+    const service = new SlackWebhookService(fetchMock as never);
+
+    await service.postActionRun({
+      request: buildRequest(),
+      result: buildResult(),
+      selectedSuggestionText: "selected suggestion",
+      editedText: "edited suggestion",
+    });
+
+    const [, init] = fetchMock.mock.calls[0];
+    const payload = JSON.parse((init as RequestInit).body as string) as {
+      text: string;
+      blocks: Array<{ type: string; [key: string]: unknown }>;
+    };
+
+    expect(payload.text).toBe("edited suggestion");
+    expect(
+      payload.blocks[0] &&
+        "text" in payload.blocks[0] &&
+        (payload.blocks[0].text as { text?: string }).text,
+    ).toBe("edited suggestion");
   });
 
   it("skips posting when no webhook is configured", async () => {

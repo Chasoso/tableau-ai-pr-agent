@@ -376,6 +376,7 @@ export async function postToSlack(input: {
   accessToken?: string;
   ownerToken?: string;
   selectedSuggestionText?: string;
+  editedText?: string;
 }): Promise<ActionRunApprovalResponse> {
   const actionRunId = input.actionRunId ?? input.draft?.analysis.actionRunId;
   if (!actionRunId) {
@@ -387,6 +388,7 @@ export async function postToSlack(input: {
     {
       approved: true,
       selectedSuggestionText: input.selectedSuggestionText?.trim() || undefined,
+      editedText: input.editedText?.trim() || undefined,
     },
     input.accessToken,
     input.ownerToken,

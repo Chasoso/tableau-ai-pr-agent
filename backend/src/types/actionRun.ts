@@ -235,6 +235,7 @@ export type ActionRunApprovalRequest = {
   reviewerNote?: string;
   selectedSuggestionId?: string;
   selectedSuggestionText?: string;
+  editedText?: string;
 };
 
 export type ActionRunAnalysisSection = {

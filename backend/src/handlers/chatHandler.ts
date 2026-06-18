@@ -616,6 +616,13 @@ function validateActionRunApprovalRequest(
     return "approved must be true to send Slack.";
   }
 
+  if (
+    request.editedText !== undefined &&
+    typeof request.editedText !== "string"
+  ) {
+    return "editedText must be a string.";
+  }
+
   return null;
 }
 
