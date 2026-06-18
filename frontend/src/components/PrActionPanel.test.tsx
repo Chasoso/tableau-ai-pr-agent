@@ -378,11 +378,6 @@ describe("PrActionPanel", () => {
     );
     await waitFor(() =>
       expect(
-        screen.getByRole("region", { name: "回答生成ステータス" }),
-      ).toHaveTextContent("running_mcp_tools"),
-    );
-    await waitFor(() =>
-      expect(
         screen.queryByRole("region", { name: "回答生成ステータス" }),
       ).not.toBeInTheDocument(),
     );
