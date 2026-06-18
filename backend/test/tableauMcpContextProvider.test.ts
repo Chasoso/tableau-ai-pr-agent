@@ -1160,6 +1160,114 @@ describe("TableauMcpContextProvider extraction helpers", () => {
     });
   });
 
+  it("preserves planned query fields, filters, and limit for query-datasource", () => {
+    const queryTool = {
+      name: "query-datasource",
+      inputSchema: {
+        type: "object",
+        required: ["datasourceLuid", "query"],
+        properties: {
+          datasourceLuid: { type: "string" },
+          query: { type: "object" },
+          limit: { type: "number" },
+        },
+      },
+    };
+
+    const args = inferPlannedToolArguments(
+      queryTool,
+      {
+        datasourceLuid: "ds-123",
+        query: {
+          fields: [
+            { fieldCaption: "Mcp Awareness", fieldAlias: "rank_label" },
+            {
+              fieldCaption: "Response Id",
+              function: "SUM",
+              fieldAlias: "rank_metric",
+            },
+          ],
+          filters: [
+            {
+              field: { fieldCaption: "Timestamp" },
+              filterType: "QUANTITATIVE_DATE",
+              quantitativeFilterType: "RANGE",
+              minDate: "2026-05-19",
+              maxDate: "2026-06-18",
+            },
+          ],
+        },
+        limit: 20,
+      },
+      {
+        ...baseInput,
+        dashboardContext: {
+          ...baseInput.dashboardContext,
+          dataSources: [{ name: "MCP_Session_Survey_Responses", id: "ds-123" }],
+        },
+      },
+    );
+
+    expect(args).toEqual({
+      datasourceLuid: "ds-123",
+      query: {
+        fields: [
+          { fieldCaption: "Mcp Awareness", fieldAlias: "rank_label" },
+          {
+            fieldCaption: "Response Id",
+            function: "SUM",
+            fieldAlias: "rank_metric",
+          },
+        ],
+        filters: [
+          {
+            field: { fieldCaption: "Timestamp" },
+            filterType: "QUANTITATIVE_DATE",
+            quantitativeFilterType: "RANGE",
+            minDate: "2026-05-19",
+            maxDate: "2026-06-18",
+          },
+        ],
+      },
+      limit: 20,
+    });
+  });
+
+  it("rejects query-datasource args when planned fields are missing", () => {
+    const queryTool = {
+      name: "query-datasource",
+      inputSchema: {
+        type: "object",
+        required: ["datasourceLuid", "query"],
+        properties: {
+          datasourceLuid: { type: "string" },
+          query: { type: "object" },
+          limit: { type: "number" },
+        },
+      },
+    };
+
+    const args = inferPlannedToolArguments(
+      queryTool,
+      {
+        datasourceLuid: "ds-123",
+        query: {
+          fields: [],
+        },
+        limit: 20,
+      },
+      {
+        ...baseInput,
+        dashboardContext: {
+          ...baseInput.dashboardContext,
+          dataSources: [{ name: "MCP_Session_Survey_Responses", id: "ds-123" }],
+        },
+      },
+    );
+
+    expect(args).toBeUndefined();
+  });
+
   it("treats multiple close datasource matches as ambiguous", () => {
     const rawToolResults = [
       {

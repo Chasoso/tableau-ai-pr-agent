@@ -2237,22 +2237,32 @@ function validateQueryDatasourceArguments(
         (field): field is Record<string, unknown> =>
           Boolean(field) && typeof field === "object" && !Array.isArray(field),
       )
-    : undefined;
-  const dedupedFields = fieldsBeforeDedupe
-    ? dedupeQueryDatasourceFields(fieldsBeforeDedupe)
-    : undefined;
-  if (
-    !dedupedFields ||
-    dedupedFields.length === 0 ||
-    dedupedFields.length > Math.max(config.queryDatasourceMaxFields, 1)
-  ) {
+    : [];
+  if (fieldsBeforeDedupe.length === 0) {
+    logDebug("tableau.mcp.query.validation_rejected", {
+      reason: "query_args_missing_fields",
+      queryArgsSummary: summarizeQueryDatasourceArgs(args),
+      fieldCount: 0,
+      fields: [],
+    });
+    return undefined;
+  }
+  const dedupedFields = dedupeQueryDatasourceFields(fieldsBeforeDedupe);
+  if (dedupedFields.length === 0) {
+    logDebug("tableau.mcp.query.validation_rejected", {
+      reason: "query_args_mapping_failed",
+      queryArgsSummary: summarizeQueryDatasourceArgs(args),
+      queryFieldsBeforeDedupe: summarizeQueryFieldSpecs(fieldsBeforeDedupe),
+      queryFieldsAfterDedupe: summarizeQueryFieldSpecs(dedupedFields),
+    });
+    return undefined;
+  }
+  if (dedupedFields.length > Math.max(config.queryDatasourceMaxFields, 1)) {
     logDebug("tableau.mcp.query.validation_rejected", {
       reason: "field_count_out_of_bounds",
       queryArgsSummary: summarizeQueryDatasourceArgs(args),
-      queryFieldsBeforeDedupe: summarizeQueryFieldSpecs(
-        fieldsBeforeDedupe ?? [],
-      ),
-      queryFieldsAfterDedupe: summarizeQueryFieldSpecs(dedupedFields ?? []),
+      queryFieldsBeforeDedupe: summarizeQueryFieldSpecs(fieldsBeforeDedupe),
+      queryFieldsAfterDedupe: summarizeQueryFieldSpecs(dedupedFields),
       maxFields: Math.max(config.queryDatasourceMaxFields, 1),
     });
     return undefined;
@@ -5410,6 +5420,63 @@ function buildAggregateQueryDatasourceArgs(
   );
   const fieldDetails = fieldProfiles[0]?.fields ?? [];
   const fieldNames = fieldProfiles[0]?.fieldNames ?? [];
+  const plannedQueryFields = Array.isArray(questionInterpretation.queryFields)
+    ? questionInterpretation.queryFields.filter(
+        (field): field is Record<string, unknown> =>
+          Boolean(field) && typeof field === "object" && !Array.isArray(field),
+      )
+    : [];
+  const plannedQueryFilters = Array.isArray(questionInterpretation.queryFilters)
+    ? questionInterpretation.queryFilters.filter(
+        (filter): filter is Record<string, unknown> =>
+          Boolean(filter) &&
+          typeof filter === "object" &&
+          !Array.isArray(filter),
+      )
+    : [];
+  const plannedQueryLimit = Math.max(
+    1,
+    Math.floor(
+      questionInterpretation.queryLimit ?? questionInterpretation.topN ?? 1,
+    ),
+  );
+  if (plannedQueryFields.length > 0) {
+    const queryFieldsAfterDedupe =
+      dedupeQueryDatasourceFields(plannedQueryFields);
+    const queryArgs = {
+      datasourceLuid,
+      query: {
+        fields: queryFieldsAfterDedupe,
+        ...(plannedQueryFilters.length
+          ? { filters: normalizePlannedQueryFilters(plannedQueryFilters) }
+          : {}),
+      },
+      limit: plannedQueryLimit,
+    };
+    logDebug("tableau.mcp.query.fixed_plan_args_built", {
+      datasourceNameHash: safeHash(datasourceRef.name),
+      datasourceLuidHash: safeHash(datasourceLuid),
+      queryPlanType: questionInterpretation.analysisIntent,
+      plannedFieldCount: plannedQueryFields.length,
+      plannedFilterCount: plannedQueryFilters.length,
+      plannedLimit: plannedQueryLimit,
+      queryFieldsBeforeDedupe: summarizeQueryFieldSpecs(plannedQueryFields),
+      queryFieldsAfterDedupe: summarizeQueryFieldSpecs(queryFieldsAfterDedupe),
+      queryArgsSummary: summarizeQueryDatasourceArgs(queryArgs),
+    });
+    if (!queryFieldsAfterDedupe.length) {
+      logDebug("tableau.mcp.query.validation_rejected", {
+        reason: "query_args_mapping_failed",
+        queryArgsSummary: summarizeQueryDatasourceArgs(queryArgs),
+        queryFieldsBeforeDedupe: summarizeQueryFieldSpecs(plannedQueryFields),
+        queryFieldsAfterDedupe: summarizeQueryFieldSpecs(
+          queryFieldsAfterDedupe,
+        ),
+      });
+      return undefined;
+    }
+    return queryArgs;
+  }
   const metricSelection = selectAggregateMetricField(
     fieldDetails,
     questionInterpretation,
@@ -5612,6 +5679,31 @@ function buildAggregateQueryDatasourceArgs(
   });
 
   return queryArgs;
+}
+
+function normalizePlannedQueryFilters(
+  filters: Record<string, unknown>[],
+): Record<string, unknown>[] {
+  return filters
+    .map((filter) => {
+      if (!filter || typeof filter !== "object" || Array.isArray(filter)) {
+        return undefined;
+      }
+
+      const record = filter as Record<string, unknown>;
+      const field = record.field;
+      if (typeof field === "string" && field.trim() && !record.fieldCaption) {
+        return {
+          ...record,
+          field: {
+            fieldCaption: field.trim(),
+          },
+        };
+      }
+
+      return record;
+    })
+    .filter((filter): filter is Record<string, unknown> => Boolean(filter));
 }
 
 function chooseAggregateDimensionField(

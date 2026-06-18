@@ -243,6 +243,14 @@ export type QuestionInterpretation = {
   derivedMetricFormula?: string;
   topNExplicitlyRequested?: boolean;
   period?: QuestionPeriod;
+  queryFields?: Array<{
+    fieldCaption?: string;
+    fieldAlias?: string;
+    function?: string;
+    calculation?: string;
+  }>;
+  queryFilters?: Array<Record<string, unknown>>;
+  queryLimit?: number;
 };
 
 export type QueryDatasourceInsight = {

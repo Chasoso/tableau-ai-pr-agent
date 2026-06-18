@@ -186,7 +186,7 @@ describe("TableauPhotoPostAnalysisService", () => {
     });
 
     expect(result.surveyInsight?.available).toBe(false);
-    expect(result.surveyInsight?.sourceStatus).toBe("metadata_only");
+    expect(result.surveyInsight?.sourceStatus).toBe("queried");
     expect(result.evidencePack.canGeneratePost).toBe(true);
     expect(result.evidencePack.generationBlockers).toEqual([]);
   });

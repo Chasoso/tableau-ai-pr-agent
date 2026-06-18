@@ -708,6 +708,44 @@ async function runPurposeAnalysis(input: {
       fieldPlan,
     });
 
+    const queryArgsPreview = buildPhotoPostQueryArgsPreview({
+      datasourceLuid:
+        input.datasource.source.luid ?? input.datasource.allowed.luid ?? "",
+      fieldPlan,
+    });
+    logInfo("tableau.photo_post.queryArgsBuildStarted", {
+      purpose: input.purpose,
+      datasourceKey: input.datasource.allowed.key,
+      queryPlanType: fieldPlan.queryPlanType,
+      queryPlanFieldCount: fieldPlan.queryFields.length,
+      queryPlanFields: fieldPlan.queryFields,
+      queryPlanFilterCount: fieldPlan.queryFilters.length,
+      queryPlanLimit: fieldPlan.queryLimit,
+    });
+    logInfo("tableau.photo_post.queryArgsBuildCompleted", {
+      purpose: input.purpose,
+      datasourceKey: input.datasource.allowed.key,
+      queryArgsFieldCount: queryArgsPreview.queryArgsFieldCount,
+      queryArgsFields: queryArgsPreview.queryArgsFields,
+      queryArgsFilterCount: queryArgsPreview.queryArgsFilterCount,
+      queryArgsLimit: queryArgsPreview.queryArgsLimit,
+      queryArgsDatasourceLuidPresent:
+        queryArgsPreview.queryArgsDatasourceLuidPresent,
+      queryArgsBuildWarnings: queryArgsPreview.queryArgsBuildWarnings,
+    });
+    logInfo("tableau.photo_post.queryToolCallPrepared", {
+      purpose: input.purpose,
+      datasourceKey: input.datasource.allowed.key,
+      datasourceLuidPresent: queryArgsPreview.queryArgsDatasourceLuidPresent,
+      fieldCount: queryArgsPreview.queryArgsFieldCount,
+      fields: queryArgsPreview.queryArgsFields,
+      filterCount: queryArgsPreview.queryArgsFilterCount,
+      filters: queryArgsPreview.queryArgsFilters,
+      limit: queryArgsPreview.queryArgsLimit,
+      willCallQueryDatasource: queryArgsPreview.willCallQueryDatasource,
+      skipReason: queryArgsPreview.skipReason,
+    });
+
     logInfo("tableau.photo_post.queryDatasourceStarted", {
       purpose: input.purpose,
       datasourceKey: input.datasource.allowed.key,
@@ -739,11 +777,20 @@ async function runPurposeAnalysis(input: {
     const metadataSucceeded = metadataFieldCount > 0;
     const querySucceeded = queryToolResult?.status === "success";
     const queryValidationRejected = queryToolResult?.status === "skipped";
+    const queryToolCalled = Boolean(queryToolResult);
+    const queryValidationRejectedReason =
+      queryToolResult?.warning ??
+      (queryValidationRejected
+        ? (queryArgsPreview.skipReason ?? "query_validation_rejected")
+        : undefined);
     const warnings = uniqueStrings([
       ...(metadataContext.warnings ?? []),
       ...(additionalContext.warnings ?? []),
       ...(querySucceeded && queryRowCount === 0 ? ["no_query_rows"] : []),
-      ...(queryValidationRejected ? ["query_validation_rejected"] : []),
+      ...(queryValidationRejected
+        ? [queryValidationRejectedReason ?? "query_validation_rejected"]
+        : []),
+      ...queryArgsPreview.queryArgsBuildWarnings,
     ]);
     logInfo("tableau.photo_post.queryValidationResult", {
       purpose: input.purpose,
@@ -754,14 +801,10 @@ async function runPurposeAnalysis(input: {
         : querySucceeded
           ? "accepted"
           : "not_executed",
-      queryValidationRejectedReason: queryValidationRejected
-        ? (queryToolResult?.warning ?? "query_validation_rejected")
-        : undefined,
+      queryValidationRejectedReason,
       queryRowCount,
       sourceStatus: querySucceeded
-        ? queryRowCount > 0
-          ? "queried"
-          : "metadata_only"
+        ? "queried"
         : queryValidationRejected
           ? "skipped"
           : metadataSucceeded
@@ -772,14 +815,13 @@ async function runPurposeAnalysis(input: {
       purpose: input.purpose,
       branch: "query_outcome",
       condition: "after query-datasource execution",
+      queryToolCalled,
       querySucceeded,
       queryValidationRejected,
       queryRowCount,
       metadataSucceeded,
       sourceStatus: querySucceeded
-        ? queryRowCount > 0
-          ? "queried"
-          : "metadata_only"
+        ? "queried"
         : queryValidationRejected
           ? "skipped"
           : metadataSucceeded
@@ -813,9 +855,7 @@ async function runPurposeAnalysis(input: {
       additionalContext,
       queryRowCount,
       sourceStatus: querySucceeded
-        ? queryRowCount > 0
-          ? "queried"
-          : "metadata_only"
+        ? "queried"
         : queryValidationRejected
           ? "skipped"
           : metadataSucceeded
@@ -823,18 +863,43 @@ async function runPurposeAnalysis(input: {
             : "failed",
       warnings,
       skippedReason: queryValidationRejected
-        ? (queryToolResult?.warning ?? "query_validation_rejected")
+        ? (queryValidationRejectedReason ?? "query_validation_rejected")
         : querySucceeded
           ? queryRowCount > 0
             ? undefined
             : "no_query_rows"
           : metadataSucceeded
-            ? "no_suitable_fields"
+            ? (queryArgsPreview.skipReason ?? "query_tool_not_called")
             : "metadata_fetch_failed",
       failedReason:
         !metadataSucceeded && !querySucceeded && !queryValidationRejected
           ? "metadata_fetch_failed"
           : undefined,
+    });
+    logInfo("tableau.photo_post.queryToolCallCompleted", {
+      purpose: input.purpose,
+      datasourceKey: input.datasource.allowed.key,
+      queryToolCalled,
+      querySucceeded,
+      queryRowCount,
+      queryErrorName:
+        queryToolResult?.status === "failed"
+          ? queryValidationRejectedReason?.split(":")[0]
+          : undefined,
+      queryErrorMessage:
+        queryToolResult?.status === "failed"
+          ? queryValidationRejectedReason
+          : undefined,
+      queryValidationRejected,
+      queryValidationRejectedReason,
+      sourceStatus: querySucceeded
+        ? "queried"
+        : queryValidationRejected
+          ? "skipped"
+          : metadataSucceeded
+            ? "metadata_only"
+            : "failed",
+      insightSectionAvailable: insight.available,
     });
     logDebug("tableau.photo_post.purposeAnalysisBranch", {
       purpose: input.purpose,
@@ -916,6 +981,54 @@ function buildFixedPhotoPostIntent(): ClassifiedQuestionIntent {
   };
 }
 
+function buildPhotoPostQueryArgsPreview(input: {
+  datasourceLuid: string;
+  fieldPlan: PurposeFieldPlan;
+}): {
+  queryArgsDatasourceLuidPresent: boolean;
+  queryArgsFieldCount: number;
+  queryArgsFields: Array<Record<string, unknown>>;
+  queryArgsFilterCount: number;
+  queryArgsFilters: Array<Record<string, unknown>>;
+  queryArgsLimit: number;
+  queryArgsBuildWarnings: string[];
+  willCallQueryDatasource: boolean;
+  skipReason?: string;
+} {
+  const queryArgsFields = input.fieldPlan.queryFields.filter(
+    (field): field is Record<string, unknown> =>
+      Boolean(field) && typeof field === "object" && !Array.isArray(field),
+  );
+  const queryArgsFilters = input.fieldPlan.queryFilters.filter(
+    (filter): filter is Record<string, unknown> =>
+      Boolean(filter) && typeof filter === "object" && !Array.isArray(filter),
+  );
+  const queryArgsDatasourceLuidPresent = Boolean(input.datasourceLuid.trim());
+  const queryArgsBuildWarnings: string[] = [];
+  if (!queryArgsDatasourceLuidPresent) {
+    queryArgsBuildWarnings.push("query_args_missing_datasource_luid");
+  }
+  if (queryArgsFields.length === 0) {
+    queryArgsBuildWarnings.push("query_args_missing_fields");
+  }
+  return {
+    queryArgsDatasourceLuidPresent,
+    queryArgsFieldCount: queryArgsFields.length,
+    queryArgsFields,
+    queryArgsFilterCount: queryArgsFilters.length,
+    queryArgsFilters,
+    queryArgsLimit: input.fieldPlan.queryLimit,
+    queryArgsBuildWarnings,
+    willCallQueryDatasource:
+      queryArgsDatasourceLuidPresent && queryArgsFields.length > 0,
+    skipReason: !queryArgsDatasourceLuidPresent
+      ? "query_args_missing_datasource_luid"
+      : queryArgsFields.length === 0
+        ? "query_args_missing_fields"
+        : undefined,
+  };
+}
+
 function buildPurposeInsight(input: {
   purpose: AllowedDatasource["purpose"];
   datasourceKey: string;
@@ -947,6 +1060,25 @@ function buildPurposeInsight(input: {
     labelCount: labels.length,
   });
 
+  if (input.queryRowCount <= 0 && input.sourceStatus === "queried") {
+    logDebug("tableau.photo_post.insightBranch", {
+      purpose: input.purpose,
+      branch: "queried_but_empty",
+      condition: "queryRowCount === 0 && sourceStatus === 'queried'",
+      queryRowCount: input.queryRowCount,
+      warnings: input.warnings,
+    });
+    return buildUnavailableInsight(
+      input.purpose,
+      input.datasourceKey,
+      input.datasourceName,
+      input.skippedReason ?? "no_query_rows",
+      "queried",
+      input.queryRowCount,
+      uniqueStrings([...(input.warnings ?? []), "no_query_rows"]),
+    );
+  }
+
   if (input.queryRowCount <= 0 || input.sourceStatus !== "queried") {
     logDebug("tableau.photo_post.insightBranch", {
       purpose: input.purpose,
@@ -966,7 +1098,9 @@ function buildPurposeInsight(input: {
         ? "failed"
         : input.sourceStatus === "skipped"
           ? "skipped"
-          : "metadata_only",
+          : input.sourceStatus === "queried"
+            ? "queried"
+            : "metadata_only",
       input.queryRowCount,
       input.warnings,
     );
@@ -1096,7 +1230,7 @@ function buildUnavailableInsight(
   datasourceKey: string,
   datasourceName: string,
   reason: string,
-  status: "skipped" | "failed" | "metadata_only" = "skipped",
+  status: "queried" | "skipped" | "failed" | "metadata_only" = "skipped",
   queryRowCount = 0,
   warnings: string[] = [],
 ): SurveyInsight | PostPerformanceInsight | AccountOverviewInsight {
@@ -1238,6 +1372,9 @@ function buildFixedPurposeQueryInterpretation(input: {
     groupingIntent: input.fieldPlan.groupingIntent,
     groupingFieldHint: input.fieldPlan.selectedTextFields,
     period: input.fieldPlan.period,
+    queryFields: input.fieldPlan.queryFields,
+    queryFilters: input.fieldPlan.queryFilters,
+    queryLimit: input.fieldPlan.queryLimit,
     topNExplicitlyRequested: true,
   };
 }
