@@ -28,7 +28,6 @@ type Props = {
 
 export default function GeneratedPostSuggestionsPanel({
   suggestions,
-  primaryOutputType,
   attachedImage,
   evidencePack,
   analysisSections,
@@ -45,20 +44,6 @@ export default function GeneratedPostSuggestionsPanel({
       className="pr-post-agent-suggestions result-container"
       aria-label="生成済み投稿案"
     >
-      <div className="pr-post-agent-suggestions-head">
-        <div className="pr-post-agent-suggestions-title-block">
-          <h3 className="pr-post-agent-field-label">生成済み投稿案</h3>
-          <p className="pr-post-agent-inline-note long-text">
-            {primaryOutputType === "generated_post_suggestions"
-              ? "入力画像と分析結果をもとに、投稿案をカード形式で表示しています。"
-              : "生成結果をカード形式で表示しています。"}
-          </p>
-        </div>
-        <span className="pr-post-agent-status-pill">
-          {suggestions.length}案
-        </span>
-      </div>
-
       <div className="suggestion-carousel" aria-label="生成済み投稿案一覧">
         {suggestions.map((suggestion, index) => {
           const suggestionId = buildSuggestionId(suggestion, index);
@@ -72,9 +57,6 @@ export default function GeneratedPostSuggestionsPanel({
               <div className="suggestion-card-head">
                 <div className="suggestion-card-head-copy">
                   <h4>投稿案{index + 1}</h4>
-                  {index === 0 ? (
-                    <span className="suggestion-card-badge">最有力</span>
-                  ) : null}
                 </div>
               </div>
 
@@ -91,24 +73,7 @@ export default function GeneratedPostSuggestionsPanel({
                     src={attachedImage.src}
                     alt={attachedImage.alt ?? "添付予定画像"}
                   />
-                  <figcaption className="suggestion-image-caption long-text">
-                    {attachedImage.label ?? "添付予定画像"}
-                  </figcaption>
                 </figure>
-              ) : null}
-
-              <div className="suggestion-chip-row" aria-label="根拠">
-                {buildEvidenceChips(suggestion).map((chip) => (
-                  <span key={chip} className="suggestion-chip">
-                    {chip}
-                  </span>
-                ))}
-              </div>
-
-              {suggestion.warnings.length ? (
-                <p className="suggestion-warning long-text">
-                  {suggestion.warnings.join(" / ")}
-                </p>
               ) : null}
 
               <button
@@ -127,7 +92,7 @@ export default function GeneratedPostSuggestionsPanel({
       </div>
 
       <details className="analysis-details" open={false}>
-        <summary>詳細を見る</summary>
+        <summary className="analysis-details-summary">詳細を見る</summary>
         <div className="analysis-details-grid">
           <AnalysisBlock
             title="画像から読み取った内容"
@@ -153,28 +118,6 @@ function buildSuggestionId(
 ): string {
   void suggestion;
   return `suggestion-${index}`;
-}
-
-function buildEvidenceChips(suggestion: GeneratedPostSuggestion): string[] {
-  const chips: string[] = [];
-
-  if (suggestion.usedEvidence.photo) {
-    chips.push("画像");
-  }
-  if (suggestion.usedEvidence.event) {
-    chips.push("イベント");
-  }
-  if (suggestion.usedEvidence.survey) {
-    chips.push("アンケート");
-  }
-  if (suggestion.usedEvidence.postPerformance) {
-    chips.push("投稿実績");
-  }
-  if (suggestion.usedEvidence.accountOverview) {
-    chips.push("アカウント概要");
-  }
-
-  return chips.length ? chips : ["根拠あり"];
 }
 
 function renderPhotoContext(

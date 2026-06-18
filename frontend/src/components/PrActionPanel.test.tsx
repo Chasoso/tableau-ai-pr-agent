@@ -1,6 +1,6 @@
 ﻿// @vitest-environment jsdom
 
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import PrActionPanel from "./PrActionPanel";
@@ -8,6 +8,7 @@ import type { DashboardContext } from "../types/tableau";
 
 const mocks = vi.hoisted(() => ({
   createActionRun: vi.fn(),
+  getActionRun: vi.fn(),
   resolveCalendarEventContext: vi.fn(),
   uploadActionRunInputImage: vi.fn(),
 }));
@@ -33,6 +34,7 @@ vi.mock("../env", () => ({
 
 vi.mock("../api/actionRunApi", () => ({
   createActionRun: mocks.createActionRun,
+  getActionRun: mocks.getActionRun,
 }));
 
 vi.mock("../api/calendarApi", () => ({
@@ -73,6 +75,7 @@ afterEach(() => {
   createObjectURLMock.mockClear();
   revokeObjectURLMock.mockClear();
   mocks.createActionRun.mockReset();
+  mocks.getActionRun.mockReset();
   mocks.resolveCalendarEventContext.mockReset();
   mocks.uploadActionRunInputImage.mockReset();
 });
@@ -295,6 +298,37 @@ describe("PrActionPanel", () => {
       retryAfterMs: 1500,
       ownerToken: "owner-token-1",
     });
+    const analysisResult = {
+      summary: "Generated summary",
+      suggestedSlackPostText: "Draft post",
+      hashtags: ["#Tableau"],
+      evidence: [],
+      checks: [],
+    };
+    mocks.getActionRun.mockResolvedValue({
+      actionRunId: "action-run-1",
+      jobType: "action_run",
+      status: "completed",
+      stage: "completed",
+      progressMessages: [
+        {
+          stage: "queued",
+          message: "Action run request accepted.",
+          at: "2026-06-18T11:31:14.030Z",
+        },
+        {
+          stage: "running_mcp_tools",
+          message: "Running Tableau MCP fixed analysis...",
+          at: "2026-06-18T11:31:16.008Z",
+        },
+      ],
+      result: analysisResult,
+      createdAt: "2026-06-14T00:00:00.000Z",
+      updatedAt: "2026-06-14T00:00:02.000Z",
+      completedAt: "2026-06-14T00:00:02.000Z",
+      expiresAt: Date.now() + 60_000,
+      ownerType: "authenticated",
+    });
 
     render(
       <PrActionPanel
@@ -342,11 +376,19 @@ describe("PrActionPanel", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "下書き作成リクエストを送信しました",
     );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("region", { name: "回答生成ステータス" }),
+      ).toHaveTextContent("running_mcp_tools"),
+    );
+    const statusRegion = screen.getByRole("region", {
+      name: "回答生成ステータス",
+    });
+    expect(statusRegion).toHaveTextContent("completed");
+    expect(within(statusRegion).getByText("Action Run ID")).toBeVisible();
+    expect(within(statusRegion).getByText("action-run-1")).toBeVisible();
 
     await user.click(screen.getByText("根拠・チェック結果を見る"));
-
-    expect(screen.getByText("Action Run ID")).toBeVisible();
-    expect(screen.getByText("action-run-1")).toBeVisible();
   });
 
   it("does not create an action run when image upload fails", async () => {

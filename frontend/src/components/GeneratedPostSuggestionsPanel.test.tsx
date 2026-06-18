@@ -6,13 +6,12 @@ import { describe, expect, it, vi } from "vitest";
 import GeneratedPostSuggestionsPanel from "./GeneratedPostSuggestionsPanel";
 
 describe("GeneratedPostSuggestionsPanel", () => {
-  it("renders suggestion cards with the attached image and evidence chips", async () => {
+  it("renders suggestion cards with only copy, image, and action button", async () => {
     const user = userEvent.setup();
     const onSelectSuggestion = vi.fn();
 
     render(
       <GeneratedPostSuggestionsPanel
-        primaryOutputType="generated_post_suggestions"
         attachedImage={{
           src: "https://images.example.com/input-image.jpg",
           alt: "添付予定画像",
@@ -110,9 +109,8 @@ describe("GeneratedPostSuggestionsPanel", () => {
     );
 
     expect(
-      screen.getByRole("heading", { name: "生成済み投稿案" }),
+      screen.getByRole("region", { name: "生成済み投稿案" }),
     ).toBeVisible();
-    expect(screen.getByText("2案")).toBeVisible();
 
     const cards = Array.from(
       document.querySelectorAll(".suggestion-card"),
@@ -120,15 +118,22 @@ describe("GeneratedPostSuggestionsPanel", () => {
     expect(cards).toHaveLength(2);
     expect(within(cards[0]).getByText("投稿案1")).toBeVisible();
     expect(within(cards[0]).getByText("投稿文")).toBeVisible();
-    expect(within(cards[0]).getByText("画像")).toBeVisible();
-    expect(within(cards[0]).getByText("イベント")).toBeVisible();
-    expect(within(cards[0]).getByText("アカウント概要")).toBeVisible();
     expect(
       within(cards[0]).getByRole("img", { name: "添付予定画像" }),
     ).toBeVisible();
+    expect(cards[0].querySelector("figcaption")).toBeNull();
+    expect(cards[0].querySelector(".suggestion-chip")).toBeNull();
+    expect(cards[0].querySelector(".suggestion-warning")).toBeNull();
     expect(
       within(cards[0]).queryByText("URLが少し長い"),
     ).not.toBeInTheDocument();
+
+    expect(screen.queryByText("生成済み投稿案")).toBeNull();
+    expect(
+      screen.queryByText(
+        "入力画像と分析結果をもとに、投稿案をカード形式で表示しています。",
+      ),
+    ).toBeNull();
 
     await user.click(
       within(cards[0]).getByRole("button", { name: "この案を採用" }),

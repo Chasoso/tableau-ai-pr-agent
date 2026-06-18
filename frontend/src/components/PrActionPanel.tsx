@@ -1,6 +1,6 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 import type { ChangeEvent } from "react";
-import { createActionRun } from "../api/actionRunApi";
+import { createActionRun, getActionRun } from "../api/actionRunApi";
 import { resolveCalendarEventContext } from "../api/calendarApi";
 import { loadGoogleCalendarConnectionStatus } from "../services/googleCalendarConnection";
 import { startGoogleCalendarConnection } from "../services/googleCalendarConnection";
@@ -13,6 +13,7 @@ import { uploadActionRunInputImage } from "../api/actionRunImageApi";
 import { env } from "../env";
 import type {
   ActionRunCreateResponse,
+  ActionRunGetResponse,
   ActionRunPostType,
   ActionRunRequest,
 } from "../types/actionRun";
@@ -142,6 +143,8 @@ export default function PrActionPanel({
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [submissionSummary, setSubmissionSummary] =
     useState<ActionRunCreateResponse | null>(null);
+  const [actionRunDetail, setActionRunDetail] =
+    useState<ActionRunGetResponse | null>(null);
 
   useEffect(() => {
     if (authToken) {
@@ -185,6 +188,55 @@ export default function PrActionPanel({
       cancelled = true;
     };
   }, [authToken, chatJobOwnerToken]);
+
+  useEffect(() => {
+    if (!submissionSummary) {
+      setActionRunDetail(null);
+      return;
+    }
+
+    let cancelled = false;
+    let timer: number | undefined;
+    let delayMs = submissionSummary.retryAfterMs || 1500;
+
+    const poll = async () => {
+      try {
+        const job = await getActionRun(
+          submissionSummary.actionRunId,
+          authToken,
+          submissionSummary.ownerToken ?? chatJobOwnerToken ?? undefined,
+        );
+
+        if (cancelled) {
+          return;
+        }
+
+        setActionRunDetail(job);
+
+        if (job.status === "completed" || job.status === "failed") {
+          return;
+        }
+
+        timer = window.setTimeout(() => {
+          void poll();
+        }, delayMs);
+        delayMs = Math.min(Math.round(delayMs * 1.35), 2500);
+      } catch {
+        if (!cancelled) {
+          setActionRunDetail(null);
+        }
+      }
+    };
+
+    void poll();
+
+    return () => {
+      cancelled = true;
+      if (timer) {
+        window.clearTimeout(timer);
+      }
+    };
+  }, [authToken, chatJobOwnerToken, submissionSummary]);
 
   const selectedEvent =
     calendarResult?.selectedEvent ??
@@ -592,6 +644,7 @@ export default function PrActionPanel({
 
     setIsSubmitting(true);
     setSubmissionError(null);
+    setActionRunDetail(null);
 
     console.debug("[pr-agent] draft.submit.start", {
       postType,
@@ -718,6 +771,7 @@ export default function PrActionPanel({
 
   function handleCancelDraft() {
     setSubmissionSummary(null);
+    setActionRunDetail(null);
     setSubmissionError(null);
   }
 
@@ -1253,6 +1307,65 @@ export default function PrActionPanel({
           <div className="pr-agent-success-banner" role="status">
             下書き作成リクエストを送信しました
           </div>
+        ) : null}
+
+        {submissionSummary ? (
+          <section
+            className="pr-agent-status-card"
+            aria-label="回答生成ステータス"
+          >
+            <div className="pr-agent-status-card-header">
+              <strong>現在の回答生成ステータス</strong>
+              <span>
+                {actionRunDetail?.status ?? submissionSummary.status} /{" "}
+                {actionRunDetail?.stage ?? submissionSummary.stage}
+              </span>
+            </div>
+
+            <dl className="pr-agent-status-grid">
+              <div>
+                <dt>Action Run ID</dt>
+                <dd>{submissionSummary.actionRunId}</dd>
+              </div>
+              <div>
+                <dt>Status</dt>
+                <dd>{actionRunDetail?.status ?? submissionSummary.status}</dd>
+              </div>
+              <div>
+                <dt>Stage</dt>
+                <dd>{actionRunDetail?.stage ?? submissionSummary.stage}</dd>
+              </div>
+              <div>
+                <dt>Poll URL</dt>
+                <dd>{submissionSummary.pollUrl}</dd>
+              </div>
+            </dl>
+
+            {actionRunDetail?.progressMessages?.length ? (
+              <ul className="pr-agent-status-progress">
+                {actionRunDetail.progressMessages.map((message) => (
+                  <li key={`${message.stage}-${message.at}`}>
+                    <span className="pr-agent-status-progress-stage">
+                      {message.stage}
+                    </span>
+                    <span className="pr-agent-status-progress-message">
+                      {message.message}
+                    </span>
+                    <time dateTime={message.at}>
+                      {new Date(message.at).toLocaleTimeString("ja-JP", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </time>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="pr-agent-inline-note">
+                進捗メッセージを取得中です。
+              </p>
+            )}
+          </section>
         ) : null}
 
         {warnings.length > 0 ? (

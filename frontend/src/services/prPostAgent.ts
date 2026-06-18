@@ -12,6 +12,7 @@ import type {
   ActionRunApprovalResponse,
   ActionRunBlueskyPostResponse,
   ActionRunEventContext,
+  ActionRunGetResponse,
   ActionRunPostType,
   ActionRunRequest,
   ActionRunResult,
@@ -51,6 +52,8 @@ export type TableauAnalysisResult = {
   result: ActionRunResult;
 };
 
+export type ActionRunProgressCallback = (job: ActionRunGetResponse) => void;
+
 export type GeneratedPrPostDraft = {
   postType: ActionRunPostType;
   eventName: string;
@@ -86,10 +89,12 @@ type AnalysisInput = {
   manualTechPlayUrl?: string;
   authToken?: string;
   ownerToken?: string;
+  onProgress?: ActionRunProgressCallback;
 };
 
 type GeneratePrPostDraftInput = AnalysisInput & {
   analysis: TableauAnalysisResult;
+  onProgress?: ActionRunProgressCallback;
 };
 
 export async function resolveCalendarEventContext(

@@ -3,13 +3,8 @@
   background: #f5f6f8;
   --pr-dark-gray: rgb(88, 91, 96);
   font-family:
-    "Noto Sans JP",
-    "Hiragino Kaku Gothic ProN",
-    "Yu Gothic",
-    "Aptos",
-    "Segoe UI",
-    system-ui,
-    sans-serif;
+    "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", "Aptos",
+    "Segoe UI", system-ui, sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -31,7 +26,11 @@ body {
   min-width: 320px;
   overflow-x: hidden;
   background:
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.94), transparent 34%),
+    radial-gradient(
+      circle at top left,
+      rgba(255, 255, 255, 0.94),
+      transparent 34%
+    ),
     linear-gradient(180deg, #f7f8fa 0%, #eef1f4 100%);
 }
 
@@ -252,6 +251,17 @@ a {
   border-top-right-radius: 8px;
 }
 
+.pr-post-agent-bubble.pr-post-agent-bubble--cards {
+  width: 100%;
+  max-width: 100%;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  box-shadow: none;
+  border-radius: 0;
+  justify-self: stretch;
+}
+
 .pr-post-agent-bubble p {
   margin: 0;
   line-height: 1.45;
@@ -345,8 +355,18 @@ a {
   font-size: 13px;
 }
 
+.pr-post-agent-upload-panel {
+  display: grid;
+  gap: 0;
+  width: 100%;
+  justify-self: start;
+}
+
 .pr-post-agent-upload-card {
   margin: 0;
+  width: 100%;
+  border-top: 0;
+  padding-top: 0;
 }
 
 .pr-post-agent-upload-card summary {
@@ -359,6 +379,7 @@ a {
   color: #4a525c;
   font-size: 12px;
   line-height: 1.25;
+  width: 100%;
 }
 
 .pr-post-agent-upload-card summary::-webkit-details-marker {
@@ -372,29 +393,31 @@ a {
   gap: 10px;
   min-width: 0;
   width: 100%;
+  padding: 0;
 }
 
 .pr-post-agent-upload-summary-leading {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
+  flex: 1 1 auto;
+}
+
+.pr-post-agent-upload-summary-leading::after {
+  content: "";
+  flex: 1 1 auto;
+  border-top: 1px solid #d8dde3;
+  margin-left: 10px;
+  align-self: center;
 }
 
 .pr-post-agent-upload-summary-chevron {
   flex: 0 0 auto;
   color: #8a929b;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1;
   transform: translateY(-1px);
-}
-
-.pr-post-agent-upload-summary-action {
-  flex: 0 0 auto;
-  color: #7d8590;
-  font-size: 11px;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
 }
 
 .pr-post-agent-link-button {
@@ -404,10 +427,7 @@ a {
 }
 
 .pr-post-agent-upload-preview {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
+  display: block;
   padding-top: 10px;
   min-width: 0;
 }
@@ -419,20 +439,99 @@ a {
   border-radius: 12px;
   object-fit: cover;
   border: 1px solid #d8dde3;
-  flex: 0 0 auto;
 }
 
-.pr-post-agent-upload-preview div {
+.pr-post-agent-action-run-panel {
   display: grid;
-  gap: 4px;
-  min-width: 0;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid #d8dde3;
+  border-radius: 16px;
+  background: #f7f9fb;
+  color: #2f353b;
 }
 
-.pr-post-agent-upload-preview-meta {
+.pr-post-agent-action-run-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pr-post-agent-action-run-header strong {
+  font-size: 13px;
+}
+
+.pr-post-agent-action-run-header span {
+  color: #5f6771;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pr-post-agent-action-run-meta {
   display: grid;
-  gap: 4px;
-  min-width: 0;
-  flex: 1 1 auto;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px 16px;
+  margin: 0;
+}
+
+.pr-post-agent-action-run-meta div {
+  display: grid;
+  gap: 2px;
+}
+
+.pr-post-agent-action-run-meta dt {
+  color: #7a828c;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.pr-post-agent-action-run-meta dd {
+  margin: 0;
+  color: #22272d;
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.pr-post-agent-action-run-progress-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pr-post-agent-action-run-progress-list li {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid #e3e7eb;
+}
+
+.pr-post-agent-action-run-progress-stage {
+  color: #5c6570;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.pr-post-agent-action-run-progress-message {
+  color: #22272d;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.pr-post-agent-action-run-progress-list time {
+  color: #7d8590;
+  font-size: 11px;
 }
 
 .pr-post-agent-status strong {
@@ -757,6 +856,8 @@ a {
   min-width: 0;
   overflow-x: hidden;
   box-sizing: border-box;
+  background: transparent;
+  padding: 0;
 }
 
 .pr-post-agent-bubble.assistant .pr-post-agent-suggestions,
@@ -764,37 +865,13 @@ a {
   width: 100%;
 }
 
-.pr-post-agent-suggestions-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.pr-post-agent-suggestions-title-block {
-  min-width: 0;
-  display: grid;
-  gap: 4px;
-}
-
-.pr-post-agent-status-pill {
-  flex: 0 0 auto;
-  border-radius: 999px;
-  padding: 6px 10px;
-  background: #20242a;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 700;
-}
-
 .suggestion-carousel {
   display: flex;
-  gap: 16px;
+  gap: 14px;
   overflow-x: auto;
   max-width: 100%;
   min-width: 0;
-  padding-bottom: 8px;
+  padding-bottom: 6px;
   scroll-snap-type: x proximity;
 }
 
@@ -803,11 +880,11 @@ a {
   max-width: 320px;
   box-sizing: border-box;
   display: grid;
-  gap: 12px;
-  padding: 16px;
-  border: 1px solid #d8dde3;
-  border-radius: 18px;
-  background: #eef1f4;
+  gap: 8px;
+  padding: 12px 12px 10px;
+  border: 1px solid #d3d7dc;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #d9d9dc 0%, #d1d2d6 100%);
   scroll-snap-align: start;
 }
 
@@ -833,28 +910,20 @@ a {
   margin: 0;
   font-size: 16px;
   line-height: 1.2;
-}
-
-.suggestion-card-badge {
-  width: fit-content;
-  border-radius: 999px;
-  padding: 4px 8px;
-  background: #d7dce1;
-  color: #3b424a;
-  font-size: 11px;
-  font-weight: 700;
+  color: #3b4046;
 }
 
 .suggestion-card-section {
   display: grid;
-  gap: 6px;
+  gap: 5px;
   min-width: 0;
 }
 
 .suggestion-card-section-label {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
-  color: #6e7680;
+  color: #6b7178;
+  letter-spacing: 0.02em;
 }
 
 .suggestion-text,
@@ -868,14 +937,15 @@ a {
 .suggestion-image-frame {
   margin: 0;
   display: grid;
-  gap: 8px;
+  gap: 0;
+  width: min(100%, 144px);
 }
 
 .suggestion-image-frame img,
 .pr-post-agent-modal-image img {
   width: 100%;
   display: block;
-  border-radius: 16px;
+  border-radius: 10px;
   object-fit: cover;
   border: 1px solid #d8dde3;
   background: #fff;
@@ -883,45 +953,18 @@ a {
 
 .suggestion-image-frame img {
   aspect-ratio: 4 / 3;
-}
-
-.suggestion-image-caption {
-  color: #59616a;
-  font-size: 12px;
-}
-
-.suggestion-chip-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.suggestion-chip {
-  border-radius: 999px;
-  padding: 6px 10px;
-  background: #fff;
-  border: 1px solid #d8dde3;
-  color: #3a4046;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.suggestion-warning {
-  margin: 0;
-  border-left: 3px solid #c88f2f;
-  padding-left: 10px;
-  color: #7a5b18;
-  font-size: 12px;
+  width: 100%;
 }
 
 .suggestion-accept-button {
   width: fit-content;
-  border-radius: 999px;
-  padding: 10px 14px;
-  background: var(--pr-dark-gray);
+  justify-self: end;
+  border-radius: 8px;
+  padding: 7px 12px;
+  background: #56585d;
   color: #fff;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .suggestion-accept-button:disabled {
@@ -931,34 +974,61 @@ a {
 
 .analysis-details {
   margin-top: 4px;
-  border: 1px solid #d8dde3;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.95);
-  padding: 12px 14px;
+  padding-top: 6px;
+  border-top: 1px solid #d9dde2;
 }
 
-.analysis-details summary {
+.analysis-details-summary {
   cursor: pointer;
-  font-weight: 700;
+  color: #8a9199;
+  font-size: 11px;
+  line-height: 1.2;
+  list-style: none;
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+}
+
+.analysis-details-summary::-webkit-details-marker {
+  display: none;
+}
+
+.analysis-details-summary::before {
+  content: ">";
+  font-size: 11px;
+  line-height: 1;
+  color: #9aa1a8;
+}
+
+.analysis-details-summary::after {
+  content: "";
+  flex: 1 1 auto;
+  border-top: 1px solid #d9dde2;
+  margin-left: 10px;
+  align-self: center;
 }
 
 .analysis-details-grid {
   display: grid;
-  gap: 12px;
-  margin-top: 12px;
+  gap: 6px;
+  margin-top: 8px;
 }
 
 .analysis-block {
   display: grid;
-  gap: 8px;
-  padding: 12px;
-  border-radius: 14px;
-  border: 1px solid #e1e5ea;
-  background: #f8f9fb;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 
 .analysis-block h4 {
   margin: 0;
+  font-size: 11px;
+  line-height: 1.2;
+  color: #79808a;
 }
 
 .analysis-block-list {
@@ -970,8 +1040,74 @@ a {
 
 .analysis-block-list li {
   line-height: 1.4;
-  color: #394049;
+  color: #525961;
+  font-size: 11px;
+}
+
+.pr-agent-status-card {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 14px 16px;
+  border: 1px solid #d8dde3;
+  border-radius: 16px;
+  background: #f7f9fb;
+  color: #2f353b;
+}
+
+.pr-agent-status-card-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pr-agent-status-card-header strong {
+  font-size: 13px;
+}
+
+.pr-agent-status-card-header span {
+  color: #5f6771;
   font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pr-agent-status-progress {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pr-agent-status-progress li {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid #e3e7eb;
+}
+
+.pr-agent-status-progress-stage {
+  color: #5c6570;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.pr-agent-status-progress-message {
+  color: #22272d;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.pr-agent-status-progress time {
+  color: #7d8590;
+  font-size: 11px;
 }
 
 .pr-post-agent-modal {
@@ -1079,6 +1215,16 @@ a {
   .pr-post-agent-draft-thumb img {
     width: 108px;
     height: 108px;
+  }
+
+  .pr-post-agent-action-run-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .pr-agent-status-card-header {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .pr-post-agent-approval-bar {

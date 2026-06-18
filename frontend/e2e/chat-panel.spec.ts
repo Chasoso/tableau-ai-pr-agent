@@ -64,12 +64,7 @@ test.describe("PR投稿エージェント", () => {
     const uploadResponse = await uploadResponsePromise;
     expect(uploadResponse.status()).toBe(201);
 
-    await expect(
-      page
-        .locator(".pr-post-agent-bubble.user")
-        .getByText("画像をアップロードしました。")
-        .first(),
-    ).toBeVisible();
+    await expect(page.locator(".pr-post-agent-upload-note")).toBeVisible();
     await expect(page.locator(".pr-post-agent-upload-preview")).toHaveCount(0);
     await page.locator(".pr-post-agent-upload-card summary").click();
     await expect(page.locator(".pr-post-agent-upload-preview")).toBeVisible();

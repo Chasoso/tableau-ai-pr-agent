@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
 import { ensureChatJobOwnerToken } from "../api/chatJobOwnerToken";
-import type { ActionRunPostType } from "../types/actionRun";
+import type {
+  ActionRunGetResponse,
+  ActionRunPostType,
+} from "../types/actionRun";
 import type {
   CalendarEventCandidate,
   CalendarResolveResponse,
@@ -153,6 +156,8 @@ export default function PrPostAgentPanel({
     useState<SelectedSuggestion | null>(null);
   const [approvedSuggestion, setApprovedSuggestion] =
     useState<SelectedSuggestion | null>(null);
+  const [actionRunStatus, setActionRunStatus] =
+    useState<ActionRunGetResponse | null>(null);
   const [isApprovalOpen, setIsApprovalOpen] = useState(false);
   const [slackPostStatus, setSlackPostStatus] = useState<
     "idle" | "posting" | "posted" | "failed"
@@ -426,6 +431,7 @@ export default function PrPostAgentPanel({
 
     let cancelled = false;
     setGenerationStatus("generating");
+    setActionRunStatus(null);
 
     void (async () => {
       try {
@@ -667,6 +673,7 @@ export default function PrPostAgentPanel({
     setGeneratedDraft(null);
     setSelectedSuggestion(null);
     setApprovedSuggestion(null);
+    setActionRunStatus(null);
     setIsApprovalOpen(false);
     setSlackPostStatus("idle");
     setSlackPostError(null);
@@ -864,6 +871,9 @@ export default function PrPostAgentPanel({
           calendarResult: nextCalendar!,
           authToken,
           ownerToken: resolvedConnectionOwnerToken ?? undefined,
+          onProgress: (job) => {
+            setActionRunStatus(job);
+          },
         });
         setAnalysisResult(analysis);
         setWorkflow((current) => ({
@@ -932,6 +942,9 @@ export default function PrPostAgentPanel({
         image: input.image ?? null,
         authToken,
         ownerToken: resolvedConnectionOwnerToken ?? undefined,
+        onProgress: (job) => {
+          setActionRunStatus(job);
+        },
       });
 
       if (input.workflowId !== workflowIdRef.current) {
@@ -1385,7 +1398,10 @@ export default function PrPostAgentPanel({
         ) : null}
 
         {uploadedImage ? (
-          <ChatBubble role="user">
+          <section
+            className="pr-post-agent-upload-panel"
+            aria-label="画像プレビュー"
+          >
             <details
               className="pr-post-agent-upload-card"
               open={imagePreviewExpanded}
@@ -1396,14 +1412,9 @@ export default function PrPostAgentPanel({
               <summary className="pr-post-agent-upload-summary">
                 <span className="pr-post-agent-upload-summary-leading">
                   <span className="pr-post-agent-upload-summary-chevron">
-                    {imagePreviewExpanded ? "⌃" : "⌄"}
+                    ›
                   </span>
-                  <span>画像をアップロードしました。</span>
-                </span>
-                <span className="pr-post-agent-upload-summary-action">
-                  {imagePreviewExpanded
-                    ? "プレビューを非表示"
-                    : "プレビューを表示"}
+                  <span>画像をアップロードしました</span>
                 </span>
               </summary>
               {imagePreviewExpanded ? (
@@ -1412,21 +1423,14 @@ export default function PrPostAgentPanel({
                     src={uploadedImage.objectUrl}
                     alt={uploadedImage.fileName}
                   />
-                  <div className="pr-post-agent-upload-preview-meta">
-                    <strong>{uploadedImage.fileName}</strong>
-                    <span>{uploadedImage.sizeLabel}</span>
-                    {uploadedImage.analysisCompressionLabel ? (
-                      <span>{uploadedImage.analysisCompressionLabel}</span>
-                    ) : null}
-                  </div>
                 </div>
               ) : null}
             </details>
-          </ChatBubble>
+          </section>
         ) : null}
 
         {generatedPostSuggestions.length ? (
-          <ChatBubble role="assistant">
+          <ChatBubble role="assistant" className="pr-post-agent-bubble--cards">
             <GeneratedPostSuggestionsPanel
               suggestions={visiblePostSuggestions}
               primaryOutputType={analysisResult?.result.primaryOutputType}
@@ -1477,6 +1481,52 @@ export default function PrPostAgentPanel({
               </ul>
             </div>
           </ChatBubble>
+        ) : null}
+
+        {actionRunStatus ? (
+          <section
+            className="pr-post-agent-action-run-panel"
+            aria-label="回答生成ステータス"
+          >
+            <div className="pr-post-agent-action-run-header">
+              <strong>現在の回答生成ステータス</strong>
+              <span>{actionRunStatus.status}</span>
+            </div>
+            <dl className="pr-post-agent-action-run-meta">
+              <div>
+                <dt>Stage</dt>
+                <dd>{actionRunStatus.stage}</dd>
+              </div>
+              <div>
+                <dt>Action Run ID</dt>
+                <dd>{actionRunStatus.actionRunId}</dd>
+              </div>
+            </dl>
+            {actionRunStatus.progressMessages.length ? (
+              <ul className="pr-post-agent-action-run-progress-list">
+                {actionRunStatus.progressMessages.map((message) => (
+                  <li key={`${message.stage}-${message.at}`}>
+                    <span className="pr-post-agent-action-run-progress-stage">
+                      {message.stage}
+                    </span>
+                    <span className="pr-post-agent-action-run-progress-message">
+                      {message.message}
+                    </span>
+                    <time dateTime={message.at}>
+                      {new Date(message.at).toLocaleTimeString("ja-JP", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </time>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="pr-post-agent-inline-note">
+                現在の進捗メッセージを取得中です。
+              </p>
+            )}
+          </section>
         ) : null}
 
         {completedPosts.map((post) => (
@@ -1703,12 +1753,16 @@ export default function PrPostAgentPanel({
 function ChatBubble({
   children,
   role,
+  className,
 }: {
   children: ReactNode;
   role: "assistant" | "user";
+  className?: string;
 }) {
   return (
-    <article className={`pr-post-agent-bubble ${role}`}>{children}</article>
+    <article className={`pr-post-agent-bubble ${role} ${className ?? ""}`}>
+      {children}
+    </article>
   );
 }
 
