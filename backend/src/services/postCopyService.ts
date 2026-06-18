@@ -638,15 +638,20 @@ function shortenEventName(value?: string): string | undefined {
     return undefined;
   }
 
-  const withoutPrefix = cleaned.replace(/^[【［\[]?.*?[】］\]]?\s*/u, "");
+  const withoutPrefix = stripEventDecorations(cleaned);
   const noSubtitle =
     withoutPrefix.split(/[|｜/／:：]/u)[0]?.trim() ?? withoutPrefix;
   const tokens = noSubtitle.split(/\s+/u).filter(Boolean);
-  if (tokens.length <= 3) {
-    return noSubtitle;
+  if (tokens.length > 1 && looksLikeEventHeadline(tokens[0])) {
+    return tokens[0];
+  }
+  const candidate =
+    tokens.length <= 4 ? noSubtitle : tokens.slice(0, 4).join(" ");
+  if (!candidate) {
+    return undefined;
   }
 
-  return tokens.slice(0, 3).join(" ");
+  return candidate;
 }
 
 function derivePhotoPostableDescription(
@@ -741,18 +746,19 @@ function deriveEventThemes(input: {
   eventName?: string;
   analysisSections: ActionRunAnalysisSection[];
 }): string[] {
-  const candidates = [...input.eventDescriptionTexts, input.eventName]
-    .map((value) => normalize(value))
-    .filter((value): value is string => Boolean(value));
+  void input.analysisSections;
 
-  return uniqueStrings(
-    candidates
+  const fromDescription = uniqueStrings(
+    [
+      ...input.eventDescriptionTexts,
+      ...(input.eventName ? [input.eventName] : []),
+    ]
       .flatMap((candidate) => extractEventThemeCandidates(candidate))
       .map((topic) => sanitizeTopic(topic))
       .filter((topic) => isSafeEventTheme(topic)),
-  ).slice(0, 3);
+  );
+  return fromDescription.slice(0, 3);
 }
-
 function deriveSessionTitles(input: {
   eventDescriptionTexts: string[];
   analysisSections: ActionRunAnalysisSection[];
@@ -778,38 +784,35 @@ function extractEventThemeCandidates(value: string): string[] {
     return [];
   }
 
-  let seed = normalized
-    .replace(/(?:^|\s)Hashtags?\b/giu, " ")
-    .replace(/#[^\s]+/gu, " ");
-
   const emphasized =
-    seed.match(/[\u301c\uFF5E]([^\u301c\uFF5E]+)[\u301c\uFF5E]/u)?.[1] ?? seed;
-  seed = emphasized;
+    normalized.match(/[〜～]([^〜～]+)[〜～]/u)?.[1] ?? normalized;
+  const seed = stripEventDecorations(emphasized)
+    .replace(/(?:^|\s)Hashtags?\b/giu, " ")
+    .replace(/#[^\s#]+/gu, " ")
+    .replace(/\bhttps?:\/\/\S+/giu, " ")
+    .replace(/\bwww\.\S+/giu, " ");
 
-  for (const suffix of [
-    "\u304b\u3089\u8003\u3048\u308b",
-    "\u3092\u30c6\u30fc\u30de\u306b",
-    "\u306b\u3064\u3044\u3066",
-    "\u306e\u6b21\u306e\u4e00\u6b69",
-    "\u306e\u53ef\u80fd\u6027",
-  ]) {
-    const index = seed.indexOf(suffix);
-    if (index >= 0) {
-      seed = seed.slice(0, index);
-    }
-  }
+  return uniqueStrings(
+    seed
+      .split(/[、,\/|｜・]+/u)
+      .map((topic) => cleanThemeCandidate(topic))
+      .filter((topic) => topic.length > 0)
+      .filter((topic) => !looksLikeImageLabel(topic))
+      .filter((topic) => !isGenericThemeStopWord(topic)),
+  );
+}
 
-  seed = seed
-    .trim()
-    .replace(/^[\s-]+/u, "")
-    .replace(/[\s-]+$/u, "");
-
-  return seed
-    .split(/[\u3001\u30fb,\/|]+\s*/u)
-    .map((topic) => topic.trim())
-    .filter((topic) => topic.length > 0)
-    .filter((topic) => !looksLikeImageLabel(topic))
-    .filter((topic) => !isGenericThemeStopWord(topic));
+function cleanThemeCandidate(value: string): string {
+  return normalize(value)
+    .replace(/^(?:テーマ|Topic|Topics|見どころ|内容)[:：\s]*/iu, "")
+    .replace(/^(?:第\d+回\s*)/u, "")
+    .replace(
+      /(?:から考える次の一歩|から考える|をテーマに|について考える|について|の可能性|を中心に|を軸に|から学ぶ|を通して|を通じて|を見ていきます|をお届けします)$/u,
+      "",
+    )
+    .replace(/^[\s\-–—]+/u, "")
+    .replace(/[\s\-–—]+$/u, "")
+    .trim();
 }
 function extractSessionTitleCandidates(value: string): string[] {
   const normalized = normalize(value);
@@ -825,19 +828,63 @@ function extractSessionTitleCandidates(value: string): string[] {
     .map((match) => match[1] ?? match[2] ?? match[3] ?? "")
     .map((item) => item.trim())
     .filter(Boolean)
-    .filter((item) => !/#/.test(item));
-  if (quoted.length > 0) {
-    return quoted;
-  }
+    .filter((item) => !/#/.test(item))
+    .filter((item) => !looksLikeAnalysisNoise(item))
+    .filter((item) => !isGenericThemeStopWord(item));
 
-  return normalized
+  const lines = normalized
     .split(/\r?\n+/u)
     .map((line) => line.replace(/^[\s\-*]+/u, "").trim())
+    .map((line) =>
+      line
+        .replace(/^(?:Session|Topic|Title|テーマ|見出し)[:：\s]*/iu, "")
+        .trim(),
+    )
     .filter((line) => line.length > 0)
     .filter((line) => !/#/.test(line))
-    .filter((line) => line.length <= 40)
+    .filter((line) => line.length <= 80)
+    .filter((line) => !looksLikeAnalysisNoise(line))
     .filter((line) => !isGenericThemeStopWord(line));
+
+  return uniqueStrings([...quoted, ...lines]);
 }
+
+function looksLikeAnalysisNoise(value: string): boolean {
+  const trimmed = value.trim().toLowerCase();
+  return [
+    /^photo context$/i,
+    /^survey insight$/i,
+    /^evidence pack$/i,
+    /^question$/i,
+    /^session detail$/i,
+    /^live event summary\.?$/i,
+    /^post type distribution$/i,
+    /^checked post type counts\.?$/i,
+    /^post perf$/i,
+    /^post performance$/i,
+    /^analysis$/i,
+    /^summary$/i,
+    /^tableau user group tokyo 2026$/i,
+    /^mcp awareness(?::.*)?$/i,
+  ].some((pattern) => pattern.test(trimmed));
+}
+
+function stripEventDecorations(value: string): string {
+  return normalize(value)
+    .replace(/^[【［\[][^】］\]]*[】］\]]\s*/u, "")
+    .replace(
+      /^(?:\d{1,4}[\/／.,、\-年]\d{1,2}(?:[\/／.,、\-月]\d{1,2})?(?:日)?(?:[（(][月火水木金土日][)）])?(?:開催)?(?:[\s\-–—:：]+)?)+/u,
+      "",
+    )
+    .replace(/^(?:本日|今日|明日|開催中|開催前)\s+/u, "");
+}
+
+function looksLikeEventHeadline(value: string): boolean {
+  return /(?:第\d+回|ユーザー会|勉強会|セミナー|イベント|Meetup|Conference|Summit|Tableau|MCP|User Group|UG)/iu.test(
+    value,
+  );
+}
+
 function isGenericThemeStopWord(value: string): boolean {
   const trimmed = value.trim();
   return [

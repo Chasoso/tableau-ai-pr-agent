@@ -14,6 +14,7 @@ describe("postCopyService behavior", () => {
       evidencePack: buildEvidencePack(),
     });
 
+    expect(material.eventShortName).toBe("第8回北陸Tableauユーザー会");
     expect(material.eventThemes).toEqual(["Viz表現", "AI", "コミュニティ"]);
     expect(material.sessionTitles).toContain("超初心者のためのTableau MCP");
     expect(material.photoAtmosphere).toBe("和やかな雰囲気");
