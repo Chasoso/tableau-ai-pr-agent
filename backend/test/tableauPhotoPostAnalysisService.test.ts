@@ -224,7 +224,6 @@ describe("TableauPhotoPostAnalysisService", () => {
 
     expect(overviewQueryCall?.questionInterpretation?.queryFields).toEqual([
       { fieldCaption: "Date", fieldAlias: "rank_label" },
-      { fieldCaption: "Date", fieldAlias: "rank_label_date" },
       {
         fieldCaption: "インプレッション数",
         function: "SUM",

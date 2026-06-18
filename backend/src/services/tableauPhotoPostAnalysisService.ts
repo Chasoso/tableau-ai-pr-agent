@@ -2389,16 +2389,17 @@ function buildQueryFieldLog(input: {
   purpose: AllowedDatasource["purpose"];
 }): Array<Record<string, unknown>> {
   const fields: Array<Record<string, unknown>> = [];
-  if (input.selectedTextFields[0]) {
+  if (input.purpose === "account_overview") {
+    if (input.selectedDateField) {
+      fields.push({
+        fieldCaption: input.selectedDateField,
+        fieldAlias: "rank_label",
+      });
+    }
+  } else if (input.selectedTextFields[0]) {
     fields.push({
       fieldCaption: input.selectedTextFields[0],
       fieldAlias: "rank_label",
-    });
-  }
-  if (input.selectedDateField && input.purpose === "account_overview") {
-    fields.push({
-      fieldCaption: input.selectedDateField,
-      fieldAlias: "rank_label_date",
     });
   }
   if (input.metricFieldLabel) {
