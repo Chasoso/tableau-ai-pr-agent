@@ -341,4 +341,6 @@ export type TableauMcpToolResultSummary = {
   status: "success" | "skipped" | "failed";
   summary?: string;
   warning?: string;
+  errorCategory?: string;
+  errorMessage?: string;
 };

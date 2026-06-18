@@ -1853,6 +1853,8 @@ async function processSelectionOutcome(params: {
       toolName: selection.tool.name,
       status: "failed",
       warning: errorMessage,
+      errorCategory: "unknown",
+      errorMessage,
     });
     observations.push({
       tool: selection.tool.name,

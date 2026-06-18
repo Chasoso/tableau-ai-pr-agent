@@ -80,6 +80,9 @@ export type SurveyInsight = {
   datasourceName?: string;
   queryRowCount: number;
   warnings: string[];
+  unknownFields?: string[];
+  queryErrorCategory?: string;
+  queryErrorMessage?: string;
   keyExpectations: string[];
   keyInterests: string[];
   concernsOrQuestions: string[];
@@ -98,6 +101,9 @@ export type PostPerformanceInsight = {
   datasourceName?: string;
   queryRowCount: number;
   warnings: string[];
+  unknownFields?: string[];
+  queryErrorCategory?: string;
+  queryErrorMessage?: string;
   highPerformingThemes: string[];
   highPerformingPatterns: string[];
   recommendedTone: string[];
@@ -117,6 +123,9 @@ export type AccountOverviewInsight = {
   datasourceName?: string;
   queryRowCount: number;
   warnings: string[];
+  unknownFields?: string[];
+  queryErrorCategory?: string;
+  queryErrorMessage?: string;
   recentTrendSummary: string;
   notableChanges: string[];
   timingHints: string[];
@@ -676,6 +685,18 @@ async function runPurposeAnalysis(input: {
       datasourceName,
       fieldProfiles: metadataContext.datasourceFieldProfiles ?? [],
     });
+    const metadataFieldDetails = pickFieldDetailsForPurpose({
+      datasourceName,
+      fieldProfiles: metadataContext.datasourceFieldProfiles ?? [],
+    });
+    const metadataFieldCaptions = uniqueStrings(
+      metadataFieldDetails.map((field) => field.name),
+    );
+    const fieldValidation = validatePhotoPostQueryPlanFields({
+      metadataFieldCaptions,
+      queryFields: fieldPlan.queryFields,
+      selectedMetricFields: fieldPlan.selectedMetricFields,
+    });
     logInfo("tableau.photo_post.fieldSelectionStarted", {
       purpose: input.purpose,
       availableFieldCount: fieldPlan.availableFieldCount,
@@ -690,6 +711,17 @@ async function runPurposeAnalysis(input: {
       selectedMetricFields: fieldPlan.selectedMetricFields,
       metricSelectionReason: fieldPlan.metricSelectionReason,
     });
+    logInfo("tableau.photo_post.photoPostMetricSelection", {
+      purpose: input.purpose,
+      candidateMetricFields: fieldPlan.candidateMetricFields,
+      priorityMetricCandidates: buildMetricPriorityCandidateLabels(
+        input.purpose,
+      ),
+      selectedMetricFields: fieldPlan.selectedMetricFields,
+      metricSelectionReason: fieldPlan.metricSelectionReason,
+      rowCountFallbackUsed: fieldPlan.rowCountFallbackUsed,
+      rowCountFallbackField: fieldPlan.rowCountFallbackField,
+    });
 
     logInfo("tableau.photo_post.queryPlanBuilt", {
       purpose: input.purpose,
@@ -701,6 +733,124 @@ async function runPurposeAnalysis(input: {
       querySorts: fieldPlan.querySorts,
       queryLimit: fieldPlan.queryLimit,
     });
+    logInfo("tableau.photo_post.photoPostQueryPlanFieldValidationStarted", {
+      purpose: input.purpose,
+      datasourceKey: input.datasource.allowed.key,
+      metadataFieldCount: metadataFieldCaptions.length,
+      queryPlanFieldCount: fieldPlan.queryFields.length,
+      queryPlanFieldCaptions: fieldPlan.queryFields
+        .map((field) => readString(field.fieldCaption))
+        .filter((field): field is string => Boolean(field)),
+      unknownFieldCaptions: fieldValidation.unknownFieldCaptions,
+      customCalculationCount: fieldValidation.customCalculationCount,
+      fieldValidationPassed: fieldValidation.fieldValidationPassed,
+    });
+
+    if (!fieldValidation.fieldValidationPassed) {
+      const validationSkippedReason = fieldValidation.skippedReason;
+      logInfo("tableau.photo_post.queryArgsBuildStarted", {
+        purpose: input.purpose,
+        datasourceKey: input.datasource.allowed.key,
+        queryPlanType: fieldPlan.queryPlanType,
+        queryPlanFieldCount: fieldPlan.queryFields.length,
+        queryPlanFields: fieldPlan.queryFields,
+        queryPlanFilterCount: fieldPlan.queryFilters.length,
+        queryPlanLimit: fieldPlan.queryLimit,
+      });
+      logInfo("tableau.photo_post.queryArgsBuildCompleted", {
+        purpose: input.purpose,
+        datasourceKey: input.datasource.allowed.key,
+        queryArgsFieldCount: fieldPlan.queryFields.length,
+        queryArgsFields: fieldPlan.queryFields,
+        queryArgsFilterCount: fieldPlan.queryFilters.length,
+        queryArgsLimit: fieldPlan.queryLimit,
+        queryArgsDatasourceLuidPresent: Boolean(
+          input.datasource.source.luid ?? input.datasource.allowed.luid ?? "",
+        ),
+        queryArgsBuildWarnings: validationSkippedReason
+          ? [validationSkippedReason]
+          : [],
+      });
+      logInfo("tableau.photo_post.queryToolCallPrepared", {
+        purpose: input.purpose,
+        datasourceKey: input.datasource.allowed.key,
+        datasourceLuidPresent: Boolean(
+          input.datasource.source.luid ?? input.datasource.allowed.luid ?? "",
+        ),
+        fieldCount: fieldPlan.queryFields.length,
+        fields: fieldPlan.queryFields,
+        filterCount: fieldPlan.queryFilters.length,
+        filters: fieldPlan.queryFilters,
+        limit: fieldPlan.queryLimit,
+        willCallQueryDatasource: false,
+        skipReason: validationSkippedReason,
+      });
+      logInfo("tableau.photo_post.queryValidationResult", {
+        purpose: input.purpose,
+        datasourceKey: input.datasource.allowed.key,
+        datasourceName,
+        queryValidationResult: "rejected",
+        queryValidationRejectedReason: validationSkippedReason,
+        queryRowCount: 0,
+        sourceStatus: "skipped",
+      });
+      const unavailableInsight = buildUnavailableInsight(
+        input.purpose,
+        input.datasource.allowed.key,
+        datasourceName,
+        validationSkippedReason ?? "query_plan_validation_failed",
+        "skipped",
+        0,
+        validationSkippedReason ? [validationSkippedReason] : [],
+        {
+          unknownFields: fieldValidation.unknownFieldCaptions,
+        },
+      );
+      logInfo("tableau.photo_post.queryToolCallCompleted", {
+        purpose: input.purpose,
+        datasourceKey: input.datasource.allowed.key,
+        queryToolCalled: false,
+        querySucceeded: false,
+        queryRowCount: 0,
+        queryValidationRejected: true,
+        queryValidationRejectedReason: validationSkippedReason,
+        sourceStatus: "skipped",
+        insightSectionAvailable: unavailableInsight.available,
+      });
+      logInfo("tableau.photo_post.insightSummaryStarted", {
+        purpose: input.purpose,
+        rowCount: 0,
+        summaryPromptChars: JSON.stringify({
+          purpose: input.purpose,
+          datasourceKey: input.datasource.allowed.key,
+          datasourceName,
+          fieldPlan,
+          metadataFieldCount: metadataFieldCaptions.length,
+        }).length,
+      });
+      logInfo("tableau.photo_post.insightSummaryCompleted", {
+        purpose: input.purpose,
+        rowCount: 0,
+        summaryCompleted: true,
+        summaryTextLength:
+          (unavailableInsight as { evidenceSummary?: string }).evidenceSummary
+            ?.length ?? 0,
+        keyFindingCount: 0,
+      });
+      logInfo("tableau.photo_post.purposeAnalysisCompleted", {
+        purpose: input.purpose,
+        datasourceKey: input.datasource.allowed.key,
+        datasourceName,
+        metadataFetchCompleted: true,
+        queryPlanType: fieldPlan.queryPlanType,
+        queryRowCount: 0,
+        sourceStatus: unavailableInsight.sourceStatus,
+        insightSectionAvailable: unavailableInsight.available,
+        skippedReason: unavailableInsight.skippedReason,
+        failedReason: unavailableInsight.failedReason,
+      });
+      return unavailableInsight;
+    }
 
     const queryInterpretation = buildFixedPurposeQueryInterpretation({
       purpose: input.purpose,
@@ -712,6 +862,8 @@ async function runPurposeAnalysis(input: {
       datasourceLuid:
         input.datasource.source.luid ?? input.datasource.allowed.luid ?? "",
       fieldPlan,
+      validationSkippedReason: fieldValidation.skippedReason,
+      fieldValidationPassed: fieldValidation.fieldValidationPassed,
     });
     logInfo("tableau.photo_post.queryArgsBuildStarted", {
       purpose: input.purpose,
@@ -778,15 +930,31 @@ async function runPurposeAnalysis(input: {
     const querySucceeded = queryToolResult?.status === "success";
     const queryValidationRejected = queryToolResult?.status === "skipped";
     const queryToolCalled = Boolean(queryToolResult);
+    const queryErrorCategory = queryToolResult?.errorCategory;
+    const queryErrorMessage =
+      queryToolResult?.errorMessage ?? queryToolResult?.warning;
+    const unknownFields = uniqueStrings(
+      queryErrorCategory === "resource_not_found"
+        ? extractUnknownFieldsFromQueryError(queryErrorMessage)
+        : [],
+    );
     const queryValidationRejectedReason =
       queryToolResult?.warning ??
       (queryValidationRejected
         ? (queryArgsPreview.skipReason ?? "query_validation_rejected")
         : undefined);
+    const queryFailedReason =
+      queryToolResult?.status === "failed"
+        ? queryErrorCategory === "resource_not_found"
+          ? "query_field_not_found"
+          : "query_failed"
+        : undefined;
     const warnings = uniqueStrings([
       ...(metadataContext.warnings ?? []),
       ...(additionalContext.warnings ?? []),
       ...(querySucceeded && queryRowCount === 0 ? ["no_query_rows"] : []),
+      ...(queryErrorCategory ? [queryErrorCategory] : []),
+      ...(unknownFields.length ? unknownFields : []),
       ...(queryValidationRejected
         ? [queryValidationRejectedReason ?? "query_validation_rejected"]
         : []),
@@ -798,18 +966,30 @@ async function runPurposeAnalysis(input: {
       datasourceName,
       queryValidationResult: queryValidationRejected
         ? "rejected"
-        : querySucceeded
-          ? "accepted"
-          : "not_executed",
+        : queryToolResult?.status === "failed"
+          ? "failed"
+          : querySucceeded
+            ? "accepted"
+            : "not_executed",
       queryValidationRejectedReason,
       queryRowCount,
       sourceStatus: querySucceeded
         ? "queried"
         : queryValidationRejected
           ? "skipped"
-          : metadataSucceeded
-            ? "metadata_only"
-            : "failed",
+          : queryToolResult?.status === "failed"
+            ? "failed"
+            : metadataSucceeded
+              ? "metadata_only"
+              : "failed",
+    });
+    logInfo("tableau.photo_post.photoPostQueryErrorCaptured", {
+      purpose: input.purpose,
+      datasourceKey: input.datasource.allowed.key,
+      queryErrorCategory,
+      queryErrorMessage,
+      unknownFields,
+      failedReason: queryFailedReason,
     });
     logDebug("tableau.photo_post.purposeAnalysisBranch", {
       purpose: input.purpose,
@@ -824,9 +1004,11 @@ async function runPurposeAnalysis(input: {
         ? "queried"
         : queryValidationRejected
           ? "skipped"
-          : metadataSucceeded
-            ? "metadata_only"
-            : "failed",
+          : queryToolResult?.status === "failed"
+            ? "failed"
+            : metadataSucceeded
+              ? "metadata_only"
+              : "failed",
       warnings,
     });
     logInfo("tableau.photo_post.queryDatasourceCompleted", {
@@ -836,6 +1018,8 @@ async function runPurposeAnalysis(input: {
       queryRowCount,
       querySucceeded,
       queryValidationRejected,
+      queryErrorCategory,
+      queryErrorMessage,
     });
     logInfo("tableau.photo_post.insightSummaryStarted", {
       purpose: input.purpose,
@@ -858,9 +1042,11 @@ async function runPurposeAnalysis(input: {
         ? "queried"
         : queryValidationRejected
           ? "skipped"
-          : metadataSucceeded
-            ? "metadata_only"
-            : "failed",
+          : queryToolResult?.status === "failed"
+            ? "failed"
+            : metadataSucceeded
+              ? "metadata_only"
+              : "failed",
       warnings,
       skippedReason: queryValidationRejected
         ? (queryValidationRejectedReason ?? "query_validation_rejected")
@@ -868,13 +1054,20 @@ async function runPurposeAnalysis(input: {
           ? queryRowCount > 0
             ? undefined
             : "no_query_rows"
-          : metadataSucceeded
-            ? (queryArgsPreview.skipReason ?? "query_tool_not_called")
-            : "metadata_fetch_failed",
+          : queryToolResult?.status === "failed"
+            ? queryFailedReason
+            : metadataSucceeded
+              ? (queryArgsPreview.skipReason ?? "query_tool_not_called")
+              : "metadata_fetch_failed",
       failedReason:
-        !metadataSucceeded && !querySucceeded && !queryValidationRejected
-          ? "metadata_fetch_failed"
-          : undefined,
+        queryToolResult?.status === "failed"
+          ? queryFailedReason
+          : !metadataSucceeded && !querySucceeded && !queryValidationRejected
+            ? "metadata_fetch_failed"
+            : undefined,
+      unknownFields,
+      queryErrorCategory,
+      queryErrorMessage,
     });
     logInfo("tableau.photo_post.queryToolCallCompleted", {
       purpose: input.purpose,
@@ -882,23 +1075,21 @@ async function runPurposeAnalysis(input: {
       queryToolCalled,
       querySucceeded,
       queryRowCount,
-      queryErrorName:
-        queryToolResult?.status === "failed"
-          ? queryValidationRejectedReason?.split(":")[0]
-          : undefined,
-      queryErrorMessage:
-        queryToolResult?.status === "failed"
-          ? queryValidationRejectedReason
-          : undefined,
+      queryErrorCategory,
+      queryErrorMessage,
+      unknownFields,
+      failedReason: queryFailedReason,
       queryValidationRejected,
       queryValidationRejectedReason,
       sourceStatus: querySucceeded
         ? "queried"
         : queryValidationRejected
           ? "skipped"
-          : metadataSucceeded
-            ? "metadata_only"
-            : "failed",
+          : queryToolResult?.status === "failed"
+            ? "failed"
+            : metadataSucceeded
+              ? "metadata_only"
+              : "failed",
       insightSectionAvailable: insight.available,
     });
     logDebug("tableau.photo_post.purposeAnalysisBranch", {
@@ -984,6 +1175,8 @@ function buildFixedPhotoPostIntent(): ClassifiedQuestionIntent {
 function buildPhotoPostQueryArgsPreview(input: {
   datasourceLuid: string;
   fieldPlan: PurposeFieldPlan;
+  fieldValidationPassed: boolean;
+  validationSkippedReason?: string;
 }): {
   queryArgsDatasourceLuidPresent: boolean;
   queryArgsFieldCount: number;
@@ -991,6 +1184,7 @@ function buildPhotoPostQueryArgsPreview(input: {
   queryArgsFilterCount: number;
   queryArgsFilters: Array<Record<string, unknown>>;
   queryArgsLimit: number;
+  queryArgsHasAggregateField: boolean;
   queryArgsBuildWarnings: string[];
   willCallQueryDatasource: boolean;
   skipReason?: string;
@@ -1011,6 +1205,17 @@ function buildPhotoPostQueryArgsPreview(input: {
   if (queryArgsFields.length === 0) {
     queryArgsBuildWarnings.push("query_args_missing_fields");
   }
+  const queryArgsHasAggregateField = queryArgsFields.some(
+    (field) =>
+      typeof field.function === "string" ||
+      typeof field.calculation === "string",
+  );
+  if (!queryArgsHasAggregateField) {
+    queryArgsBuildWarnings.push("query_args_missing_aggregate_field");
+  }
+  if (input.validationSkippedReason) {
+    queryArgsBuildWarnings.push(input.validationSkippedReason);
+  }
   return {
     queryArgsDatasourceLuidPresent,
     queryArgsFieldCount: queryArgsFields.length,
@@ -1018,14 +1223,22 @@ function buildPhotoPostQueryArgsPreview(input: {
     queryArgsFilterCount: queryArgsFilters.length,
     queryArgsFilters,
     queryArgsLimit: input.fieldPlan.queryLimit,
+    queryArgsHasAggregateField,
     queryArgsBuildWarnings,
     willCallQueryDatasource:
-      queryArgsDatasourceLuidPresent && queryArgsFields.length > 0,
-    skipReason: !queryArgsDatasourceLuidPresent
-      ? "query_args_missing_datasource_luid"
-      : queryArgsFields.length === 0
-        ? "query_args_missing_fields"
-        : undefined,
+      input.fieldValidationPassed &&
+      queryArgsDatasourceLuidPresent &&
+      queryArgsFields.length > 0 &&
+      queryArgsHasAggregateField,
+    skipReason: input.validationSkippedReason
+      ? input.validationSkippedReason
+      : !queryArgsDatasourceLuidPresent
+        ? "query_args_missing_datasource_luid"
+        : queryArgsFields.length === 0
+          ? "query_args_missing_fields"
+          : !queryArgsHasAggregateField
+            ? "no_suitable_metric_fields"
+            : undefined,
   };
 }
 
@@ -1039,6 +1252,9 @@ function buildPurposeInsight(input: {
   warnings: string[];
   skippedReason?: string;
   failedReason?: string;
+  unknownFields?: string[];
+  queryErrorCategory?: string;
+  queryErrorMessage?: string;
 }): SurveyInsight | PostPerformanceInsight | AccountOverviewInsight {
   const summary = buildContextSummary(input.additionalContext);
   const rows = input.additionalContext.queryInsights?.[0]?.rows ?? [];
@@ -1076,6 +1292,11 @@ function buildPurposeInsight(input: {
       "queried",
       input.queryRowCount,
       uniqueStrings([...(input.warnings ?? []), "no_query_rows"]),
+      {
+        unknownFields: input.unknownFields,
+        queryErrorCategory: input.queryErrorCategory,
+        queryErrorMessage: input.queryErrorMessage,
+      },
     );
   }
 
@@ -1103,6 +1324,11 @@ function buildPurposeInsight(input: {
             : "metadata_only",
       input.queryRowCount,
       input.warnings,
+      {
+        unknownFields: input.unknownFields,
+        queryErrorCategory: input.queryErrorCategory,
+        queryErrorMessage: input.queryErrorMessage,
+      },
     );
   }
 
@@ -1233,6 +1459,11 @@ function buildUnavailableInsight(
   status: "queried" | "skipped" | "failed" | "metadata_only" = "skipped",
   queryRowCount = 0,
   warnings: string[] = [],
+  details?: {
+    unknownFields?: string[];
+    queryErrorCategory?: string;
+    queryErrorMessage?: string;
+  },
 ): SurveyInsight | PostPerformanceInsight | AccountOverviewInsight {
   if (purpose === "survey_insight") {
     return {
@@ -1242,6 +1473,15 @@ function buildUnavailableInsight(
       datasourceName,
       queryRowCount,
       warnings,
+      ...(details?.unknownFields?.length
+        ? { unknownFields: details.unknownFields }
+        : {}),
+      ...(details?.queryErrorCategory
+        ? { queryErrorCategory: details.queryErrorCategory }
+        : {}),
+      ...(details?.queryErrorMessage
+        ? { queryErrorMessage: details.queryErrorMessage }
+        : {}),
       keyExpectations: [],
       keyInterests: [],
       concernsOrQuestions: [],
@@ -1263,6 +1503,15 @@ function buildUnavailableInsight(
       datasourceName,
       queryRowCount,
       warnings,
+      ...(details?.unknownFields?.length
+        ? { unknownFields: details.unknownFields }
+        : {}),
+      ...(details?.queryErrorCategory
+        ? { queryErrorCategory: details.queryErrorCategory }
+        : {}),
+      ...(details?.queryErrorMessage
+        ? { queryErrorMessage: details.queryErrorMessage }
+        : {}),
       highPerformingThemes: [],
       highPerformingPatterns: [],
       recommendedTone: [],
@@ -1284,6 +1533,15 @@ function buildUnavailableInsight(
     datasourceName,
     queryRowCount,
     warnings,
+    ...(details?.unknownFields?.length
+      ? { unknownFields: details.unknownFields }
+      : {}),
+    ...(details?.queryErrorCategory
+      ? { queryErrorCategory: details.queryErrorCategory }
+      : {}),
+    ...(details?.queryErrorMessage
+      ? { queryErrorMessage: details.queryErrorMessage }
+      : {}),
     recentTrendSummary: reason,
     notableChanges: [],
     timingHints: [],
@@ -1306,6 +1564,8 @@ type PurposeFieldPlan = {
   selectedDateField?: string;
   selectedMetricFields: string[];
   metricSelectionReason: string;
+  rowCountFallbackUsed: boolean;
+  rowCountFallbackField?: string;
   metricIntent: QuestionMetricIntent;
   groupingIntent: QuestionGroupingIntent;
   rankingTarget: QuestionRankingTarget;
@@ -1417,19 +1677,49 @@ function selectPurposeFieldPlan(input: {
       ...candidateDateFields.slice(0, 1),
     ]).slice(0, 3);
     const selectedMetric = pickBestMetricField(fieldDetails, [
-      { intent: "post_count", patterns: [/response/i, /answer/i, /count/i] },
-      { intent: "engagements", patterns: [/engagement/i] },
-      { intent: "impressions", patterns: [/impression/i] },
-      { intent: "likes", patterns: [/like/i] },
-      { intent: "reposts", patterns: [/repost/i, /retweet/i] },
-      { intent: "replies", patterns: [/reply/i] },
-      { intent: "bookmarks", patterns: [/bookmark/i] },
+      {
+        intent: "post_count",
+        label: "matched survey response metrics",
+        patterns: [/response/i, /answer/i, /count/i, /回答/i, /応答/i],
+      },
+      {
+        intent: "engagements",
+        label: "matched survey engagement metrics",
+        patterns: [/engagement/i, /エンゲージメント/i],
+      },
+      {
+        intent: "impressions",
+        label: "matched survey impression metrics",
+        patterns: [/impression/i, /インプレッション/i],
+      },
+      {
+        intent: "likes",
+        label: "matched survey like metrics",
+        patterns: [/like/i, /いいね/i],
+      },
+      {
+        intent: "reposts",
+        label: "matched survey repost metrics",
+        patterns: [/repost/i, /retweet/i, /リポスト/i, /再投稿/i],
+      },
+      {
+        intent: "replies",
+        label: "matched survey reply metrics",
+        patterns: [/reply/i, /返信/i],
+      },
+      {
+        intent: "bookmarks",
+        label: "matched survey bookmark metrics",
+        patterns: [/bookmark/i, /ブックマーク/i],
+      },
     ]);
     logDebug("tableau.photo_post.fieldSelectionDecision", {
       purpose: input.purpose,
       selectedTextFields,
       selectedDateField: candidateDateFields[0],
-      selectedMetricFields: [selectedMetric.metricFieldLabel],
+      selectedMetricFields: selectedMetric.metricFieldLabel
+        ? [selectedMetric.metricFieldLabel]
+        : [],
       metricSelectionReason: selectedMetric.reason,
       metricIntent: selectedMetric.intent,
       queryLimit: 20,
@@ -1441,8 +1731,12 @@ function selectPurposeFieldPlan(input: {
       candidateMetricFields,
       selectedTextFields,
       selectedDateField: candidateDateFields[0],
-      selectedMetricFields: [selectedMetric.metricFieldLabel],
+      selectedMetricFields: selectedMetric.metricFieldLabel
+        ? [selectedMetric.metricFieldLabel]
+        : [],
       metricSelectionReason: selectedMetric.reason,
+      rowCountFallbackUsed: selectedMetric.rowCountFallbackUsed,
+      rowCountFallbackField: selectedMetric.rowCountFallbackField,
       metricIntent: selectedMetric.intent,
       groupingIntent: "datasource",
       rankingTarget: "datasource",
@@ -1494,27 +1788,52 @@ function selectPurposeFieldPlan(input: {
     const selectedMetric = pickBestMetricField(fieldDetails, [
       {
         intent: "engagement_rate",
-        patterns: [/engagement.?rate/i],
+        label: "matched post engagement rate metrics",
+        patterns: [/engagement.?rate/i, /エンゲージメント率/i],
       },
       {
         intent: "engagements",
-        patterns: [/engagement/i],
+        label: "matched post engagement metrics",
+        patterns: [/engagement/i, /エンゲージメント/i],
       },
       {
         intent: "impressions",
-        patterns: [/impression/i],
+        label: "matched post impression metrics",
+        patterns: [/impression/i, /インプレッション/i],
       },
-      { intent: "likes", patterns: [/like/i] },
-      { intent: "reposts", patterns: [/repost/i, /retweet/i] },
-      { intent: "replies", patterns: [/reply/i] },
-      { intent: "bookmarks", patterns: [/bookmark/i] },
-      { intent: "post_count", patterns: [/count/i] },
+      {
+        intent: "likes",
+        label: "matched post like metrics",
+        patterns: [/like/i, /いいね/i],
+      },
+      {
+        intent: "reposts",
+        label: "matched post repost metrics",
+        patterns: [/repost/i, /retweet/i, /リポスト/i, /再投稿/i],
+      },
+      {
+        intent: "replies",
+        label: "matched post reply metrics",
+        patterns: [/reply/i, /返信/i],
+      },
+      {
+        intent: "bookmarks",
+        label: "matched post bookmark metrics",
+        patterns: [/bookmark/i, /ブックマーク/i],
+      },
+      {
+        intent: "post_count",
+        label: "matched post count metrics",
+        patterns: [/count/i, /投稿数/i, /ポスト数/i],
+      },
     ]);
     logDebug("tableau.photo_post.fieldSelectionDecision", {
       purpose: input.purpose,
       selectedTextFields,
       selectedDateField: candidateDateFields[0],
-      selectedMetricFields: [selectedMetric.metricFieldLabel],
+      selectedMetricFields: selectedMetric.metricFieldLabel
+        ? [selectedMetric.metricFieldLabel]
+        : [],
       metricSelectionReason: selectedMetric.reason,
       metricIntent: selectedMetric.intent,
       queryLimit: 10,
@@ -1526,8 +1845,12 @@ function selectPurposeFieldPlan(input: {
       candidateMetricFields,
       selectedTextFields,
       selectedDateField: candidateDateFields[0],
-      selectedMetricFields: [selectedMetric.metricFieldLabel],
+      selectedMetricFields: selectedMetric.metricFieldLabel
+        ? [selectedMetric.metricFieldLabel]
+        : [],
       metricSelectionReason: selectedMetric.reason,
+      rowCountFallbackUsed: selectedMetric.rowCountFallbackUsed,
+      rowCountFallbackField: selectedMetric.rowCountFallbackField,
       metricIntent: selectedMetric.intent,
       groupingIntent: "datasource",
       rankingTarget: "post",
@@ -1563,24 +1886,55 @@ function selectPurposeFieldPlan(input: {
     selectedDateFieldPresent: Boolean(selectedDateField),
   });
   const selectedMetric = pickBestMetricField(fieldDetails, [
-    { intent: "impressions", patterns: [/impression/i] },
-    { intent: "engagements", patterns: [/engagement/i] },
+    {
+      intent: "impressions",
+      label: "matched account overview priority metrics",
+      patterns: [/impression/i, /インプレッション/i, /表示回数/i],
+    },
+    {
+      intent: "engagements",
+      label: "matched account overview priority metrics",
+      patterns: [/engagement/i, /エンゲージメント/i],
+    },
     {
       intent: "engagement_rate",
-      patterns: [/engagement.?rate/i],
+      label: "matched account overview priority metrics",
+      patterns: [/engagement.?rate/i, /エンゲージメント率/i],
     },
-    { intent: "post_count", patterns: [/post.?count/i, /count/i] },
-    { intent: "likes", patterns: [/like/i] },
-    { intent: "reposts", patterns: [/repost/i, /retweet/i] },
-    { intent: "replies", patterns: [/reply/i] },
-    { intent: "bookmarks", patterns: [/bookmark/i] },
+    {
+      intent: "post_count",
+      label: "matched account overview priority metrics",
+      patterns: [/post.?count/i, /count/i, /投稿数/i, /件数/i],
+    },
+    {
+      intent: "likes",
+      label: "matched account overview priority metrics",
+      patterns: [/like/i, /いいね/i],
+    },
+    {
+      intent: "reposts",
+      label: "matched account overview priority metrics",
+      patterns: [/repost/i, /retweet/i, /共有/i, /シェア/i],
+    },
+    {
+      intent: "replies",
+      label: "matched account overview priority metrics",
+      patterns: [/reply/i, /返信/i],
+    },
+    {
+      intent: "bookmarks",
+      label: "matched account overview priority metrics",
+      patterns: [/bookmark/i, /ブックマーク/i],
+    },
   ]);
   const period = buildRecentPeriod(30);
   logDebug("tableau.photo_post.fieldSelectionDecision", {
     purpose: input.purpose,
     selectedTextFields: selectedDateField ? [selectedDateField] : [],
     selectedDateField,
-    selectedMetricFields: [selectedMetric.metricFieldLabel],
+    selectedMetricFields: selectedMetric.metricFieldLabel
+      ? [selectedMetric.metricFieldLabel]
+      : [],
     metricSelectionReason: selectedMetric.reason,
     metricIntent: selectedMetric.intent,
     queryLimit: 30,
@@ -1593,8 +1947,12 @@ function selectPurposeFieldPlan(input: {
     candidateMetricFields,
     selectedTextFields: selectedDateField ? [selectedDateField] : [],
     selectedDateField,
-    selectedMetricFields: [selectedMetric.metricFieldLabel],
+    selectedMetricFields: selectedMetric.metricFieldLabel
+      ? [selectedMetric.metricFieldLabel]
+      : [],
     metricSelectionReason: selectedMetric.reason,
+    rowCountFallbackUsed: selectedMetric.rowCountFallbackUsed,
+    rowCountFallbackField: selectedMetric.rowCountFallbackField,
     metricIntent: selectedMetric.intent,
     groupingIntent: "dashboard",
     rankingTarget: "datasource",
@@ -1694,12 +2052,15 @@ function pickBestMetricField(
   }>,
   preferences: Array<{
     intent: QuestionMetricIntent;
+    label: string;
     patterns: RegExp[];
   }>,
 ): {
   intent: QuestionMetricIntent;
-  metricFieldLabel: string;
+  metricFieldLabel?: string;
   reason: string;
+  rowCountFallbackUsed: boolean;
+  rowCountFallbackField?: string;
 } {
   const candidates = fieldDetails
     .filter(isMetricLikeFieldDetail)
@@ -1717,14 +2078,18 @@ function pickBestMetricField(
     return {
       intent: matchedPreference?.intent ?? "post_count",
       metricFieldLabel: selected.name,
-      reason: `selected ${selected.name} by metadata score`,
+      reason: matchedPreference?.label
+        ? `${matchedPreference.label}: ${selected.name}`
+        : `selected ${selected.name} by metadata score`,
+      rowCountFallbackUsed: false,
     };
   }
 
   return {
     intent: "post_count",
-    metricFieldLabel: "回答数",
-    reason: "fallback to row count because no clear metric field was found",
+    metricFieldLabel: undefined,
+    reason: "no suitable metric field was found",
+    rowCountFallbackUsed: false,
   };
 }
 
@@ -1747,12 +2112,20 @@ function scoreTextField(name: string, patterns: RegExp[]): number {
 
 function scoreMetricField(
   name: string,
-  preferences: Array<{ intent: QuestionMetricIntent; patterns: RegExp[] }>,
+  preferences: Array<{
+    intent: QuestionMetricIntent;
+    label: string;
+    patterns: RegExp[];
+  }>,
 ): number {
   let score = 0;
   for (let index = 0; index < preferences.length; index += 1) {
     const preference = preferences[index];
-    const hit = preference.patterns.some((pattern) => pattern.test(name));
+    const hit =
+      preference.patterns.some((pattern) => pattern.test(name)) ||
+      getMetricIntentFallbackPatterns(preference.intent).some((pattern) =>
+        pattern.test(name),
+      );
     if (hit) {
       score += Math.max(200 - index * 20, 20);
     }
@@ -1765,6 +2138,151 @@ function scoreMetricField(
     score += 25;
   }
   return score;
+}
+
+function getMetricIntentFallbackPatterns(
+  intent: QuestionMetricIntent,
+): RegExp[] {
+  switch (intent) {
+    case "impressions":
+      return [/impression/i, /インプレッション/i, /表示回数/i];
+    case "engagements":
+      return [/engagement/i, /エンゲージメント/i];
+    case "engagement_rate":
+      return [/engagement.?rate/i, /エンゲージメント率/i];
+    case "reposts":
+      return [/repost/i, /retweet/i, /リポスト/i, /共有/i, /シェア/i];
+    case "replies":
+      return [/reply/i, /返信/i];
+    case "likes":
+      return [/like/i, /いいね/i];
+    case "bookmarks":
+      return [/bookmark/i, /ブックマーク/i];
+    case "post_count":
+      return [/post.?count/i, /count/i, /投稿数/i, /件数/i];
+    case "views":
+      return [/view/i, /再生/i, /視聴/i];
+    case "favorites":
+    case "love":
+    case "reactions":
+    case "unknown":
+    default:
+      return [];
+  }
+}
+
+function buildMetricPriorityCandidateLabels(
+  purpose: AllowedDatasource["purpose"],
+): string[] {
+  if (purpose === "account_overview") {
+    return [
+      "インプレッション数",
+      "エンゲージメント",
+      "新しいフォロー",
+      "プロフィールへのアクセス数",
+      "共有された回数",
+      "メディアの再生数",
+      "動画再生数",
+      "ブックマーク",
+    ];
+  }
+
+  if (purpose === "post_performance") {
+    return [
+      "エンゲージメント",
+      "エンゲージメント率",
+      "インプレッション数",
+      "いいね",
+      "リポスト",
+      "返信",
+      "ブックマーク",
+    ];
+  }
+
+  return [
+    "回答数",
+    "Expectation Score",
+    "Mcp Awareness Score",
+    "Response Id",
+    "Interest Topic",
+    "Interest Category",
+  ];
+}
+
+function validatePhotoPostQueryPlanFields(input: {
+  metadataFieldCaptions: string[];
+  queryFields: Array<Record<string, unknown>>;
+  selectedMetricFields: string[];
+}): {
+  fieldValidationPassed: boolean;
+  unknownFieldCaptions: string[];
+  customCalculationCount: number;
+  skippedReason?: string;
+} {
+  const normalizedMetadataFields = new Set(
+    input.metadataFieldCaptions
+      .map((fieldCaption) => normalizePhotoPostFieldCaption(fieldCaption))
+      .filter(Boolean),
+  );
+  const queryFieldCaptions = input.queryFields
+    .map((field) => readString(field.fieldCaption))
+    .filter((field): field is string => Boolean(field));
+  const customCalculationCount = input.queryFields.filter(
+    (field) =>
+      typeof field.calculation === "string" && field.calculation.trim(),
+  ).length;
+  const unknownFieldCaptions = uniqueStrings(
+    queryFieldCaptions.filter((fieldCaption) => {
+      const normalizedCaption = normalizePhotoPostFieldCaption(fieldCaption);
+      if (!normalizedCaption) {
+        return false;
+      }
+      return !normalizedMetadataFields.has(normalizedCaption);
+    }),
+  );
+  const hasAggregateField = input.queryFields.some(
+    (field) =>
+      typeof field.function === "string" ||
+      typeof field.calculation === "string",
+  );
+  if (unknownFieldCaptions.length > 0) {
+    return {
+      fieldValidationPassed: false,
+      unknownFieldCaptions,
+      customCalculationCount,
+      skippedReason: "query_plan_contains_unknown_field",
+    };
+  }
+  if (!hasAggregateField || input.selectedMetricFields.length === 0) {
+    return {
+      fieldValidationPassed: false,
+      unknownFieldCaptions,
+      customCalculationCount,
+      skippedReason: "no_suitable_metric_fields",
+    };
+  }
+  return {
+    fieldValidationPassed: true,
+    unknownFieldCaptions: [],
+    customCalculationCount,
+  };
+}
+
+function normalizePhotoPostFieldCaption(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function extractUnknownFieldsFromQueryError(errorMessage?: string): string[] {
+  if (!errorMessage) {
+    return [];
+  }
+
+  const matches = [...errorMessage.matchAll(/Field '([^']+)' was not found/gi)];
+  return uniqueStrings(
+    matches
+      .map((match) => match[1]?.trim())
+      .filter((field): field is string => Boolean(field)),
+  );
 }
 
 function isTextLikeFieldDetail(fieldDetail: {
@@ -1799,7 +2317,7 @@ function isMetricLikeFieldDetail(fieldDetail: {
 }): boolean {
   const haystack =
     `${fieldDetail.name} ${fieldDetail.dataType ?? ""} ${fieldDetail.role ?? ""} ${fieldDetail.semanticRole ?? ""}`.toLowerCase();
-  return /int|integer|long|short|float|double|decimal|number|numeric|real|measure|quantitative|count|total|sum|score|rate|like|favorite|bookmark|reply|repost|engagement|impression/.test(
+  return /(?:\bint\b|\binteger\b|\blong\b|\bshort\b|\bfloat\b|\bdouble\b|\bdecimal\b|\bnumber\b|\bnumeric\b|\breal\b|\bmeasure\b|\bquantitative\b|\bcount\b|\btotal\b|\bsum\b|\bscore\b|\brate\b|\blike\b|\bfavorite\b|\bbookmark\b|\breply\b|\brepost\b|\bengagement\b|\bimpression\b|繧､繝ｳ繝励Ξ繝・す繝ｧ繝ｳ|陦ｨ遉ｺ蝗樊焚|繧ｨ繝ｳ繧ｲ繝ｼ繧ｸ繝｡繝ｳ繝・|繧ｨ繝ｳ繧ｲ繝ｼ繧ｸ繝｡繝育紫|繝ｪ繝昴せ繝・|蜈ｱ譛・|繧ｷ繧ｧ繧｢|霑比ｿ｡|縺・＞縺ｭ|繝悶ャ繧ｯ繝槭・繧ｯ|謚慕ｨｿ謨ｰ|莉ｶ謨ｰ|蜀咲函|隕冶・)/i.test(
     haystack,
   );
 }
@@ -1834,7 +2352,7 @@ function buildRecentPeriod(days: number): QuestionPeriod {
 function buildQueryFieldLog(input: {
   selectedTextFields: string[];
   selectedDateField?: string;
-  metricFieldLabel: string;
+  metricFieldLabel?: string;
   purpose: AllowedDatasource["purpose"];
 }): Array<Record<string, unknown>> {
   const fields: Array<Record<string, unknown>> = [];
@@ -1850,13 +2368,15 @@ function buildQueryFieldLog(input: {
       fieldAlias: "rank_label_date",
     });
   }
-  fields.push({
-    fieldCaption: input.metricFieldLabel,
-    function: "SUM",
-    fieldAlias: "rank_metric",
-    sortDirection: "DESC",
-    sortPriority: 1,
-  });
+  if (input.metricFieldLabel) {
+    fields.push({
+      fieldCaption: input.metricFieldLabel,
+      function: "SUM",
+      fieldAlias: "rank_metric",
+      sortDirection: "DESC",
+      sortPriority: 1,
+    });
+  }
   return fields;
 }
 

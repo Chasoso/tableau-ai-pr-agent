@@ -115,6 +115,287 @@ describe("TableauPhotoPostAnalysisService", () => {
     }
   });
 
+  it("prioritizes real account overview metrics and avoids the row-count fallback", async () => {
+    const provider = {
+      name: "tableau-mcp" as const,
+      getAdditionalContext: vi.fn(
+        async (
+          input: Parameters<TableauContextProvider["getAdditionalContext"]>[0],
+        ) => {
+          if (input.question.includes("survey")) {
+            return buildAdditionalContext(
+              "survey",
+              "Participants want practical examples.",
+            );
+          }
+          if (input.question.includes("engagement")) {
+            return buildAdditionalContext(
+              "performance",
+              "Photo posts get the strongest engagement.",
+            );
+          }
+          if (input.questionInterpretation?.requestType === "field_inventory") {
+            return buildAdditionalContextWithFields(
+              "overview",
+              "Metadata fetched successfully.",
+              [
+                {
+                  name: "Date",
+                  dataType: "DATE",
+                  role: "DIMENSION",
+                },
+                {
+                  name: "インプレッション数",
+                  dataType: "INTEGER",
+                  role: "MEASURE",
+                },
+                {
+                  name: "エンゲージメント",
+                  dataType: "INTEGER",
+                  role: "MEASURE",
+                },
+                {
+                  name: "新しいフォロー",
+                  dataType: "INTEGER",
+                  role: "MEASURE",
+                },
+                {
+                  name: "ブックマーク",
+                  dataType: "INTEGER",
+                  role: "MEASURE",
+                },
+              ],
+            );
+          }
+
+          if (input.questionInterpretation?.requestType === "general") {
+            return buildAdditionalContext(
+              "overview",
+              "Recent overview trends are visible.",
+            );
+          }
+
+          if (input.question.includes("survey")) {
+            return buildAdditionalContext(
+              "survey",
+              "Participants want practical examples.",
+            );
+          }
+          if (input.question.includes("engagement")) {
+            return buildAdditionalContext(
+              "performance",
+              "Photo posts get the strongest engagement.",
+            );
+          }
+          return buildAdditionalContext(
+            "overview",
+            "Recent photo posts are trending upward.",
+          );
+        },
+      ),
+    };
+
+    const gateway = {
+      listDatasources: vi.fn(async () => [
+        { name: "MCP_Session_Survey_Responses", luid: "survey-luid" },
+        { name: "X Account Analytics Contents", luid: "performance-luid" },
+        { name: "X Account Overview Analytics", luid: "overview-luid" },
+      ]),
+    };
+
+    const service = new TableauPhotoPostAnalysisService(
+      provider as never,
+      gateway as never,
+    );
+    const result = await service.analyze({
+      request: buildRequest(),
+      authenticatedUser: {
+        userId: "user-1",
+        tableauSubject: "user@example.com",
+      },
+    });
+
+    const overviewQueryCall = provider.getAdditionalContext.mock.calls.find(
+      ([input]) =>
+        input.questionInterpretation?.requestType === "general" &&
+        input.questionInterpretation?.analysisIntent === "grouped_trend" &&
+        input.questionInterpretation?.topN === 30,
+    )?.[0];
+
+    expect(overviewQueryCall?.questionInterpretation?.queryFields).toEqual([
+      { fieldCaption: "Date", fieldAlias: "rank_label" },
+      { fieldCaption: "Date", fieldAlias: "rank_label_date" },
+      {
+        fieldCaption: "インプレッション数",
+        function: "SUM",
+        fieldAlias: "rank_metric",
+        sortDirection: "DESC",
+        sortPriority: 1,
+      },
+    ]);
+    expect(
+      overviewQueryCall?.questionInterpretation?.queryFields?.some(
+        (field) => field.fieldCaption === "回答数",
+      ),
+    ).toBe(false);
+    expect(result.accountOverviewInsight?.available).toBe(true);
+  });
+
+  it("skips account overview query execution when no suitable metric field exists", async () => {
+    const provider = {
+      name: "tableau-mcp" as const,
+      getAdditionalContext: vi.fn(
+        async (
+          input: Parameters<TableauContextProvider["getAdditionalContext"]>[0],
+        ) => {
+          if (input.questionInterpretation?.requestType === "field_inventory") {
+            return buildAdditionalContextWithFields(
+              "overview",
+              "Metadata fetched successfully.",
+              [
+                {
+                  name: "Date",
+                  dataType: "DATE",
+                  role: "DIMENSION",
+                },
+                {
+                  name: "Owner Name",
+                  dataType: "STRING",
+                  role: "DIMENSION",
+                },
+              ],
+            );
+          }
+
+          if (input.questionInterpretation?.requestType === "general") {
+            return buildAdditionalContext(
+              "overview",
+              "This call should not be reached when validation skips the query.",
+            );
+          }
+          return buildAdditionalContext(
+            "overview",
+            "Recent photo posts are trending upward.",
+          );
+        },
+      ),
+    };
+
+    const gateway = {
+      listDatasources: vi.fn(async () => [
+        { name: "MCP_Session_Survey_Responses", luid: "survey-luid" },
+        { name: "X Account Analytics Contents", luid: "performance-luid" },
+        { name: "X Account Overview Analytics", luid: "overview-luid" },
+      ]),
+    };
+
+    const service = new TableauPhotoPostAnalysisService(
+      provider as never,
+      gateway as never,
+    );
+    const result = await service.analyze({
+      request: buildRequest(),
+      authenticatedUser: {
+        userId: "user-1",
+        tableauSubject: "user@example.com",
+      },
+    });
+
+    const overviewGeneralCalls =
+      provider.getAdditionalContext.mock.calls.filter(
+        ([input]) =>
+          input.questionInterpretation?.requestType === "general" &&
+          input.questionInterpretation?.analysisIntent === "grouped_trend",
+      );
+
+    expect(overviewGeneralCalls).toHaveLength(0);
+    expect(result.accountOverviewInsight?.available).toBe(false);
+    expect(result.accountOverviewInsight?.sourceStatus).toBe("skipped");
+    expect(result.accountOverviewInsight?.skippedReason).toBe(
+      "no_suitable_metric_fields",
+    );
+  });
+
+  it("propagates Tableau MCP resource-not-found query errors into the insight", async () => {
+    const provider = {
+      name: "tableau-mcp" as const,
+      getAdditionalContext: vi.fn(
+        async (
+          input: Parameters<TableauContextProvider["getAdditionalContext"]>[0],
+        ) => {
+          if (input.questionInterpretation?.requestType === "field_inventory") {
+            return buildAdditionalContextWithFields(
+              "overview",
+              "Metadata fetched successfully.",
+              [
+                {
+                  name: "Date",
+                  dataType: "DATE",
+                  role: "DIMENSION",
+                },
+                {
+                  name: "インプレッション数",
+                  dataType: "INTEGER",
+                  role: "MEASURE",
+                },
+              ],
+            );
+          }
+          return {
+            ...buildAdditionalContext(
+              "overview",
+              "Query failed for unknown field.",
+              [],
+            ),
+            mcpToolResults: [
+              {
+                toolName: "query-datasource",
+                status: "failed" as const,
+                errorCategory: "resource_not_found",
+                errorMessage:
+                  "Field '回答数' was not found in the datasource. Fields must either belong to the datasource or provide a custom calculation.",
+              },
+            ],
+            queryInsights: [],
+          };
+        },
+      ),
+    };
+
+    const gateway = {
+      listDatasources: vi.fn(async () => [
+        { name: "MCP_Session_Survey_Responses", luid: "survey-luid" },
+        { name: "X Account Analytics Contents", luid: "performance-luid" },
+        { name: "X Account Overview Analytics", luid: "overview-luid" },
+      ]),
+    };
+
+    const service = new TableauPhotoPostAnalysisService(
+      provider as never,
+      gateway as never,
+    );
+    const result = await service.analyze({
+      request: buildRequest(),
+      authenticatedUser: {
+        userId: "user-1",
+        tableauSubject: "user@example.com",
+      },
+    });
+
+    expect(result.accountOverviewInsight?.available).toBe(false);
+    expect(result.accountOverviewInsight?.sourceStatus).toBe("failed");
+    expect(result.accountOverviewInsight?.failedReason).toBe(
+      "query_field_not_found",
+    );
+    expect(result.accountOverviewInsight?.queryErrorCategory).toBe(
+      "resource_not_found",
+    );
+    expect(result.accountOverviewInsight?.queryErrorMessage).toContain(
+      "Field '回答数' was not found",
+    );
+    expect(result.accountOverviewInsight?.unknownFields).toEqual(["回答数"]);
+  });
+
   it("treats zero-row Tableau analysis as unavailable without blocking post generation", async () => {
     const provider = {
       name: "tableau-mcp" as const,
@@ -645,5 +926,34 @@ function buildAdditionalContext(
       },
     ],
     warnings: [],
+  };
+}
+
+function buildAdditionalContextWithFields(
+  kind: string,
+  summary: string,
+  fields: Array<{ name: string; dataType: string; role: string }>,
+  rows: Array<{ label: string; value: number }> = [
+    { label: summary, value: 1 },
+  ],
+) {
+  const base = buildAdditionalContext(kind, summary, rows);
+  const datasourceName =
+    kind === "survey"
+      ? "MCP_Session_Survey_Responses"
+      : kind === "performance"
+        ? "X Account Analytics Contents"
+        : "X Account Overview Analytics";
+  return {
+    ...base,
+    datasourceFieldProfiles: [
+      {
+        datasourceName,
+        fieldCount: fields.length,
+        fieldNames: fields.map((field) => field.name),
+        fields,
+        sourceTool: "get-datasource-metadata" as const,
+      },
+    ],
   };
 }
