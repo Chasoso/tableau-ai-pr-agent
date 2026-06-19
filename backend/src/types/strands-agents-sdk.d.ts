@@ -1,5 +1,5 @@
 declare module "@strands-agents/sdk" {
-  import type { ZodTypeAny } from "zod";
+  import type { output, ZodTypeAny } from "zod";
 
   export type JSONPrimitive = string | number | boolean | null;
   export type JSONValue =
@@ -21,7 +21,7 @@ declare module "@strands-agents/sdk" {
     name: string;
     description: string;
     inputSchema: TInput;
-    callback: (input: TInput["_output"]) => Promise<TReturn> | TReturn;
+    callback: (input: output<TInput>) => Promise<TReturn> | TReturn;
   };
 
   export function tool<
@@ -29,7 +29,7 @@ declare module "@strands-agents/sdk" {
     TReturn extends JSONValue = JSONValue,
   >(
     config: ZodToolConfig<TInput, TReturn>,
-  ): InvokableTool<TInput["_output"], TReturn>;
+  ): InvokableTool<output<TInput>, TReturn>;
 
   export class BedrockModel {
     constructor(config: Record<string, unknown>);
