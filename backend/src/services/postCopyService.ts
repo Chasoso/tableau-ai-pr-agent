@@ -1801,7 +1801,9 @@ function extractSessionTitleCandidatesV2(value: string): string[] {
   ]
     .map((match) => match[1] ?? match[2] ?? match[3] ?? "")
     .map((item) => item.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((item) => !/#/.test(item))
+    .filter((item) => !/hashtags?/iu.test(item));
 
   const lines = cleaned
     .split(/\r?\n+/u)
@@ -2408,12 +2410,15 @@ function cleanThemeCandidateV3(value: string): string {
       /^(?:\u30c6\u30fc\u30de|topics?|session|topic|title|points?)[:：\s]*/iu,
       "",
     )
+    .replace(/(?:^|\s)hashtags?\b[:：]?\s*/giu, " ")
+    .replace(/#[^\s#]+/gu, " ")
     .replace(/^(?:\u7b2c\d+\u56de)\s*/u, "")
     .replace(
       /^(?:tableau\u30e6\u30fc\u30b6\u30fc\u4f1a|\u30e6\u30fc\u30b6\u30fc\u4f1a)\s*/iu,
       "",
     )
     .replace(/[「」『』"]/gu, "")
+    .replace(/\s+/gu, " ")
     .trim();
 }
 
@@ -2442,7 +2447,9 @@ function extractSessionTitleCandidatesV3(value: string): string[] {
       ),
     )
     .filter((line) => line.length > 0)
-    .filter((line) => line.length <= 80);
+    .filter((line) => line.length <= 80)
+    .filter((line) => !/#/.test(line))
+    .filter((line) => !/hashtags?/iu.test(line));
 
   return uniqueStrings([...quoted, ...lines]);
 }
@@ -2465,6 +2472,8 @@ function isMeaningfulSessionTitleV3(value: string): boolean {
     !looksLikeAnalysisNoise(trimmed) &&
     !looksLikeNarrativeSentenceV3(trimmed) &&
     !isGenericThemeStopWordV3(trimmed) &&
+    !/#/.test(trimmed) &&
+    !/hashtags?/iu.test(trimmed) &&
     !/^(?:session detail|evidence pack|visually rich event notes)$/iu.test(
       trimmed,
     ) &&
