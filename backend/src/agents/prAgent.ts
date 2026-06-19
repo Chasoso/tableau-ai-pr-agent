@@ -6,6 +6,7 @@ import type {
   ActionRunRequest,
 } from "../types/actionRun";
 import type { PostGenerationEvidencePack } from "../services/tableauPhotoPostAnalysisService";
+import { buildPostMaterial } from "../services/postCopyService";
 import type { TechPlayPreviewResponse } from "../types/techplay";
 import { PR_SYSTEM_PROMPT } from "./prompts/prSystemPrompt";
 import {
@@ -148,12 +149,19 @@ export function buildPrAgentPrompt(input: {
   postCopyLimitChars?: number;
   copyGenerationAttempt?: number;
 }): string {
+  const postMaterialPreview = buildPostMaterial({
+    request: input.request,
+    analysisSections: input.analysisSections,
+    evidencePack: input.evidencePack,
+  });
   return [
     "Create a draft-only PR package from the JSON input below.",
     "Use the tools in this order: collectPrSourceInfo, summarizePrSourceInfo, generateAnnouncementDraft, generateSocialPostDraft for x, generateSocialPostDraft for linkedin, reviewPrDraft, createDraftOutput.",
     "Never publish, send, post, schedule, or mutate anything external.",
     "If any information is missing, surface it in missingFields and do not invent it.",
     "Use the provided evidencePack to keep the X draft natural, photo-aware, and evidence-based.",
+    "Prefer the natural-language Tableau post insights over raw metric names, dimension names, rank labels, or date lists.",
+    "Never quote raw Tableau debug fragments such as top item, metric, dimension, rank_label, rank_metric, field names, or date-only result rows in the draft body.",
     input.postCopyLimitChars
       ? `Keep the shared social copy within ${input.postCopyLimitChars} characters, counting emoji and line breaks as visible characters.`
       : "Keep the shared social copy concise and ready for approval.",
@@ -169,6 +177,14 @@ export function buildPrAgentPrompt(input: {
         analysisSections: input.analysisSections,
         evidencePack: input.evidencePack,
         photoContext: input.photoContext,
+        postMaterialPreview: {
+          audienceContext: postMaterialPreview.audienceContext,
+          surveyInsightForPost: postMaterialPreview.surveyInsightForPost,
+          toneHints: postMaterialPreview.toneHints,
+          structureHints: postMaterialPreview.structureHints,
+          contentHints: postMaterialPreview.contentHints,
+          tableauInsights: postMaterialPreview.tableauInsights,
+        },
         postCopyLimitChars: input.postCopyLimitChars,
         copyGenerationAttempt: input.copyGenerationAttempt ?? 1,
         constraints: {

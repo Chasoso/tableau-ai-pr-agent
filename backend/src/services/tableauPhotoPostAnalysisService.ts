@@ -78,6 +78,9 @@ export type SurveyInsight = {
   sourceStatus: "queried" | "metadata_only" | "skipped" | "failed";
   datasourceKey: string;
   datasourceName?: string;
+  dimensionField?: string;
+  metricField?: string;
+  rawSummary?: string;
   queryRowCount: number;
   warnings: string[];
   unknownFields?: string[];
@@ -99,6 +102,9 @@ export type PostPerformanceInsight = {
   sourceStatus: "queried" | "metadata_only" | "skipped" | "failed";
   datasourceKey: string;
   datasourceName?: string;
+  dimensionField?: string;
+  metricField?: string;
+  rawSummary?: string;
   queryRowCount: number;
   warnings: string[];
   unknownFields?: string[];
@@ -121,6 +127,9 @@ export type AccountOverviewInsight = {
   sourceStatus: "queried" | "metadata_only" | "skipped" | "failed";
   datasourceKey: string;
   datasourceName?: string;
+  dimensionField?: string;
+  metricField?: string;
+  rawSummary?: string;
   queryRowCount: number;
   warnings: string[];
   unknownFields?: string[];
@@ -365,6 +374,36 @@ export class TableauPhotoPostAnalysisService {
     const surveyInsight = analysis.surveyInsight;
     const postPerformanceInsight = analysis.postPerformanceInsight;
     const accountOverviewInsight = analysis.accountOverviewInsight;
+
+    logInfo("tableau.photo_post.raw_insights", {
+      surveyInsight: {
+        available: surveyInsight.available,
+        datasourceName: surveyInsight.datasourceName,
+        dimensionField: surveyInsight.dimensionField,
+        metricField: surveyInsight.metricField,
+        rawSummary: surveyInsight.rawSummary,
+        evidenceSummary: surveyInsight.evidenceSummary,
+        evidenceRows: surveyInsight.evidenceRows,
+      },
+      postPerformanceInsight: {
+        available: postPerformanceInsight.available,
+        datasourceName: postPerformanceInsight.datasourceName,
+        dimensionField: postPerformanceInsight.dimensionField,
+        metricField: postPerformanceInsight.metricField,
+        rawSummary: postPerformanceInsight.rawSummary,
+        evidenceSummary: postPerformanceInsight.evidenceSummary,
+        evidenceRows: postPerformanceInsight.evidenceRows,
+      },
+      accountOverviewInsight: {
+        available: accountOverviewInsight.available,
+        datasourceName: accountOverviewInsight.datasourceName,
+        dimensionField: accountOverviewInsight.dimensionField,
+        metricField: accountOverviewInsight.metricField,
+        rawSummary: accountOverviewInsight.rawSummary,
+        evidenceSummary: accountOverviewInsight.evidenceSummary,
+        evidenceRows: accountOverviewInsight.evidenceRows,
+      },
+    });
 
     const evidencePack: PostGenerationEvidencePack = {
       photoContext,
@@ -1290,15 +1329,26 @@ function buildPurposeInsight(input: {
   queryErrorCategory?: string;
   queryErrorMessage?: string;
 }): SurveyInsight | PostPerformanceInsight | AccountOverviewInsight {
-  const summary = buildContextSummary(input.additionalContext);
-  const rows = input.additionalContext.queryInsights?.[0]?.rows ?? [];
+  const primaryInsight = input.additionalContext.queryInsights?.[0];
+  const rawSummary = buildRawContextSummary(input.additionalContext);
+  const rows = primaryInsight?.rows ?? [];
   const labels = rows
     .map((row) => row.label?.trim())
     .filter((value): value is string => Boolean(value));
   const topLabels = uniqueStrings(labels.slice(0, 6));
+  const dimensionField = primaryInsight?.dimensionField?.trim();
+  const metricField = primaryInsight?.metricField?.trim();
+  const summary = buildPurposeEvidenceSummary({
+    purpose: input.purpose,
+    labels,
+    topLabels,
+    dimensionField,
+    metricField,
+  });
   const evidenceSummary =
     summary ||
     topLabels.join(" / ") ||
+    rawSummary ||
     "Tableau analysis results were not available.";
 
   logDebug("tableau.photo_post.insightBranch", {
@@ -1307,7 +1357,10 @@ function buildPurposeInsight(input: {
     queryRowCount: input.queryRowCount,
     rowCount: rows.length,
     hasSummary: Boolean(summary),
+    rawSummary,
     labelCount: labels.length,
+    dimensionField,
+    metricField,
   });
 
   if (input.queryRowCount <= 0 && input.sourceStatus === "queried") {
@@ -1387,6 +1440,9 @@ function buildPurposeInsight(input: {
       sourceStatus: "queried",
       datasourceKey: input.datasourceKey,
       datasourceName: input.datasourceName,
+      dimensionField,
+      metricField,
+      rawSummary,
       queryRowCount: rows.length,
       warnings: input.warnings,
       keyExpectations: sliceOrFallback(keywordLabels, 0, 3, topLabels),
@@ -1402,10 +1458,13 @@ function buildPurposeInsight(input: {
         topLabels,
       ),
       suggestedAngles: uniqueStrings([
-        ...(input.additionalContext.queryInsights?.[0]?.rows
-          .map((row) => row.label?.trim() ?? "")
-          .filter(Boolean) ?? []),
-        ...topLabels.slice(0, 2),
+        ...(isMcpAwarenessDimension(dimensionField) &&
+        hasBeginnerAwareness(labels)
+          ? [
+              "初心者にも伝わるようにやさしく整理する",
+              "経験者にも実践イメージが湧く言い方にする",
+            ]
+          : []),
         "Address what people care about first",
       ]).slice(0, 5),
       keyFindings: topLabels,
@@ -1426,23 +1485,43 @@ function buildPurposeInsight(input: {
       sourceStatus: "queried",
       datasourceKey: input.datasourceKey,
       datasourceName: input.datasourceName,
+      dimensionField,
+      metricField,
+      rawSummary,
       queryRowCount: rows.length,
       warnings: input.warnings,
-      highPerformingThemes: sliceOrFallback(topLabels, 0, 4, [
-        "photo posts",
-        "live atmosphere",
-        "participant view",
-      ]),
-      highPerformingPatterns: sliceOrFallback(topLabels, 1, 4, [
-        "keep the opening short",
-        "share the atmosphere with the photo",
-      ]),
-      recommendedTone: ["natural", "not too loud", "slightly energetic"],
-      recommendedStructure: [
-        "Open with the most relevant observation",
-        "Add one useful detail",
-        "Finish with a minimal set of hashtags",
-      ],
+      highPerformingThemes: isDateOnlyPerformanceInsight(
+        dimensionField,
+        topLabels,
+      )
+        ? []
+        : sliceOrFallback(topLabels, 0, 4, [
+            "photo posts",
+            "live atmosphere",
+            "participant view",
+          ]),
+      highPerformingPatterns: isDateOnlyPerformanceInsight(
+        dimensionField,
+        topLabels,
+      )
+        ? []
+        : sliceOrFallback(topLabels, 1, 4, [
+            "keep the opening short",
+            "share the atmosphere with the photo",
+          ]),
+      recommendedTone: isDateOnlyPerformanceInsight(dimensionField, topLabels)
+        ? []
+        : ["natural", "not too loud", "slightly energetic"],
+      recommendedStructure: isDateOnlyPerformanceInsight(
+        dimensionField,
+        topLabels,
+      )
+        ? []
+        : [
+            "Open with the most relevant observation",
+            "Add one useful detail",
+            "Finish with a minimal set of hashtags",
+          ],
       avoidPatterns: [
         "forced numbers",
         "too much hype",
@@ -1465,6 +1544,9 @@ function buildPurposeInsight(input: {
     sourceStatus: "queried",
     datasourceKey: input.datasourceKey,
     datasourceName: input.datasourceName,
+    dimensionField,
+    metricField,
+    rawSummary,
     queryRowCount: rows.length,
     warnings: input.warnings,
     recentTrendSummary: evidenceSummary,
@@ -2493,6 +2575,10 @@ function buildAnalysisSections(input: {
         ? undefined
         : (input.surveyInsight?.skippedReason ??
           input.surveyInsight?.evidenceSummary),
+      datasourceName: input.surveyInsight?.datasourceName,
+      dimensionField: input.surveyInsight?.dimensionField,
+      metricField: input.surveyInsight?.metricField,
+      warnings: input.surveyInsight?.warnings,
       rows: (input.surveyInsight?.keyExpectations ?? []).map((label) => ({
         label,
         value: null,
@@ -2513,6 +2599,10 @@ function buildAnalysisSections(input: {
         ? undefined
         : (input.postPerformanceInsight?.skippedReason ??
           input.postPerformanceInsight?.evidenceSummary),
+      datasourceName: input.postPerformanceInsight?.datasourceName,
+      dimensionField: input.postPerformanceInsight?.dimensionField,
+      metricField: input.postPerformanceInsight?.metricField,
+      warnings: input.postPerformanceInsight?.warnings,
       rows: (input.postPerformanceInsight?.highPerformingThemes ?? []).map(
         (label) => ({
           label,
@@ -2535,6 +2625,10 @@ function buildAnalysisSections(input: {
         ? undefined
         : (input.accountOverviewInsight?.skippedReason ??
           input.accountOverviewInsight?.evidenceSummary),
+      datasourceName: input.accountOverviewInsight?.datasourceName,
+      dimensionField: input.accountOverviewInsight?.dimensionField,
+      metricField: input.accountOverviewInsight?.metricField,
+      warnings: input.accountOverviewInsight?.warnings,
       rows: (input.accountOverviewInsight?.notableChanges ?? []).map(
         (label) => ({
           label,
@@ -3756,7 +3850,7 @@ function tryParseJson(text: string): unknown {
   }
 }
 
-function buildContextSummary(
+function buildRawContextSummary(
   additionalContext: TableauAdditionalContext,
 ): string {
   const insight = additionalContext.queryInsights?.[0];
@@ -3771,6 +3865,123 @@ function buildContextSummary(
   ]
     .filter((value): value is string => Boolean(value))
     .join(" / ");
+}
+
+function buildPurposeEvidenceSummary(input: {
+  purpose: AllowedDatasource["purpose"];
+  labels: string[];
+  topLabels: string[];
+  dimensionField?: string;
+  metricField?: string;
+}): string | undefined {
+  if (input.purpose === "survey_insight") {
+    return buildSurveyEvidenceSummary(input.labels, input.dimensionField);
+  }
+
+  if (input.purpose === "post_performance") {
+    return buildPostPerformanceEvidenceSummary(
+      input.topLabels,
+      input.dimensionField,
+      input.metricField,
+    );
+  }
+
+  return buildAccountOverviewEvidenceSummary(
+    input.topLabels,
+    input.metricField,
+  );
+}
+
+function buildSurveyEvidenceSummary(
+  labels: string[],
+  dimensionField?: string,
+): string | undefined {
+  if (isMcpAwarenessDimension(dimensionField) && hasBeginnerAwareness(labels)) {
+    if (hasExperiencedAwareness(labels) || hasTriedAwareness(labels)) {
+      return "MCPをはじめて聞く方も多く、経験者と初心者が混在している。やさしく入りつつ実践イメージも持てる伝え方が合いそう。";
+    }
+    return "MCPをはじめて聞く方も多く、初心者にも伝わるやさしい整理が合いそう。";
+  }
+
+  return undefined;
+}
+
+function buildPostPerformanceEvidenceSummary(
+  labels: string[],
+  dimensionField?: string,
+  metricField?: string,
+): string | undefined {
+  if (isDateOnlyPerformanceInsight(dimensionField, labels)) {
+    return "過去投稿分析は日付中心の結果だったため、本文の内容や構成に直結する傾向は読み取りにくい。本文生成には直接使わない。";
+  }
+
+  if (!labels.length) {
+    return undefined;
+  }
+
+  return metricField
+    ? `${metricField} を見ると、短く現場感を伝える投稿の方が活かしやすそう。`
+    : "過去投稿では、短く現場感を伝える構成の方が活かしやすそう。";
+}
+
+function buildAccountOverviewEvidenceSummary(
+  labels: string[],
+  metricField?: string,
+): string | undefined {
+  if (!labels.length) {
+    return undefined;
+  }
+
+  return metricField
+    ? `最近のアカウント傾向では、${metricField} を意識しつつ会場の空気感を短く伝える切り口が馴染みやすそう。`
+    : "最近のアカウント傾向では、会場の空気感を短く伝える切り口が馴染みやすそう。";
+}
+
+function isMcpAwarenessDimension(value?: string): boolean {
+  return /mcp.?awareness/i.test(value ?? "");
+}
+
+function hasBeginnerAwareness(labels: string[]): boolean {
+  return labels.some((label) =>
+    /はじめて聞いた|初めて聞いた|first time|new to/i.test(label),
+  );
+}
+
+function hasExperiencedAwareness(labels: string[]): boolean {
+  return labels.some((label) =>
+    /すでに活用している|already using|active user/i.test(label),
+  );
+}
+
+function hasTriedAwareness(labels: string[]): boolean {
+  return labels.some((label) =>
+    /試したことがある|tried|have tried/i.test(label),
+  );
+}
+
+function isDateOnlyPerformanceInsight(
+  dimensionField: string | undefined,
+  labels: string[],
+): boolean {
+  return isDateLikeDimension(dimensionField)
+    ? true
+    : labels.length > 0 &&
+        labels.filter((label) => isDateLikeLabel(label)).length >=
+          Math.max(1, Math.ceil(labels.length / 2));
+}
+
+function isDateLikeDimension(value?: string): boolean {
+  return /(日付|date|day|week|month|time)/i.test(value ?? "");
+}
+
+function isDateLikeLabel(value: string): boolean {
+  return (
+    /\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),\s+[A-Z][a-z]{2}\s+\d{1,2},\s+\d{4}\b/u.test(
+      value,
+    ) ||
+    /\b\d{4}[/-]\d{1,2}[/-]\d{1,2}\b/u.test(value) ||
+    /\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b/u.test(value)
+  );
 }
 
 function sliceOrFallback(

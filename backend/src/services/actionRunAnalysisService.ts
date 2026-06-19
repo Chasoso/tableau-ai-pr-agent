@@ -135,6 +135,14 @@ export class ActionRunAnalysisService {
       analysisSections: fixedAnalysis.analysisSections,
       evidencePack: fixedAnalysis.evidencePack,
     });
+    logInfo("tableau.post_material.insights", {
+      tableauPostInsights: postMaterial.tableauInsights ?? [],
+      audienceContext: postMaterial.audienceContext,
+      surveyInsightForPost: postMaterial.surveyInsightForPost,
+      toneHints: postMaterial.toneHints ?? [],
+      structureHints: postMaterial.structureHints ?? [],
+      contentHints: postMaterial.contentHints ?? [],
+    });
     const generatedSuggestionsResult = generatePostSuggestionsWithDiagnostics({
       material: postMaterial,
       maxSuggestions: 3,
@@ -161,11 +169,24 @@ export class ActionRunAnalysisService {
         generatedSuggestionsResult.diagnostics.desiredVariantCount,
       generatedCount: generatedSuggestionsResult.diagnostics.generatedCount,
       excludedCount: generatedSuggestionsResult.diagnostics.excludedCount,
+      globalIssues: generatedSuggestionsResult.diagnostics.globalIssues.map(
+        (issue) => ({
+          code: issue.code,
+          severity: issue.severity,
+          message: issue.message,
+          insightSummary: issue.insightSummary,
+        }),
+      ),
       excludedReasons:
         generatedSuggestionsResult.diagnostics.excludedReasons.map((item) => ({
           variant: item.variant,
           issueCodes: item.issues.map((issue) => issue.code),
         })),
+      variantUsage: normalizedGeneratedPostSuggestions.map((item) => ({
+        variant: item.variant ?? "unknown",
+        usedInsights: item.usedTableauInsights ?? [],
+        omittedReason: item.omittedTableauInsightReason,
+      })),
       eventThemes: postMaterial.eventThemes ?? [],
       sessionTitles: postMaterial.sessionTitles ?? [],
       photoAtmosphere: postMaterial.photoAtmosphere ?? null,
@@ -173,6 +194,20 @@ export class ActionRunAnalysisService {
         countPostTextCharacters(item.text),
       ),
     });
+    const rawTableauLeakIssues =
+      generatedSuggestionsResult.diagnostics.excludedReasons.flatMap((item) =>
+        item.issues
+          .filter((issue) => issue.code === "raw_tableau_data_leaked")
+          .map((issue) => ({
+            variant: item.variant,
+            matchedText: issue.matchedText,
+          })),
+      );
+    if (rawTableauLeakIssues.length > 0) {
+      logInfo("tableau.post_material.raw_leak_blocked", {
+        matches: rawTableauLeakIssues,
+      });
+    }
     logInfo("postSuggestionCount", {
       postType: input.request.postType,
       count: normalizedGeneratedPostSuggestions.length,
@@ -517,9 +552,8 @@ function collectTableauSignals(
 ): string[] {
   return analysisSections
     .map((section) => {
-      const firstRow = section.rows[0];
-      const label = firstRow?.label?.trim() || section.title;
-      return `${section.title}: ${label}`;
+      const summary = section.summary?.trim() || section.title;
+      return `${section.title}: ${summary}`;
     })
     .filter(Boolean);
 }

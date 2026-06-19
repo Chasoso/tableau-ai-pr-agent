@@ -60,6 +60,11 @@ describe("ActionRunAnalysisService", () => {
     expect(result.generatedPostSuggestions?.[0]?.warnings).not.toContain(
       "photo_context_missing",
     );
+    expect(
+      result.generatedPostSuggestions?.filter(
+        (item) => (item.usedTableauInsights?.length ?? 0) > 0,
+      ),
+    ).toHaveLength(1);
     expect(result.generatedPostSuggestions?.[0]?.text).toContain("#ほくたぐ");
     expect(result.generatedPostSuggestions?.[0]?.rationale).toContain(
       "見どころ",
@@ -163,12 +168,18 @@ function buildFixedAnalysis(input?: { photoAvailable?: boolean }) {
       sourceStatus: "queried" as const,
       datasourceKey: "mcp_session_survey_responses",
       datasourceName: "MCP_Session_Survey_Responses",
+      dimensionField: "Mcp Awareness",
       queryRowCount: 1,
       warnings: [],
       keyExpectations: ["practical examples"],
       keyInterests: ["Tableau"],
       concernsOrQuestions: ["setup"],
       suggestedAngles: ["focus on practical value"],
+      evidenceRows: [
+        { label: "はじめて聞いた", value: 9 },
+        { label: "すでに活用している", value: 5 },
+        { label: "試したことがある", value: 4 },
+      ],
       evidenceSummary: "Participants want practical examples.",
     },
     postPerformanceInsight: {
@@ -214,12 +225,18 @@ function buildFixedAnalysis(input?: { photoAvailable?: boolean }) {
         sourceStatus: "queried" as const,
         datasourceKey: "mcp_session_survey_responses",
         datasourceName: "MCP_Session_Survey_Responses",
+        dimensionField: "Mcp Awareness",
         queryRowCount: 1,
         warnings: [],
         keyExpectations: ["practical examples"],
         keyInterests: ["Tableau"],
         concernsOrQuestions: ["setup"],
         suggestedAngles: ["focus on practical value"],
+        evidenceRows: [
+          { label: "はじめて聞いた", value: 9 },
+          { label: "すでに活用している", value: 5 },
+          { label: "試したことがある", value: 4 },
+        ],
         evidenceSummary: "Participants want practical examples.",
       },
       postPerformanceInsight: {

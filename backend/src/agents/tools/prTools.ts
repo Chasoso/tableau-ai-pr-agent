@@ -721,6 +721,18 @@ function getMissingSourceFields(input: {
 }
 
 function mapSourcePostType(postType: string): PostMaterial["postType"] {
+  if (/開催中の実況/.test(postType)) {
+    return "live_report";
+  }
+  if (/開催後のお礼|開催後のレポート/.test(postType)) {
+    return "post_event_thanks";
+  }
+  if (/次回参加の呼びかけ/.test(postType)) {
+    return "recap";
+  }
+  if (/事前告知|開催直前リマインド/.test(postType)) {
+    return "pre_event";
+  }
   if (/開催中/.test(postType)) {
     return "live_report";
   }

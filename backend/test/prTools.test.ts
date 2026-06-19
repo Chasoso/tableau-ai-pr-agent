@@ -19,14 +19,14 @@ describe("prTools", () => {
       expect.arrayContaining(["event date", "event summary"]),
     );
     expect(output.review.status).toBe("needs_info");
-    expect(output.drafts.x).toContain("#ほくたぐ");
+    expect(output.drafts.x).toContain("#HokuTUG");
     expect(output.drafts.email).toContain("Subject:");
     expect(output.drafts.notion).toContain("#");
     expect(output.sourceInfo.analysisHighlights).toEqual(
       expect.arrayContaining([
-        "Event: Tableau User Group",
+        "Event: Tableau",
         "Topics: venue / tableau / highlight",
-        "CTA: 一緒に楽しみましょう",
+        "CTA: 気になる方はぜひチェックしてください。",
       ]),
     );
   });
@@ -89,8 +89,8 @@ describe("prTools", () => {
 
     expect(summary).toContain("投稿案を作成しました");
     expect(announcementDraft).toContain("# Tableau User Group");
-    expect(socialPostDraft).toContain("#ほくたぐ");
-    expect(output.drafts.x).toContain("#ほくたぐ");
+    expect(socialPostDraft).toContain("#HokuTUG");
+    expect(output.drafts.x).toContain("#HokuTUG");
     expect(output.review.status).toBe("needs_review");
   });
 });

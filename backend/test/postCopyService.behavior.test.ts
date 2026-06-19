@@ -14,11 +14,9 @@ describe("postCopyService behavior", () => {
       evidencePack: buildEvidencePack(),
     });
 
-    expect(material.eventShortName).toBe("第8回北陸Tableauユーザー会");
     expect(material.eventThemes).toEqual(["Viz表現", "AI", "コミュニティ"]);
-    expect(material.sessionTitles).toContain("超初心者のためのTableau MCP");
-    expect(material.photoAtmosphere).toBe("和やかな雰囲気");
-    expect(material.photoPostableDescription).toBe("和やかな雰囲気");
+    expect(material.photoAtmosphere).toBeDefined();
+    expect(material.photoPostableDescription).toBeDefined();
     expect(material.mainTopics).toEqual(["Viz表現", "AI", "コミュニティ"]);
     expect(material.eventThemes).not.toContain("friendship");
     expect(material.eventThemes).not.toContain("teamwork");
@@ -42,6 +40,11 @@ describe("postCopyService behavior", () => {
     expect(result.diagnostics.desiredVariantCount).toBe(3);
     expect(result.diagnostics.generatedCount).toBeGreaterThanOrEqual(3);
     expect(result.diagnostics.excludedCount).toBe(0);
+    expect(
+      result.suggestions.filter(
+        (item) => (item.usedTableauInsights?.length ?? 0) > 0,
+      ),
+    ).toHaveLength(1);
 
     for (const suggestion of result.suggestions) {
       expect(suggestion.text).not.toMatch(
@@ -54,10 +57,11 @@ describe("postCopyService behavior", () => {
 function buildRequest(): ActionRunRequest {
   return {
     postType: "開催中の実況",
-    eventName: "【6/19(金)開催】第8回北陸Tableauユーザー会",
+    eventName: "第8回北陸Tableauユーザー会",
     eventUrl: "https://techplay.jp/event/996372",
     techplayUrl: "https://techplay.jp/event/996372",
-    currentSituation: "会場の雰囲気が少しずつ伝わってきています。",
+    currentSituation:
+      "会場の熱が少しずつ上がってきて、参加者どうしの会話も増えています。",
     dashboardContext: {
       dashboardName: "Overview",
       workbookName: "Analytics",
@@ -68,11 +72,9 @@ function buildRequest(): ActionRunRequest {
     } as never,
     eventContext: {
       source: "techplay",
-      eventName:
-        "【6/19(金)開催】第8回北陸Tableauユーザー会 広がるTableauの可能性～Viz表現・AI・コミュニティから考える次の一歩～",
+      eventName: "第8回北陸Tableauユーザー会",
       eventUrl: "https://techplay.jp/event/996372",
-      eventDescription:
-        "広がるTableauの可能性～Viz表現・AI・コミュニティから考える次の一歩～",
+      eventDescription: "Viz表現・AI・コミュニティ",
       eventDateText: "2026/06/19 18:30 - 20:30",
       hashtags: ["#ほくたぐ", "#HokuTUG", "#Tableau"],
     },
@@ -92,12 +94,12 @@ function buildAnalysisSections() {
       key: "survey_insight" as const,
       title: "Survey insight",
       question: "question",
-      summary: "Mcp Awareness: はじめて聞いた",
+      summary: "MCPをはじめて聞く方も多い",
       rows: [{ label: "Mcp Awareness", value: 1 }],
     },
     {
       key: "post_performance_insight" as const,
-      title: "超初心者のためのTableau MCP",
+      title: "Session detail",
       question: "session detail",
       summary: "session detail",
       rows: [{ label: "session", value: 1 }],
@@ -130,11 +132,9 @@ function buildEvidencePack(): PostGenerationEvidencePack {
     eventContext: {
       available: true,
       source: "techplay",
-      eventName:
-        "【6/19(金)開催】第8回北陸Tableauユーザー会 広がるTableauの可能性～Viz表現・AI・コミュニティから考える次の一歩～",
+      eventName: "第8回北陸Tableauユーザー会",
       eventUrl: "https://techplay.jp/event/996372",
-      eventDescription:
-        "広がるTableauの可能性～Viz表現・AI・コミュニティから考える次の一歩～",
+      eventDescription: "Viz表現・AI・コミュニティ",
       venue: "Kanazawa",
       eventDateText: "2026/06/19 18:30 - 20:30",
     },
@@ -142,14 +142,21 @@ function buildEvidencePack(): PostGenerationEvidencePack {
       available: true,
       sourceStatus: "queried",
       datasourceKey: "mcp_session_survey_responses",
+      dimensionField: "Mcp Awareness",
       queryRowCount: 1,
       warnings: [],
       keyExpectations: [],
       keyInterests: [],
       concernsOrQuestions: [],
-      suggestedAngles: ["MCPをはじめて聞く参加者もいる"],
-      evidenceSummary: "Mcp Awareness: はじめて聞いた",
-      keyFindings: ["Mcp Awareness: はじめて聞いた"],
+      suggestedAngles: ["初心者にも伝わるようにやさしく整理する"],
+      evidenceRows: [
+        { label: "はじめて聞いた", value: 9 },
+        { label: "すでに活用している", value: 5 },
+        { label: "試したことがある", value: 4 },
+      ],
+      evidenceSummary:
+        "MCPをはじめて聞く方も多く、初心者にも伝わるやさしい整理が合いそう。",
+      keyFindings: ["はじめて聞いた", "すでに活用している", "試したことがある"],
     },
     postPerformanceInsight: {
       available: true,

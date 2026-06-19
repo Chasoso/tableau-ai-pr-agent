@@ -220,6 +220,7 @@ export type PostGenerationEvidencePack = {
 };
 
 export type GeneratedPostSuggestion = {
+  variant?: string;
   text: string;
   rationale: string;
   usedEvidence: {
@@ -229,6 +230,8 @@ export type GeneratedPostSuggestion = {
     postPerformance: boolean;
     accountOverview: boolean;
   };
+  usedTableauInsights?: string[];
+  omittedTableauInsightReason?: string;
   warnings: string[];
 };
 
